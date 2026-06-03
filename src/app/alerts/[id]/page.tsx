@@ -26,7 +26,7 @@ export default async function AlertDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  let alert: Awaited<ReturnType<typeof getAlertById>> = null;
+  let alert: Awaited<ReturnType<typeof getAlertById>> | null = null;
   let check: Awaited<ReturnType<typeof getLatestCheckByModule>> | undefined;
 
   try {

@@ -1192,16 +1192,27 @@
   margin: auto clamp(24px, 3vw, 64px);
   max-width: min(90vw, 720px);
   width: 100%;
+  flex-direction: column;
+  align-items: center;
   justify-content: center;
   text-align: center;
+  gap: clamp(12px, 1.5vh, 20px);
+}
+
+.monitor-tv-shell[data-night="1"] .monitor-status-main {
+  width: 100%;
 }
 
 .monitor-tv-shell[data-night="1"] .monitor-status-side {
   align-items: center;
+  text-align: center;
 }
 
 .monitor-tv-shell[data-night="1"] .monitor-display {
-  font-size: clamp(28px, 5vmin, 64px);
+  font-size: clamp(32px, 6vmin, 72px);
+  overflow: visible;
+  text-overflow: clip;
+  white-space: nowrap;
 }
 
 .monitor-tv-shell[data-night="1"] .monitor-bottom:not(
