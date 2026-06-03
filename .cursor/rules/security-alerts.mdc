@@ -1,0 +1,14 @@
+---
+description: Alert and notification rules
+globs: src/lib/{alerts,notifications}/**
+alwaysApply: false
+---
+
+# Alerts & notifications
+
+- Levels: `info` | `warning` | `critical`
+- Dedup: same `module` + `message` within 1 hour – skip unless `critical`
+- CRITICAL: Telegram + email immediately (when configured)
+- WARNING: configurable instant notify
+- INFO: store only, no push by default
+- Include actionable `recommendation` text where possible

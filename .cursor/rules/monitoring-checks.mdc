@@ -1,0 +1,22 @@
+---
+description: Monitoring check module patterns
+globs: src/lib/checks/**
+alwaysApply: false
+---
+
+# Check modules
+
+- One module = one file in `src/lib/checks/`
+- Export `runXxxCheck(serverId): Promise<CheckResult>`
+- Use `getSshClient()` – never shell out directly from components
+- Return structured `CheckResult` with `status`, `data`, `alerts`, optional `recommendations`
+- Compare snapshots via `src/lib/history/` for diffs (ports, SSH keys, users, containers)
+- Persist via shared `persistCheckRun()` after each run
+
+```typescript
+// ✅ GOOD
+export async function runRaidCheck(serverId: string): Promise<CheckResult> {
+  const { stdout } = await ssh.exec("cat /proc/mdstat");
+  return parseMdstat(stdout);
+}
+```

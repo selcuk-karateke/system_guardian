@@ -1,0 +1,20 @@
+---
+description: Windows local development constraints
+alwaysApply: true
+---
+
+# Windows development
+
+Development machine is **Windows 11**. Production runs on **Linux** (Coolify).
+
+## Rules
+
+- Default `CHECK_MODE=mock` locally – never assume `/proc/mdstat`, `docker ps`, or `journalctl` work on Windows.
+- SSH checks run only when `CHECK_MODE=ssh` and credentials are set.
+- Use PowerShell-friendly paths in docs; app code uses `path.join` / forward slashes.
+- Do not commit `.env`, SSH keys, or secrets.
+
+## Testing checks
+
+- Local: mock fixtures in `src/lib/ssh/mock.ts`
+- Integration: set `CHECK_MODE=ssh` with test host or WSL2 (optional)

@@ -1,0 +1,40 @@
+---
+description: System Guardian project context, stack, and conventions
+alwaysApply: true
+---
+
+# System Guardian
+
+Monitoring, security, and infrastructure system for Coolify environments.
+
+## Stack
+
+- Next.js 16 (App Router), TypeScript, Tailwind, Shadcn UI
+- API Routes + Cron endpoints, Drizzle ORM, PostgreSQL
+- Deploy on Coolify (Linux); checks via SSH to monitored host
+
+## Alert levels
+
+- **INFO** – normal events
+- **WARNING** – non-critical (SSL <30d, container restart)
+- **CRITICAL** – immediate notify (RAID failure, backup missing, unknown root login, DB offline)
+
+## Cron schedule
+
+- `/api/cron/server` – every 15 min (modules 1–10)
+- `/api/cron/security` – every 60 min (modules 11–16)
+- `/api/cron/daily-report` – daily 09:00
+
+Protect cron routes with `Authorization: Bearer ${CRON_SECRET}`.
+
+## Check modules (16)
+
+Server, RAID, Docker, Coolify, DB, SSL, Website, Ports, Backups, Logs, SSH keys, Users, Logins, Cron, Network, Scanner.
+
+## Code layout
+
+- `src/lib/checks/` – one file per module
+- `src/lib/ssh/` – SSH client (prod) and mock (Windows dev)
+- `src/db/schema/` – Drizzle tables
+- `src/lib/alerts/` – dedup and persistence
+- `src/lib/notifications/` – Telegram and email

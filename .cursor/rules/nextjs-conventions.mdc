@@ -1,0 +1,14 @@
+---
+description: Next.js 16 App Router conventions
+globs: "**/*.{ts,tsx}"
+alwaysApply: false
+---
+
+# Next.js 16
+
+- Use App Router under `src/app/`
+- `params`, `searchParams`, `cookies()`, `headers()` are **async** – always `await`
+- Prefer Server Components; `"use client"` only for interactivity
+- Use `@/` import alias
+- Auth/cron protection in route handlers, not legacy `middleware.ts` unless `proxy.ts` is required
+- ESLint via `eslint` CLI (not `next lint`)

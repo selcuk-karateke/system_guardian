@@ -1,0 +1,13 @@
+---
+description: Drizzle ORM and schema conventions
+globs: src/db/**
+alwaysApply: false
+---
+
+# Database
+
+- Schema in `src/db/schema/` split by domain (servers, checks, alerts, settings)
+- Use Drizzle migrations (`drizzle-kit generate` / `migrate`)
+- JSON columns for raw check output; normalized tables for metrics and alerts
+- No raw SQL unless Drizzle cannot express the query
+- IDs: UUID via `defaultRandom()` or serial per table convention in schema index
