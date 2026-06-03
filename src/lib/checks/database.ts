@@ -47,7 +47,12 @@ export async function runDatabaseCheck(serverId: string): Promise<CheckResult> {
   return {
     module: "database",
     status,
-    data: { databases },
+    data: {
+      checkMode: process.env.CHECK_MODE ?? "mock",
+      /** Datenbanken auf dem überwachten Host (Coolify), nicht die App-DB lokal */
+      target: "remote_via_ssh",
+      databases,
+    },
     alerts,
   };
 }

@@ -1,5 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { NotificationTestPanel } from "@/components/settings/notification-test-panel";
 import { getDomains } from "@/lib/dashboard-data";
+import { getNotificationChannelStatus } from "@/lib/notifications/status";
 
 export default async function SettingsPage() {
   let domains: Awaited<ReturnType<typeof getDomains>> = [];
@@ -8,6 +10,8 @@ export default async function SettingsPage() {
   } catch {
     /* empty */
   }
+
+  const notificationStatus = getNotificationChannelStatus();
 
   return (
     <div className="space-y-6">
@@ -39,11 +43,8 @@ export default async function SettingsPage() {
         <CardHeader>
           <CardTitle>Benachrichtigungen</CardTitle>
         </CardHeader>
-        <CardContent className="text-sm space-y-2 text-zinc-400">
-          <p>Telegram: TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID</p>
-          <p>E-Mail: SMTP_HOST, SMTP_USER, SMTP_PASS, SMTP_TO</p>
-          <p>Cron: CRON_SECRET für /api/cron/*</p>
-          <p>Checks: CHECK_MODE=mock (lokal) | ssh (Produktion)</p>
+        <CardContent>
+          <NotificationTestPanel status={notificationStatus} />
         </CardContent>
       </Card>
 

@@ -8,6 +8,13 @@
       "when": 1780473147021,
       "tag": "0000_medical_clea",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1780474000000,
+      "tag": "0001_cpu_cores",
+      "breakpoints": true
     }
   ]
 }

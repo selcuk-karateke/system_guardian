@@ -8,7 +8,7 @@ import {
   monitoredDomains,
   servers,
 } from "@/db/schema";
-import { worstStatus } from "@/lib/config";
+import { getCheckMode, worstStatus } from "@/lib/config";
 import type { CheckStatus } from "@/lib/checks/types";
 
 export type GlobalStatus = "healthy" | "warning" | "critical";
@@ -49,6 +49,7 @@ export async function getServerOverview() {
   return {
     server,
     metrics,
+    checkMode: getCheckMode(),
     moduleStatus,
     docker: moduleStatus.docker ?? "unknown",
     coolify: moduleStatus.coolify ?? "unknown",
@@ -64,6 +65,11 @@ export async function getRecentAlerts(limit = 50) {
     .where(isNull(alerts.resolvedAt))
     .orderBy(desc(alerts.createdAt))
     .limit(limit);
+}
+
+export async function getAlertById(id: string) {
+  const [row] = await db.select().from(alerts).where(eq(alerts.id, id)).limit(1);
+  return row ?? null;
 }
 
 export async function getLatestCheckByModule(module: string) {
@@ -86,4 +92,37 @@ export async function getChangeEvents(limit = 30) {
 
 export async function getDomains() {
   return db.select().from(monitoredDomains);
+}
+
+/** Latest status per module for monitor grid */
+export async function getAllModuleStatuses(): Promise<
+  { module: string; status: string; at: Date | null }[]
+> {
+  const runs = await db
+    .select()
+    .from(checkRuns)
+    .orderBy(desc(checkRuns.createdAt))
+    .limit(100);
+
+  const seen = new Map<string, { status: string; at: Date }>();
+  for (const r of runs) {
+    if (!seen.has(r.module)) {
+      seen.set(r.module, { status: r.status, at: r.createdAt });
+    }
+  }
+
+  return [...seen.entries()].map(([module, v]) => ({
+    module,
+    status: v.status,
+    at: v.at,
+  }));
+}
+
+export async function getLastCheckTime(): Promise<Date | null> {
+  const [row] = await db
+    .select()
+    .from(checkRuns)
+    .orderBy(desc(checkRuns.createdAt))
+    .limit(1);
+  return row?.createdAt ?? null;
 }

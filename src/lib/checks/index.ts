@@ -3,6 +3,7 @@ import type { CheckResult } from "./types";
 import { runBackupsCheck } from "./backups";
 import { runCoolifyCheck } from "./coolify";
 import { runCronCheck } from "./cron";
+import { runFimCheck } from "./fim";
 import { runDatabaseCheck } from "./database";
 import { runDockerCheck } from "./docker";
 import { runLoginsCheck } from "./logins";
@@ -31,6 +32,7 @@ export const SERVER_CHECKS = [
 ] as const;
 
 export const SECURITY_CHECKS = [
+  runFimCheck,
   runSshKeysCheck,
   runUsersCheck,
   runLoginsCheck,

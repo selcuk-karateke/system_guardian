@@ -1,24 +1,22 @@
 import { getSshClient } from "@/lib/ssh";
 import type { AlertInput, CheckResult } from "./types";
 
-const SCANNER_TOOLS = ["nmap", "masscan", "zmap", "rustscan"];
+const SCANNER_TOOLS = ["nmap", "masscan", "zmap", "rustscan"] as const;
 
 export async function runScannerCheck(serverId: string): Promise<CheckResult> {
   void serverId;
   const ssh = getSshClient();
-  const { stdout: whichOut } = await ssh.exec(
-    `which ${SCANNER_TOOLS.join(" ")} 2>/dev/null`,
-  );
-  const { stdout: dpkgOut } = await ssh.exec(
-    `dpkg -l 2>/dev/null | grep -E '${SCANNER_TOOLS.join("|")}' || rpm -qa 2>/dev/null | grep -E '${SCANNER_TOOLS.join("|")}' || true`,
-  );
+  const found: { tool: string; path: string }[] = [];
 
-  const found: string[] = [];
-  for (const tool of SCANNER_TOOLS) {
-    if (whichOut.includes(tool) || dpkgOut.toLowerCase().includes(tool)) {
-      found.push(tool);
-    }
-  }
+  await Promise.all(
+    SCANNER_TOOLS.map(async (tool) => {
+      const { stdout, code } = await ssh.exec(`which ${tool} 2>/dev/null`);
+      const path = stdout.trim().split("\n")[0]?.trim();
+      if (code === 0 && path) {
+        found.push({ tool, path });
+      }
+    }),
+  );
 
   const alerts: AlertInput[] = [];
   let status: CheckResult["status"] = "healthy";
@@ -27,26 +25,18 @@ export async function runScannerCheck(serverId: string): Promise<CheckResult> {
     status = "warning";
     alerts.push({
       level: "warning",
-      message: `Scanner tools installed: ${found.join(", ")}`,
-      recommendation: "Remove if not needed; check auth.log for scan activity",
-    });
-  }
-
-  const { stdout: authScan } = await ssh.exec(
-    "grep -iE 'nmap|masscan|zmap' /var/log/auth.log 2>/dev/null | tail -5",
-  );
-  if (authScan.trim()) {
-    status = "critical";
-    alerts.push({
-      level: "critical",
-      message: "Scanner tool execution detected in logs",
+      message: `Scanner tools installed: ${found.map((f) => `${f.tool} (${f.path})`).join(", ")}`,
+      recommendation: "Remove if not needed; verify they were intentionally installed",
     });
   }
 
   return {
     module: "scanner",
     status,
-    data: { installed: found },
+    data: {
+      installed: found.map((f) => f.tool),
+      binaries: Object.fromEntries(found.map((f) => [f.tool, f.path])),
+    },
     alerts,
   };
 }

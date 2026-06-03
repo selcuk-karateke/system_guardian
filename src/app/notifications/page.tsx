@@ -1,60 +1,52 @@
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { AlertList } from "@/components/dashboard/alert-list";
+import { DismissAlertsButton } from "@/components/dashboard/dismiss-alerts";
 import { getRecentAlerts } from "@/lib/dashboard-data";
 
 export default async function NotificationsPage() {
-  let alerts: Awaited<ReturnType<typeof getRecentAlerts>> = [];
+  let alertRows: Awaited<ReturnType<typeof getRecentAlerts>> = [];
   try {
-    alerts = await getRecentAlerts(100);
+    alertRows = await getRecentAlerts(100);
   } catch {
     /* empty */
   }
 
+  const items = alertRows.map((a) => ({
+    id: a.id,
+    level: a.level,
+    module: a.module,
+    message: a.message,
+    recommendation: a.recommendation,
+    createdAt: a.createdAt.toISOString(),
+  }));
+
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Benachrichtigungen</h1>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <h1 className="text-3xl font-bold">Benachrichtigungen</h1>
+        <DismissAlertsButton />
+      </div>
+
+      <Card className="border-zinc-800 bg-zinc-900/40">
+        <CardContent className="pt-6 text-sm text-zinc-400 space-y-2">
+          <p>
+            <strong className="text-zinc-300">Entschärfen</strong> pro Zeile: Du markierst
+            die Meldung als „nicht relevant“ – sie verschwindet aus dem Dashboard und
+            Monitor, bleibt aber in der DB (mit Zeitstempel „geschlossen“).
+          </p>
+          <p>
+            <strong className="text-zinc-300">Alle schließen</strong>: Alle offenen Warnungen
+            auf einmal entschärfen (z. B. nach dem ersten Test-Scan).
+          </p>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
-          <CardTitle>Alert-Historie</CardTitle>
+          <CardTitle>Offene Warnungen</CardTitle>
         </CardHeader>
         <CardContent>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-zinc-500 text-left border-b border-zinc-800">
-                <th className="pb-2">Level</th>
-                <th>Modul</th>
-                <th>Nachricht</th>
-                <th>Zeit</th>
-              </tr>
-            </thead>
-            <tbody>
-              {alerts.map((a) => (
-                <tr key={a.id} className="border-b border-zinc-900">
-                  <td className="py-2">
-                    <Badge
-                      variant={
-                        a.level === "critical"
-                          ? "critical"
-                          : a.level === "warning"
-                            ? "warning"
-                            : "default"
-                      }
-                    >
-                      {a.level}
-                    </Badge>
-                  </td>
-                  <td>{a.module}</td>
-                  <td>{a.message}</td>
-                  <td className="text-zinc-500">
-                    {a.createdAt.toLocaleString("de-DE")}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {alerts.length === 0 && (
-            <p className="text-zinc-500 py-4">Keine Alerts in der Historie.</p>
-          )}
+          <AlertList items={items} />
         </CardContent>
       </Card>
     </div>

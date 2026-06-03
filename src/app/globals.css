@@ -21,3 +21,10 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans), system-ui, sans-serif;
 }
+
+/* TV monitor: eine Viewport-Höhe, kein Scroll */
+html:has(.monitor-wall),
+html:has(.monitor-wall) body {
+  overflow: hidden;
+  height: 100%;
+}

@@ -9,6 +9,7 @@ Development machine is **Windows 11**. Production runs on **Linux** (Coolify).
 
 ## Rules
 
+- **PostgreSQL** is installed locally on Windows (not Docker). Use `DATABASE_URL` pointing to `localhost:5432`.
 - Default `CHECK_MODE=mock` locally – never assume `/proc/mdstat`, `docker ps`, or `journalctl` work on Windows.
 - SSH checks run only when `CHECK_MODE=ssh` and credentials are set.
 - Use PowerShell-friendly paths in docs; app code uses `path.join` / forward slashes.

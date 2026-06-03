@@ -17,9 +17,28 @@ export default async function DockerPage() {
     (docker?.data as { containers?: Array<{ Names: string; Status: string; State: string }> })
       ?.containers ?? [];
 
+  const checkMode = (docker?.data as { checkMode?: string })?.checkMode ?? "mock";
+  const isMock = checkMode === "mock";
+
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold">Docker</h1>
+
+      {isMock && (
+        <div className="rounded-lg border border-sky-900/50 bg-sky-950/30 px-4 py-3 text-sm text-sky-200">
+          <strong>CHECK_MODE=mock</strong> – Die Container unten sind{" "}
+          <strong>Testdaten</strong>, nicht dein PC und nicht dein Hetzner-Server.
+          Coolify, Postgres usw. sind nur simuliert. Für echte Daten:{" "}
+          <code className="text-sky-100">CHECK_MODE=ssh</code> + SSH-Zugang zum Host.
+        </div>
+      )}
+
+      {(docker?.data as { dockerAvailable?: boolean })?.dockerAvailable === false && (
+        <div className="rounded-lg border border-red-900/50 bg-red-950/30 px-4 py-3 text-sm text-red-200">
+          Docker auf dem überwachten Host ist nicht erreichbar (
+          {(docker?.data as { error?: string })?.error ?? "unbekannter Fehler"}).
+        </div>
+      )}
 
       <div className="flex gap-4">
         <Card className="flex-1">

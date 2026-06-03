@@ -59,6 +59,7 @@ export const metricsSnapshots = pgTable("metrics_snapshots", {
   loadAvg1: varchar("load_avg_1", { length: 16 }),
   loadAvg5: varchar("load_avg_5", { length: 16 }),
   loadAvg15: varchar("load_avg_15", { length: 16 }),
+  cpuCores: integer("cpu_cores"),
   diskPercent: integer("disk_percent"),
   uptimeSeconds: integer("uptime_seconds"),
   temperatureCelsius: integer("temperature_celsius"),

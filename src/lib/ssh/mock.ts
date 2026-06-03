@@ -3,6 +3,7 @@ import type { SshClient, SshExecResult } from "./types";
 const FIXTURES: Record<string, string> = {
   uptime: " 09:00:00 up 45 days,  3:22,  2 users,  load average: 0.52, 0.48, 0.45\n",
   "cat /proc/loadavg": "0.52 0.48 0.45 2/412 12345\n",
+  nproc: "4\n",
   "free -b": `               total        used        free      shared  buff/cache   available
 Mem:    16777216000  8388608000  4194304000   524288000  4194304000  7549747200
 Swap:    4294967296           0  4294967296
@@ -29,6 +30,8 @@ tcp   LISTEN 0      128    0.0.0.0:80         0.0.0.0:*    users:(("nginx",pid=2
 tcp   LISTEN 0      128    0.0.0.0:443        0.0.0.0:*    users:(("nginx",pid=2))
 `,
   "cat /root/.ssh/authorized_keys": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleKey user@host\n",
+  "cat '/etc/ssh/sshd_config'": "Port 22\nPermitRootLogin prohibit-password\n",
+  "cat '/etc/sudoers'": "Defaults env_reset\n",
   "cat /etc/passwd": `root:x:0:0:root:/root:/bin/bash
 daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin
 www-data:x:33:33:www-data:/var/www:/usr/sbin/nologin
@@ -39,10 +42,21 @@ root     pts/1        198.51.100.5     Tue Jun  2 14:00 - 14:30  (00:30)
 `,
   "grep -i 'Failed password' /var/log/auth.log 2>/dev/null | tail -20": "Jun  3 07:00:00 sshd[999]: Failed password for invalid user admin from 203.0.113.99 port 22\n",
   "ls -la /etc/cron.d /var/spool/cron/crontabs 2>/dev/null": "/etc/cron.d/backup\n",
+  "for period in daily": `periodic\tcron.daily\tman-db
+periodic\tcron.daily\tlogrotate
+periodic\tcron.daily\tdpkg
+periodic\tcron.daily\taptitude
+periodic\tcron.daily\tapt-compat
+file\tcron.d\tbackup\t0 3 * * * root /usr/local/bin/backup.sh
+crontab\troot\t0 2 * * * /usr/local/bin/backup.sh
+`,
   "crontab -l 2>/dev/null": "0 2 * * * /usr/local/bin/backup.sh\n",
-  "which nmap masscan zmap rustscan 2>/dev/null": "",
-  "journalctl -p err -n 50 --no-pager 2>/dev/null": "Jun  3 06:00:00 host kernel: ata1: error\n",
-  "dmesg 2>/dev/null | tail -30": "",
+  "which nmap": "",
+  "which masscan": "",
+  "which zmap": "",
+  "which rustscan": "",
+  "journalctl -p err": "",
+  "dmesg 2>/dev/null | tail -80": "",
   sensors: "Core 0:        +42.0°C\n",
 };
 
@@ -50,8 +64,26 @@ function matchFixture(command: string): string {
   for (const [key, value] of Object.entries(FIXTURES)) {
     if (command.includes(key) || command === key) return value;
   }
-  if (command.startsWith("find ")) {
-    return "/var/backups/postgres/backup-2026-06-02.sql.gz\n/var/backups/docker/volumes-2026-06-02.tar.gz\n";
+  if (command.includes("kawai-complete-backup") || command.includes("*.tar.gz")) {
+    const now = Math.floor(Date.now() / 1000) - 3600;
+    return `/root/kawai-complete-backup.tar.gz\n${now} 12884901888 /root/kawai-complete-backup.tar.gz\n`;
+  }
+  if (command.includes("ls -1d") && command.includes("*.tar.gz")) {
+    return "/root/kawai-complete-backup.tar.gz\n";
+  }
+  if (command.includes("/data/coolify/backups")) {
+    const now = Math.floor(Date.now() / 1000) - 7200;
+    return `${now} 524288000 /data/coolify/backups/db/app-2026-06-03.sql.gz\n${now - 86400} 520000000 /data/coolify/backups/db/app-2026-06-02.sql.gz\n`;
+  }
+  if (command.startsWith("find ") || command.includes("stat -c")) {
+    const now = Math.floor(Date.now() / 1000) - 3600;
+    if (command.includes("/data/coolify/backups")) {
+      return `${now} 524288000 /data/coolify/backups/db/app-2026-06-03.sql.gz\n`;
+    }
+    if (command.includes("/root/")) {
+      return `${now} 12884901888 /root/kawai-complete-backup.tar.gz\n`;
+    }
+    return "";
   }
   if (command.includes("psql") || command.includes("mysql")) {
     return " db_size | 104857600\n(1 row)\n";

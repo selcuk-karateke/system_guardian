@@ -10,29 +10,77 @@ export default async function DatabasesPage() {
   }
 
   const dbs =
-    (check?.data as { databases?: Record<string, { ok: boolean; sizeBytes?: number }> })
-      ?.databases ?? {};
+    (check?.data as {
+      databases?: Record<string, { ok: boolean; sizeBytes?: number; skipped?: boolean }>;
+      checkMode?: string;
+    })?.databases ?? {};
+
+  const isMock = (check?.data as { checkMode?: string })?.checkMode === "mock";
 
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold">Datenbanken</h1>
+
+      <Card className="border-zinc-800 bg-zinc-900/40">
+        <CardContent className="pt-6 text-sm text-zinc-400 space-y-3">
+          <p>
+            <strong className="text-zinc-200">Zwei verschiedene Welten:</strong>
+          </p>
+          <ul className="list-disc pl-5 space-y-1">
+            <li>
+              <strong>App-Datenbank</strong> (lokal): PostgreSQL{" "}
+              <code className="text-zinc-300">system_guardian</code> in{" "}
+              <code>DATABASE_URL</code> – speichert Checks, Alerts, Historie.
+              Läuft auf deinem PC, hat mit den Karten unten nichts zu tun.
+            </li>
+            <li>
+              <strong>Überwachte Datenbanken</strong> (unten): PostgreSQL/MySQL{" "}
+              <em>auf dem Server</em> per SSH – typisch Coolify-Container{" "}
+              <code>coolify-db</code> und optional MySQL-Apps.
+            </li>
+          </ul>
+          {isMock && (
+            <p className="text-sky-300/90 border-t border-zinc-800 pt-3">
+              CHECK_MODE=mock: „Verbunden“ unten sind simulierte Testwerte, kein
+              echter Server.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
       <div className="grid md:grid-cols-2 gap-4">
-        {["postgresql", "mysql"].map((name) => {
-          const db = dbs[name];
+        {[
+          {
+            key: "postgresql",
+            title: "PostgreSQL (Server)",
+            hint: "Prüft coolify-db per docker exec",
+          },
+          {
+            key: "mysql",
+            title: "MySQL (Server)",
+            hint: "Nur wenn ein MySQL-Container läuft",
+          },
+        ].map(({ key, title, hint }) => {
+          const db = dbs[key];
           return (
-            <Card key={name}>
+            <Card key={key}>
               <CardHeader>
-                <CardTitle className="capitalize">{name}</CardTitle>
+                <CardTitle>{title}</CardTitle>
               </CardHeader>
               <CardContent>
+                <p className="text-xs text-zinc-500 mb-2">{hint}</p>
                 <p className={db?.ok ? "text-emerald-400" : "text-zinc-500"}>
-                  {db?.ok ? "Verbunden" : "Nicht verfügbar / übersprungen"}
+                  {db?.ok
+                    ? "Erreichbar"
+                    : db?.skipped
+                      ? "Nicht installiert / übersprungen (normal bei reinem Coolify+PG)"
+                      : "Check fehlgeschlagen"}
                 </p>
-                {db?.sizeBytes && (
+                {db?.sizeBytes ? (
                   <p className="text-sm text-zinc-500 mt-2">
-                    Größe: {Math.round(db.sizeBytes / 1024 / 1024)} MB
+                    DB-Größe (Coolify): {Math.round(db.sizeBytes / 1024 / 1024)} MB
                   </p>
-                )}
+                ) : null}
               </CardContent>
             </Card>
           );

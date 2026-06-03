@@ -21,7 +21,7 @@ export async function runSshKeysCheck(serverId: string): Promise<CheckResult> {
   const alerts: AlertInput[] = [];
   let status: CheckResult["status"] = "healthy";
 
-  const diffs = await diffAndStore(
+  const { diffs, isBaseline } = await diffAndStore(
     serverId,
     "ssh_keys",
     { keys: keyMap },
@@ -49,11 +49,24 @@ export async function runSshKeysCheck(serverId: string): Promise<CheckResult> {
     },
   );
 
+  if (isBaseline) {
+    alerts.push({
+      level: "info",
+      message: `SSH keys baseline recorded (${Object.keys(keyMap).length} key(s))`,
+    });
+  }
+
   for (const d of diffs) {
     status = "critical";
+    const label =
+      d.changeType === "added"
+        ? "SSH key added"
+        : d.changeType === "removed"
+          ? "SSH key removed"
+          : "SSH key changed";
     alerts.push({
       level: "critical",
-      message: `SSH key ${d.changeType}: ${d.entityKey}`,
+      message: `${label} (fingerprint ${d.entityKey})`,
       recommendation: "Verify authorized_keys change was intentional",
     });
   }

@@ -59,6 +59,16 @@ export async function persistDiffs(
   );
 }
 
+export type DiffAndStoreResult = {
+  diffs: DiffItem[];
+  /** First snapshot for this category – no change alerts (baseline). */
+  isBaseline: boolean;
+};
+
+/**
+ * Compares current state to last snapshot. On first run (baseline), only stores
+ * snapshot — no diffs/alerts, so the first cron does not flood notifications.
+ */
 export async function diffAndStore(
   serverId: string,
   category: string,
@@ -67,10 +77,17 @@ export async function diffAndStore(
     prev: Record<string, unknown> | null,
     curr: Record<string, unknown>,
   ) => DiffItem[],
-): Promise<DiffItem[]> {
+): Promise<DiffAndStoreResult> {
   const prev = await getLatestSnapshot(serverId, category);
-  const diffs = toDiff(prev, currentPayload);
+  const isBaseline = prev === null;
+
   await saveSnapshot(serverId, category, currentPayload);
+
+  if (isBaseline) {
+    return { diffs: [], isBaseline: true };
+  }
+
+  const diffs = toDiff(prev, currentPayload);
   await persistDiffs(serverId, category, diffs);
-  return diffs;
+  return { diffs, isBaseline: false };
 }

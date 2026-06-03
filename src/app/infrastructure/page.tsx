@@ -74,10 +74,19 @@ export default async function InfrastructurePage() {
           )}
         </CardHeader>
         <CardContent>
-          <pre className="text-xs bg-zinc-900 p-4 rounded-lg overflow-auto max-h-48">
-            {(raid?.data as { mdstat?: string })?.mdstat ??
-              JSON.stringify(raid?.data ?? {}, null, 2)}
-          </pre>
+          {(raid?.data as { configured?: boolean })?.configured === false ? (
+            <p className="text-sm text-zinc-400">
+              {(raid?.data as { summary?: string })?.summary ??
+                "Kein Linux Software-RAID erkannt (/proc/mdstat leer). Das ist normal, wenn du nur Hetzner-RAID oder normale SSDs ohne mdadm nutzt."}
+            </p>
+          ) : (raid?.data as { skipped?: boolean })?.skipped ? (
+            <p className="text-sm text-zinc-500">RAID-Check in den Einstellungen deaktiviert.</p>
+          ) : (
+            <pre className="text-xs bg-zinc-900 p-4 rounded-lg overflow-auto max-h-48">
+              {(raid?.data as { mdstat?: string })?.mdstat ??
+                JSON.stringify(raid?.data ?? {}, null, 2)}
+            </pre>
+          )}
         </CardContent>
       </Card>
     </div>

@@ -7,16 +7,11 @@ const LABELS: Record<GlobalStatus, string> = {
   critical: "Critical",
 };
 
-const ICONS: Record<GlobalStatus, string> = {
-  healthy: "🟢",
-  warning: "🟡",
-  critical: "🔴",
-};
-
 export function StatusBadge({ status }: { status: GlobalStatus }) {
   return (
-    <Badge variant={status} className="text-sm px-3 py-1">
-      {ICONS[status]} {LABELS[status]}
+    <Badge variant={status} className="text-sm px-3 py-1 font-medium">
+      <span className={`sg-status-dot sg-status-dot--${status}`} aria-hidden />
+      {LABELS[status]}
     </Badge>
   );
 }

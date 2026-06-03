@@ -49,15 +49,22 @@ export async function runServerHealthCheck(
   const ssh = getSshClient();
   const alerts: AlertInput[] = [];
 
-  const [uptime, loadavg, free, df, sensors] = await Promise.all([
+  const [uptime, loadavg, free, df, sensors, nprocOut] = await Promise.all([
     ssh.exec("uptime"),
     ssh.exec("cat /proc/loadavg"),
     ssh.exec("free -b"),
     ssh.exec("df -h"),
     ssh.exec("sensors 2>/dev/null || echo ''"),
+    ssh.exec("nproc"),
   ]);
 
   const loadParts = loadavg.stdout.trim().split(/\s+/);
+  const cpuCores = Math.max(1, parseInt(nprocOut.stdout.trim(), 10) || 1);
+  const load1 = parseFloat(loadParts[0] ?? "0");
+  const effectiveLoadPercent = Math.min(
+    100,
+    Math.round((load1 / cpuCores) * 100),
+  );
   const { ram, swap } = parseMemPercent(free.stdout);
   const disk = parseDiskMax(df.stdout);
   const uptimeSec = parseUptimeSeconds(uptime.stdout);
@@ -66,18 +73,16 @@ export async function runServerHealthCheck(
   const tempMatch = sensors.stdout.match(/\+(\d+\.?\d*)/);
   if (tempMatch) temp = Math.round(parseFloat(tempMatch[1]));
 
-  const cpuEstimate = Math.min(100, Math.round(parseFloat(loadParts[0] ?? "0") * 25));
-
-  if (cpuEstimate >= THRESHOLDS.cpuCritical()) {
+  if (effectiveLoadPercent >= THRESHOLDS.cpuCritical()) {
     alerts.push({
       level: "critical",
-      message: `CPU load critical (${cpuEstimate}% est.)`,
+      message: `Load critical (${load1.toFixed(2)} / ${cpuCores} cores, ${effectiveLoadPercent}% effective)`,
       recommendation: "Identify top processes with top/htop",
     });
-  } else if (cpuEstimate >= THRESHOLDS.cpuWarning()) {
+  } else if (effectiveLoadPercent >= THRESHOLDS.cpuWarning()) {
     alerts.push({
       level: "warning",
-      message: `CPU load elevated (${cpuEstimate}% est.)`,
+      message: `Load elevated (${load1.toFixed(2)} / ${cpuCores} cores, ${effectiveLoadPercent}% effective)`,
     });
   }
 
@@ -118,12 +123,13 @@ export async function runServerHealthCheck(
 
   await db.insert(metricsSnapshots).values({
     serverId,
-    cpuPercent: cpuEstimate,
+    cpuPercent: effectiveLoadPercent,
     ramPercent: ram,
     swapPercent: swap,
     loadAvg1: loadParts[0],
     loadAvg5: loadParts[1],
     loadAvg15: loadParts[2],
+    cpuCores,
     diskPercent: disk,
     uptimeSeconds: uptimeSec,
     temperatureCelsius: temp ?? null,
@@ -138,7 +144,9 @@ export async function runServerHealthCheck(
         ? "warning"
         : "healthy",
     data: {
-      cpuPercent: cpuEstimate,
+      cpuPercent: effectiveLoadPercent,
+      effectiveLoadPercent,
+      cpuCores,
       ramPercent: ram,
       swapPercent: swap,
       diskPercent: disk,

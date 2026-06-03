@@ -3,8 +3,9 @@
 ## Start here
 
 1. Read `.env.example` and copy to `.env.local`
-2. `npm install` → `npm run db:migrate` → `npm run dev`
-3. Local dev uses `CHECK_MODE=mock` (no SSH required)
+2. Local PostgreSQL (no Docker): `CREATE DATABASE system_guardian;` then set `DATABASE_URL`
+3. `npm install` → `npm run db:migrate` → `npm run db:seed` → `npm run dev`
+4. Local dev uses `CHECK_MODE=mock` (no SSH required)
 
 ## Directory tree
 

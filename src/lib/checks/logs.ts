@@ -1,35 +1,47 @@
 import { getSshClient } from "@/lib/ssh";
+import { classifyLogLines } from "./log-patterns";
 import type { AlertInput, CheckResult } from "./types";
 
-const PATTERNS = [
-  { re: /OOM|out of memory/i, level: "critical" as const, label: "OOM" },
-  { re: /PANIC|FATAL/i, level: "critical" as const, label: "PANIC/FATAL" },
-  { re: /ERROR/i, level: "warning" as const, label: "ERROR" },
-  { re: /disk error|I\/O error/i, level: "critical" as const, label: "Disk Error" },
-];
+const MAX_STORED_LINES = 20;
+const MAX_ALERT_LINE = 240;
+
+function truncateLine(line: string, max = MAX_ALERT_LINE): string {
+  return line.length <= max ? line : `${line.slice(0, max - 1)}…`;
+}
 
 export async function runLogsCheck(serverId: string): Promise<CheckResult> {
   void serverId;
   const ssh = getSshClient();
   const [journal, dmesg] = await Promise.all([
-    ssh.exec("journalctl -p err -n 50 --no-pager 2>/dev/null || echo ''"),
-    ssh.exec("dmesg 2>/dev/null | tail -50 || echo ''"),
+    ssh.exec("journalctl -p err -n 80 --no-pager 2>/dev/null || echo ''"),
+    ssh.exec("dmesg 2>/dev/null | tail -80 || echo ''"),
   ]);
 
-  const combined = journal.stdout + "\n" + dmesg.stdout;
+  const lines = (journal.stdout + "\n" + dmesg.stdout)
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+
+  const { critical, warning } = classifyLogLines(lines);
   const alerts: AlertInput[] = [];
   let status: CheckResult["status"] = "healthy";
-  const matches: string[] = [];
 
-  for (const { re, level, label } of PATTERNS) {
-    if (re.test(combined)) {
-      matches.push(label);
-      if (level === "critical") status = "critical";
-      else if (status !== "critical") status = "warning";
+  for (const line of critical.slice(0, 5)) {
+    status = "critical";
+    alerts.push({
+      level: "critical",
+      message: truncateLine(line),
+      recommendation: "Inspect journalctl -p err and dmesg immediately",
+    });
+  }
+
+  if (status !== "critical") {
+    for (const line of warning.slice(0, 5)) {
+      status = "warning";
       alerts.push({
-        level,
-        message: `Log pattern detected: ${label}`,
-        recommendation: "Review journalctl and docker logs for root cause",
+        level: "warning",
+        message: truncateLine(line),
+        recommendation: "Review auth.log / journal if pattern persists",
       });
     }
   }
@@ -37,7 +49,11 @@ export async function runLogsCheck(serverId: string): Promise<CheckResult> {
   return {
     module: "logs",
     status,
-    data: { matches, sampleLines: combined.split("\n").slice(0, 10) },
+    data: {
+      linesScanned: lines.length,
+      criticalLines: critical.slice(0, MAX_STORED_LINES),
+      warningLines: warning.slice(0, MAX_STORED_LINES),
+    },
     alerts,
   };
 }

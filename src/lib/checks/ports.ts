@@ -1,3 +1,4 @@
+import { getKnownPorts } from "@/lib/checks/allowlists";
 import { diffStringSets } from "@/lib/history/diff";
 import { diffAndStore } from "@/lib/history/persist";
 import { getSshClient } from "@/lib/ssh";
@@ -21,7 +22,8 @@ export async function runPortsCheck(serverId: string): Promise<CheckResult> {
   const alerts: AlertInput[] = [];
   let status: CheckResult["status"] = "healthy";
 
-  const diffs = await diffAndStore(
+  const knownPorts = getKnownPorts();
+  const { diffs, isBaseline } = await diffAndStore(
     serverId,
     "ports",
     { ports },
@@ -32,12 +34,20 @@ export async function runPortsCheck(serverId: string): Promise<CheckResult> {
     },
   );
 
+  if (isBaseline) {
+    alerts.push({
+      level: "info",
+      message: `Ports baseline recorded (${ports.length} listener(s))`,
+    });
+  }
+
   for (const d of diffs) {
     if (d.changeType === "added") {
+      if (knownPorts.has(d.entityKey)) continue;
       status = "warning";
       alerts.push({
         level: "warning",
-        message: `New open port detected: ${d.entityKey}`,
+        message: `New unknown port detected: ${d.entityKey}`,
         recommendation: "Verify service is intentional and firewall rules",
       });
     }
