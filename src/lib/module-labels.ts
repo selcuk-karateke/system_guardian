@@ -16,7 +16,12 @@ export const MODULE_LABELS: Record<string, string> = {
   cron: "Cron",
   network: "Network",
   scanner: "Scanner",
+  services: "Dienste",
+  reserved: "Reserve",
 };
+
+/** Monitor-Platzhalter ohne Check — für späteres Modul */
+export const MONITOR_PLACEHOLDER_MODULES = ["reserved"] as const;
 
 export const MONITOR_MODULE_ORDER = [
   "server_health",
@@ -36,4 +41,5 @@ export const MONITOR_MODULE_ORDER = [
   "cron",
   "network",
   "scanner",
+  "reserved",
 ] as const;

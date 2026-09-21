@@ -1,10 +1,18 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AlertDetailActions } from "@/components/dashboard/alert-detail-actions";
+import { CopyReportButton } from "@/components/dashboard/copy-report-button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { parseFimPathFromAlert } from "@/lib/alerts/fim-paths";
+import { buildAlertReport } from "@/lib/alerts/report";
+import { APP_TIMEZONE, formatAppDateTime } from "@/lib/datetime";
 import { getModulePageForAlert } from "@/lib/alert-routes";
-import { getAlertById, getLatestCheckByModule } from "@/lib/dashboard-data";
+import {
+  getAlertById,
+  getLatestCheckByModule,
+  getServerOverview,
+} from "@/lib/dashboard-data";
 import { MODULE_LABELS } from "@/lib/module-labels";
 import { formatModuleDetailLines } from "@/lib/monitor-details";
 
@@ -28,9 +36,13 @@ export default async function AlertDetailPage({
   const { id } = await params;
   let alert: Awaited<ReturnType<typeof getAlertById>> | null = null;
   let check: Awaited<ReturnType<typeof getLatestCheckByModule>> | undefined;
+  let overview: Awaited<ReturnType<typeof getServerOverview>> | null = null;
 
   try {
-    alert = await getAlertById(id);
+    [alert, overview] = await Promise.all([
+      getAlertById(id),
+      getServerOverview(),
+    ]);
     if (alert) {
       check = (await getLatestCheckByModule(alert.module)) ?? undefined;
     }
@@ -44,6 +56,9 @@ export default async function AlertDetailPage({
   const moduleLabel = MODULE_LABELS[alert.module] ?? alert.module;
   const resolved = alert.resolvedAt != null;
 
+  const fimPath =
+    alert.module === "fim" ? parseFimPathFromAlert(alert.message) : null;
+
   const detailLines = check
     ? formatModuleDetailLines(
         alert.module,
@@ -52,6 +67,7 @@ export default async function AlertDetailPage({
           status: check.status,
           checkedAt: check.createdAt,
           metrics: null,
+          fimAlertPaths: fimPath ? [fimPath] : undefined,
         },
       )
     : [];
@@ -60,17 +76,38 @@ export default async function AlertDetailPage({
     | { criticalLines?: string[]; warningLines?: string[] }
     | undefined;
 
+  const sshHost = process.env.SSH_HOST;
+  const hostIp =
+    sshHost ?? overview?.server?.ipv4 ?? overview?.server?.host ?? undefined;
+  const hostLabel =
+    sshHost && overview?.server?.name === "Primary Server"
+      ? "Production"
+      : overview?.server?.name;
+
+  const reportText = buildAlertReport(alert, {
+    hostLabel,
+    hostIp,
+    checkMode: overview?.checkMode,
+    check: check
+      ? {
+          status: check.status,
+          createdAt: check.createdAt,
+          data: check.data as Record<string, unknown>,
+        }
+      : null,
+  });
+
   return (
     <div className="space-y-6 max-w-3xl">
-      <AlertDetailActions alertId={alert.id} resolved={resolved} />
+      <AlertDetailActions
+        alertId={alert.id}
+        resolved={resolved}
+        reportText={reportText}
+      />
 
       {resolved && (
         <div className="rounded-lg border border-zinc-700 bg-zinc-900/50 px-4 py-3 text-sm text-zinc-400">
-          Geschlossen am{" "}
-          {alert.resolvedAt!.toLocaleString("de-DE", {
-            dateStyle: "medium",
-            timeStyle: "short",
-          })}
+          Geschlossen am {formatAppDateTime(alert.resolvedAt!)} ({APP_TIMEZONE})
         </div>
       )}
 
@@ -86,11 +123,7 @@ export default async function AlertDetailPage({
           {alert.message}
         </h1>
         <p className="text-sm text-zinc-500">
-          Erstellt:{" "}
-          {alert.createdAt.toLocaleString("de-DE", {
-            dateStyle: "medium",
-            timeStyle: "short",
-          })}
+          Alert erkannt: {formatAppDateTime(alert.createdAt)} ({APP_TIMEZONE})
         </p>
       </div>
 
@@ -126,10 +159,7 @@ export default async function AlertDetailPage({
                 <span className="text-zinc-500">
                   {" "}
                   · zuletzt{" "}
-                  {check.createdAt.toLocaleString("de-DE", {
-                    dateStyle: "short",
-                    timeStyle: "short",
-                  })}
+                  {formatAppDateTime(check.createdAt)}
                 </span>
               </p>
               {detailLines.length > 0 && (
@@ -173,6 +203,21 @@ export default async function AlertDetailPage({
               Noch kein Check-Lauf für dieses Modul gespeichert.
             </p>
           )}
+        </CardContent>
+      </Card>
+
+      <Card className="border-zinc-800">
+        <CardHeader className="flex flex-row items-center justify-between gap-4 pb-2">
+          <CardTitle className="text-base">Bericht (zum Weiterleiten)</CardTitle>
+          <CopyReportButton text={reportText} label="Kopieren" />
+        </CardHeader>
+        <CardContent>
+          <p className="text-xs text-zinc-500 mb-3">
+            Vollständiger Text für E-Mail oder Ticket.
+          </p>
+          <pre className="text-xs text-zinc-300 whitespace-pre-wrap break-words font-mono bg-zinc-950/80 border border-zinc-800 rounded-lg p-4 max-h-96 overflow-auto">
+            {reportText}
+          </pre>
         </CardContent>
       </Card>
     </div>

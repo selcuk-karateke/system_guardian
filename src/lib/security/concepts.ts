@@ -15,7 +15,7 @@ export const SECURITY_CONCEPTS = [
     id: "hids",
     title: "Intrusion Detection (HIDS)",
     siem: "Agent-basierte Angriffserkennung",
-    guardian: "logins, scanner, ports, network, users",
+    guardian: "logins, processes, scanner, ports, network, users",
     why: "Kein Kernel-Agent – mehrere leichte Checks per SSH bilden einen schlanken HIDS.",
     status: "active" as const,
     cron: "security (60m)",

@@ -4,7 +4,16 @@ import {
   getChangeEvents,
   getLatestCheckByModule,
 } from "@/lib/dashboard-data";
+import { CronBreakdown } from "@/components/security/cron-breakdown";
+import {
+  Fail2banSummary,
+  type Fail2banData,
+} from "@/components/security/fail2ban-summary";
+import { IncidentClearanceCard } from "@/components/security/incident-clearance-card";
 import { SECURITY_CONCEPTS } from "@/lib/security/concepts";
+import { getOpenControlIssues } from "@/lib/control-summary";
+import type { CoolifyMeta } from "@/lib/checks/coolify-meta";
+import { buildCoolifyLookup, enrichDockerChangeKey } from "@/lib/docker-display";
 
 const MODULES = [
   "fim",
@@ -12,13 +21,19 @@ const MODULES = [
   "users",
   "logins",
   "cron",
+  "processes",
   "network",
   "scanner",
+  "docker",
+  "security_posture",
+  "services",
 ];
 
 export default async function SecurityPage() {
   const checks: Record<string, Awaited<ReturnType<typeof getLatestCheckByModule>>> = {};
   let changes: Awaited<ReturnType<typeof getChangeEvents>> = [];
+  let openIssues: Awaited<ReturnType<typeof getOpenControlIssues>> = [];
+  let coolifyLookup = new Map<string, CoolifyMeta | undefined>();
 
   try {
     for (const mod of MODULES) {
@@ -26,6 +41,11 @@ export default async function SecurityPage() {
       if (c) checks[mod] = c;
     }
     changes = await getChangeEvents(20);
+    openIssues = await getOpenControlIssues();
+    coolifyLookup = buildCoolifyLookup(
+      (checks.docker?.data as { containers?: Parameters<typeof buildCoolifyLookup>[0] })
+        ?.containers,
+    );
   } catch {
     /* empty */
   }
@@ -44,6 +64,47 @@ export default async function SecurityPage() {
           <code className="text-zinc-300">docs/SECURITY-FEATURES.md</code> im Repo.
         </p>
       </div>
+
+      {openIssues.length > 0 && (
+        <Card className="border-amber-900/50">
+          <CardHeader>
+            <CardTitle>Offene Punkte (Früherkennung)</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm space-y-2 max-h-64 overflow-auto">
+            {openIssues.map((issue, i) => (
+              <p
+                key={`${issue.source}-${i}`}
+                className={
+                  issue.severity === "critical"
+                    ? "text-red-300"
+                    : issue.severity === "warning"
+                      ? "text-amber-300"
+                      : "text-zinc-400"
+                }
+              >
+                [{issue.source}] {issue.message}
+              </p>
+            ))}
+            <Link href="/history" className="text-sky-400 text-xs underline block mt-2">
+              Historie filtern →
+            </Link>
+          </CardContent>
+        </Card>
+      )}
+
+      <IncidentClearanceCard
+        status={
+          checks.security_posture?.status ?? checks.incident_clearance?.status
+        }
+        data={
+          (checks.security_posture ?? checks.incident_clearance)?.data as {
+            allPass?: boolean;
+            items?: import("@/lib/checks/incident-clearance").ClearanceItem[];
+            window?: { logSince: string; logUntil: string };
+            summaryLine?: string;
+          }
+        }
+      />
 
       <Card>
         <CardHeader>
@@ -110,6 +171,65 @@ export default async function SecurityPage() {
                   Letzter Lauf: Baseline (keine Diff-Alerts)
                 </p>
               )}
+              {mod === "network" &&
+                (
+                  checks.network?.data as {
+                    outboundCount?: number;
+                    suspiciousConnections?: string[];
+                  }
+                )?.outboundCount != null && (
+                  <p className="text-xs text-zinc-500 mt-2">
+                    {(
+                      checks.network?.data as { outboundCount?: number }
+                    ).outboundCount}{" "}
+                    outbound ESTAB
+                    {(
+                      checks.network?.data as {
+                        suspiciousConnections?: string[];
+                      }
+                    ).suspiciousConnections?.length
+                      ? ` · ${(checks.network?.data as { suspiciousConnections?: string[] }).suspiciousConnections!.length} verdächtig`
+                      : ""}
+                  </p>
+                )}
+              {mod === "docker" &&
+                (
+                  checks.docker?.data as {
+                    inventory?: { onlyCoolifyStack?: boolean };
+                  }
+                )?.inventory && (
+                  <p className="text-xs text-zinc-500 mt-2">
+                    Nur Coolify:{" "}
+                    {(
+                      checks.docker?.data as {
+                        inventory?: { onlyCoolifyStack?: boolean };
+                      }
+                    ).inventory!.onlyCoolifyStack
+                      ? "ja"
+                      : "nein — Inventar prüfen"}
+                  </p>
+                )}
+              {mod === "cron" && (
+                <CronBreakdown
+                  data={
+                    checks.cron?.data as {
+                      systemCount?: number;
+                      humanCount?: number;
+                      systemBuckets?: Record<string, number>;
+                      humanJobs?: Record<string, string>;
+                      jobCount?: number;
+                    }
+                  }
+                />
+              )}
+              {mod === "logins" && (
+                <Fail2banSummary
+                  data={
+                    (checks.logins?.data as { fail2ban?: Fail2banData })
+                      ?.fail2ban
+                  }
+                />
+              )}
             </CardContent>
           </Card>
         ))}
@@ -124,7 +244,8 @@ export default async function SecurityPage() {
             {changes.map((c) => (
               <li key={c.id} className="text-zinc-400">
                 <span className="text-zinc-200">{c.category}</span> –{" "}
-                {c.changeType}: {c.entityKey}
+                {c.changeType}:{" "}
+                {enrichDockerChangeKey(c.category, c.entityKey, coolifyLookup)}
               </li>
             ))}
             {changes.length === 0 && (

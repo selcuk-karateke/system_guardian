@@ -66,18 +66,52 @@ npm run dev
 
 Open http://localhost:3000 · TV/Monitor: http://localhost:3000/monitor
 
-**Manuelle Checks:** Buttons auf dem Dashboard oder `/monitor` (kein curl nötig).
+**Windows:** Port 3000 oft belegt oder 3001 von Hyper-V reserviert → `npm run dev -- -p 3101`
+
+**Manuelle Checks:** Buttons auf dem Dashboard oder `/monitor` (Reload-Button oben rechts).
+
+## Features
+
+| Bereich | Route | Kurz |
+|---------|-------|------|
+| Dashboard + globaler Status | `/` | Berücksichtigt **offene** Alerts (entschärfte zählen nicht mehr als WARNING) |
+| TV-Monitor | `/monitor` | 16 Module, Auto-Refresh 30s, Reload |
+| Docker-Inventar + Trivy | `/docker` | Gruppiert (Apps, DB, Coolify…), Scan-Button on-demand (HIGH/CRITICAL) |
+| Security-Übersicht | `/security` | SIEM-Light-Module, `security_posture` |
+| Alerts + Vorfallbericht | `/alerts` | Export mit EINORDNUNG pro Modul |
+| Historie | `/history` | Snapshots, Outbound-Diffs |
+
+**16 Check-Module** (Cron): Server, RAID, Docker, Coolify, DB, SSL, Website, Ports, Backups, Logs, SSH keys, Users, Logins, Cron, Network, Scanner — plus `security_posture` im Security-Batch.
+
+## Konfiguration (`.env.local`)
+
+| Variable | Zweck |
+|----------|--------|
+| `CHECK_MODE` | `mock` (Windows) oder `ssh` (Production-Host) |
+| `SSH_*` | Ziel-Host für Live-Checks |
+| `TRUSTED_LOGIN_IPS` | Kein Root-Login-Alert; `10.0.1.*` intern immer trusted |
+| `TRUSTED_OUTBOUND_IPS` | Kein Network-Baseline-Warn für diese Peers |
+| `TRUSTED_SHELL_PROCESS_PATTERNS` | Extra-Regex für harmlose `sh -c` (Coolify-Start) in `security_posture` |
+| `KNOWN_DOCKER_IMAGE_PREFIXES` | Vertraute Images, fremde Container → CRITICAL |
+
+Vollständige Liste: [.env.example](.env.example)
 
 ## Run checks manually
+
+Dashboard-Buttons oder:
 
 ```powershell
 curl -H "Authorization: Bearer dev-secret" http://localhost:3000/api/cron/server
 ```
 
-## Security-Features (SIEM-Light)
+## Docs
 
-Was Log-Analyse, HIDS, FIM usw. bei uns bedeuten und warum kein Kibana/Wazuh:
-[docs/SECURITY-FEATURES.md](docs/SECURITY-FEATURES.md) · UI: `/security` und `/docs/security`
+| Dokument | Inhalt |
+|----------|--------|
+| [docs/SECURITY-FEATURES.md](docs/SECURITY-FEATURES.md) | SIEM-Begriffe, Module, UI `/security` |
+| [docs/FUTURE-INTEGRATIONS.md](docs/FUTURE-INTEGRATIONS.md) | Roadmap / Phase 2–3 |
+| [docs/COOLIFY.md](docs/COOLIFY.md) | Production-Deploy |
+| [AGENTS.md](AGENTS.md) | Entwickler-Einstieg |
 
 ## Production
 

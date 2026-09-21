@@ -18,11 +18,15 @@ export const THRESHOLDS = {
   ramCritical: () => getThreshold("RAM_CRITICAL", 95),
   diskWarning: () => getThreshold("DISK_WARNING", 85),
   diskCritical: () => getThreshold("DISK_CRITICAL", 95),
+  processCpuWarning: () => getThreshold("PROCESS_CPU_WARNING", 90),
+  dockerCpuWarning: () => getThreshold("DOCKER_CPU_WARNING", 85),
+  dockerMemWarning: () => getThreshold("DOCKER_MEM_WARNING", 90),
 };
 
 export function getBackupPaths(): string[] {
   const raw =
-    process.env.BACKUP_PATHS ?? "/data/coolify/backups,/root";
+    process.env.BACKUP_PATHS ??
+    "/backups/daily,/backups/monthly,/data/coolify/backups";
   return raw.split(",").map((p) => p.trim()).filter(Boolean);
 }
 
@@ -37,11 +41,44 @@ export function getTrustedLoginIps(): Set<string> {
   );
 }
 
+/** Login-IP vertrauenswürdig (explizit oder internes 10.0.1.* wie bei Outbound). */
+export function isTrustedLoginIp(ip: string): boolean {
+  if (getTrustedLoginIps().has(ip)) return true;
+  return /^10\.0\.1\.\d{1,3}$/.test(ip);
+}
+
+/** Outbound peers that must not raise network baseline WARNs (merged with login IPs) */
+export function getTrustedOutboundIps(): Set<string> {
+  const raw = process.env.TRUSTED_OUTBOUND_IPS ?? "";
+  const extra = raw
+    .split(",")
+    .map((ip) => ip.trim())
+    .filter(Boolean);
+  return new Set([...getTrustedLoginIps(), ...extra]);
+}
+
+/** True if ss connection key / alert text involves a trusted or internal peer */
+export function isTrustedOutboundKey(key: string): boolean {
+  if (/127\.0\.0\.1|::1|localhost/i.test(key)) return true;
+  if (/10\.0\.1\.\d{1,3}/.test(key)) return true;
+  for (const ip of getTrustedOutboundIps()) {
+    if (ip && key.includes(ip)) return true;
+  }
+  return false;
+}
+
 /** Stopped containers matching these name patterns are expected (no docker warning) */
 export function getExpectedStoppedContainers(): string[] {
   const raw =
     process.env.EXPECTED_STOPPED_CONTAINERS ??
     "nextcloud-aio-mastercontainer";
+  return raw.split(",").map((s) => s.trim()).filter(Boolean);
+}
+
+/** systemd failed units that are benign (e.g. chkrootkit without mail) */
+export function getExpectedFailedUnits(): string[] {
+  const raw =
+    process.env.EXPECTED_FAILED_UNITS ?? "chkrootkit.service";
   return raw.split(",").map((s) => s.trim()).filter(Boolean);
 }
 
@@ -90,6 +127,86 @@ export function getMonitorPixelShiftSec(): number {
 
 export function isMonitorNightModeEnabled(): boolean {
   return process.env.MONITOR_NIGHT_MODE !== "false";
+}
+
+/** Docker image prefixes considered trusted (comma-separated, case-insensitive prefix match) */
+export function getKnownDockerImagePrefixes(): string[] {
+  const raw =
+    process.env.KNOWN_DOCKER_IMAGE_PREFIXES ??
+    "coolifyio/,ghcr.io/coolify,traefik:,postgres:,redis:,mysql:,mariadb:,nginx:,alpine:";
+  return raw.split(",").map((s) => s.trim()).filter(Boolean);
+}
+
+/** BSI / incident domains for log grep (comma-separated) */
+export function getIncidentIocDomains(): string[] {
+  const raw =
+    process.env.INCIDENT_IOC_DOMAINS ??
+    "xlgelllulyrhpbjmn.org,yxmvknylyxtt.org";
+  return raw.split(",").map((d) => d.trim()).filter(Boolean);
+}
+
+export function getIncidentLogSince(): string {
+  return process.env.INCIDENT_LOG_SINCE ?? "2026-06-02T07:15:00";
+}
+
+export function getIncidentLogUntil(): string {
+  return process.env.INCIDENT_LOG_UNTIL ?? "2026-06-02T07:45:00";
+}
+
+/** Outbound IPs from incident reports (e.g. BSI) – always CRITICAL if seen in ss */
+export function getBlockedRemoteIps(): Set<string> {
+  const raw =
+    process.env.BLOCKED_REMOTE_IPS ?? "216.218.185.162";
+  return new Set(
+    raw
+      .split(",")
+      .map((ip) => ip.trim())
+      .filter(Boolean),
+  );
+}
+
+/** Processes allowed for outbound ESTAB to public :80/:443 without warning */
+export function getTrustedOutboundProcessPatterns(): RegExp[] {
+  const raw = process.env.TRUSTED_OUTBOUND_PROCESSES ?? "";
+  const defaults = [
+    /docker-proxy/i,
+    /containerd/i,
+    /traefik/i,
+    /nginx/i,
+    /apt-get/i,
+    /unattended-upgrade/i,
+  ];
+  if (!raw.trim()) return defaults;
+  return [
+    ...defaults,
+    ...raw.split(",").map((s) => new RegExp(s.trim(), "i")).filter((r) => r.source),
+  ];
+}
+
+/**
+ * `ps aux` lines with sh/bash -c that are benign (Coolify deploy, Node start).
+ * Extra regex fragments via TRUSTED_SHELL_PROCESS_PATTERNS (comma-separated).
+ */
+export function getTrustedShellProcessPatterns(): RegExp[] {
+  const raw = process.env.TRUSTED_SHELL_PROCESS_PATTERNS ?? "";
+  const defaults = [
+    /sh -c (next start|npm start|node dist|prisma)/i,
+    /\/bin\/sh -c npm/i,
+    /prisma migrate deploy/i,
+    /npx prisma/i,
+    /scripts\/start\.js/i,
+    /ensure-initial-data/i,
+    /DATABASE_URL.*Coolify/i,
+    /JWT_SECRET.*Coolify/i,
+    /CORS_ORIGIN.*Coolify/i,
+    /next-server/i,
+    /node\s+.*\/node_modules/i,
+  ];
+  if (!raw.trim()) return defaults;
+  return [
+    ...defaults,
+    ...raw.split(",").map((s) => new RegExp(s.trim(), "i")).filter((r) => r.source),
+  ];
 }
 
 /** File Integrity Monitoring – critical paths to hash over SSH */

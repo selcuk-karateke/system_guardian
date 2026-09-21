@@ -1,6 +1,6 @@
 /**
  * Ops HUD light — dashboard only (.sg-shell).
- * Monitor (/monitor) uses monitor.css and is intentionally excluded.
+ * Monitor (/monitor) uses monitor-mission.css and is intentionally excluded.
  */
 .sg-shell {
   --sg-ok: #4ade80;

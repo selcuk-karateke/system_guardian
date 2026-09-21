@@ -2,13 +2,16 @@ import { diffHashMaps } from "@/lib/history/diff";
 import { diffAndStore } from "@/lib/history/persist";
 import { getSshClient } from "@/lib/ssh";
 import {
+  getCronJobOrigin,
   isSuspiciousCronContent,
+  partitionCronJobs,
+  summarizeSystemCronBuckets,
   shouldAlertCronDiff,
 } from "./cron-patterns";
 import type { AlertInput, CheckResult } from "./types";
 
-const COLLECT_CRON_SCRIPT = `
-for period in daily weekly monthly; do
+export const COLLECT_CRON_SCRIPT = `
+for period in daily weekly monthly hourly; do
   dir="/etc/cron.$period"
   [ -d "$dir" ] || continue
   for f in "$dir"/*; do
@@ -21,8 +24,19 @@ for f in /etc/cron.d/*; do
   content=$(tr '\\n' ' ' < "$f" | head -c 800)
   printf 'file\\tcron.d\\t%s\\t%s\\n' "$(basename "$f")" "$content"
 done
+if [ -f /etc/crontab ]; then
+  content=$(tr '\\n' ' ' < /etc/crontab | head -c 800)
+  printf 'file\\tcrontab\\tmain\\t%s\\n' "$content"
+fi
 crontab -l 2>/dev/null | grep -v '^#' | grep -v '^[[:space:]]*$' | while IFS= read -r line; do
   printf 'crontab\\troot\\t%s\\n' "$line"
+done
+for userfile in /var/spool/cron/crontabs/*; do
+  [ -f "$userfile" ] || continue
+  user=$(basename "$userfile")
+  grep -v '^#' "$userfile" | grep -v '^[[:space:]]*$' | while IFS= read -r line; do
+    printf 'crontab\\t%s\\t%s\\n' "$user" "$line"
+  done
 done
 `.trim();
 
@@ -53,6 +67,9 @@ export async function runCronCheck(serverId: string): Promise<CheckResult> {
   const ssh = getSshClient();
   const { stdout } = await ssh.exec(COLLECT_CRON_SCRIPT);
   const jobs = parseCronCollectOutput(stdout);
+  const { systemJobs, humanJobs, systemCount, humanCount } =
+    partitionCronJobs(jobs);
+  const systemBuckets = summarizeSystemCronBuckets(systemJobs);
 
   const alerts: AlertInput[] = [];
   let status: CheckResult["status"] = "healthy";
@@ -71,36 +88,51 @@ export async function runCronCheck(serverId: string): Promise<CheckResult> {
   if (isBaseline) {
     alerts.push({
       level: "info",
-      message: `Cron baseline recorded (${Object.keys(jobs).length} job(s))`,
+      message: `Cron baseline: ${systemCount} system, ${humanCount} human`,
     });
   }
 
   for (const [key, value] of Object.entries(jobs)) {
     if (!isSuspiciousCronContent(value)) continue;
     status = "warning";
+    const origin = getCronJobOrigin(key);
     alerts.push({
       level: "warning",
-      message: `Suspicious cron content: ${value.slice(0, 120)}`,
-      recommendation: "Review /etc/cron.* and user crontabs immediately",
+      message: `Suspicious ${origin} cron: ${value.slice(0, 120)}`,
+      recommendation:
+        origin === "human"
+          ? "Review user crontabs (crontab -l, /var/spool/cron/crontabs)"
+          : "Review /etc/cron.* and package drop-ins",
     });
-    void key;
   }
 
   for (const d of diffs) {
     if (!shouldAlertCronDiff(d, jobs)) continue;
     status = "warning";
     const label = jobs[d.entityKey] ?? d.newValue ?? d.entityKey;
+    const origin = getCronJobOrigin(d.entityKey);
     alerts.push({
       level: "warning",
-      message: `Cron ${d.changeType}: ${label}`,
-      recommendation: "Review /etc/cron.* and user crontabs for unexpected entries",
+      message: `${origin === "human" ? "Human" : "System"} cron ${d.changeType}: ${label}`,
+      recommendation:
+        origin === "human"
+          ? "Verify who added this user crontab entry"
+          : "Review system cron paths for unexpected package or admin changes",
     });
   }
 
   return {
     module: "cron",
     status,
-    data: { jobCount: Object.keys(jobs).length, jobs },
+    data: {
+      jobCount: Object.keys(jobs).length,
+      systemCount,
+      humanCount,
+      systemBuckets,
+      jobs,
+      systemJobs,
+      humanJobs,
+    },
     alerts,
   };
 }

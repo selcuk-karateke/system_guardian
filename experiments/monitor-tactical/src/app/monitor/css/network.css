@@ -1,0 +1,96 @@
+﻿/* â”€â”€ Network holocore (center) â”€â”€ */
+.mc-holocore {
+    position: absolute;
+    left: 200px;
+    top: 32px;
+    right: 272px;
+    bottom: 200px;
+    z-index: 4;
+    display: flex;
+    align-items: stretch;
+    justify-content: stretch;
+}
+
+.mc-holocore--warn {
+    filter: drop-shadow(0 0 40px rgb(255 176 0 / 15%));
+}
+
+.mc-holocore--crit {
+    filter: drop-shadow(0 0 48px rgb(255 59 59 / 20%));
+}
+
+.mc-netmap {
+    flex: 1;
+    position: relative;
+    min-height: 0;
+}
+
+.mc-netmap-svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+.mc-netmap-link {
+    stroke: rgb(148 163 184 / 18%);
+    stroke-width: 4;
+}
+
+.mc-netmap-link--active {
+    stroke: var(--mc-cyan);
+    stroke-width: 6;
+    filter: drop-shadow(0 0 8px rgb(0 229 255 / 45%));
+}
+
+.mc-netmap-hub {
+    fill: rgb(0 229 255 / 18%);
+    stroke: var(--mc-cyan);
+    stroke-width: 4;
+    filter: drop-shadow(0 0 30px rgb(0 229 255 / 45%));
+}
+
+.mc-netmap-hub-ip {
+    fill: #fff;
+    font-family: var(--font-orbitron), sans-serif;
+    font-size: 42px;
+    font-weight: 800;
+    text-anchor: middle;
+}
+
+.mc-netmap-hub-sub {
+    fill: rgb(0 229 255 / 70%);
+    font-family: var(--font-geist-mono), monospace;
+    font-size: 16px;
+    letter-spacing: 0.3em;
+    text-anchor: middle;
+}
+
+.mc-netmap-node-ring {
+    fill: rgb(0 0 0 / 35%);
+    stroke: rgb(148 163 184 / 35%);
+    stroke-width: 3;
+}
+
+.mc-netmap-node--on .mc-netmap-node-ring {
+    stroke: var(--mc-cyan);
+    fill: rgb(0 229 255 / 12%);
+    filter: drop-shadow(0 0 14px rgb(0 229 255 / 40%));
+}
+
+.mc-netmap-node--out .mc-netmap-node-ring {
+    stroke: var(--mc-warn);
+    fill: rgb(255 176 0 / 12%);
+}
+
+.mc-netmap-node-label {
+    fill: #e8f4ff;
+    font-family: var(--font-orbitron), sans-serif;
+    font-size: 22px;
+    font-weight: 700;
+    text-anchor: middle;
+}
+
+.mc-netmap-node--on .mc-netmap-node-label {
+    fill: var(--mc-cyan);
+}
+

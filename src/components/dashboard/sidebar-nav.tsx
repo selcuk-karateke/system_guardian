@@ -11,6 +11,7 @@ const NAV = [
   { href: "/docker", label: "Docker" },
   { href: "/databases", label: "Datenbanken" },
   { href: "/security", label: "Sicherheit" },
+  { href: "/history", label: "Historie" },
   { href: "/notifications", label: "Benachrichtigungen" },
   { href: "/settings", label: "Einstellungen" },
 ];

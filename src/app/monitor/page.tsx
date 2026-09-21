@@ -14,6 +14,7 @@ import {
   getRecentAlerts,
   getServerOverview,
 } from "@/lib/dashboard-data";
+import { fimPathsFromAlerts } from "@/lib/alerts/fim-paths";
 import {
   buildMonitorMetricCards,
   formatModuleDetailLines,
@@ -48,6 +49,14 @@ export default async function MonitorPage() {
     modules.map((m) => [m.module, m.status]),
   );
 
+  const fimAlertPaths = fimPathsFromAlerts(alerts);
+  if (
+    fimAlertPaths.length > 0 &&
+    statusMap.fim !== "critical"
+  ) {
+    statusMap.fim = "critical";
+  }
+
   for (const mod of MONITOR_MODULE_ORDER) {
     if (!statusMap[mod]) statusMap[mod] = "unknown";
   }
@@ -59,6 +68,8 @@ export default async function MonitorPage() {
       status: statusMap[mod],
       checkedAt: moduleCheckedAt[mod] ?? null,
       metrics: overview?.metrics ?? null,
+      compact: true,
+      fimAlertPaths: mod === "fim" ? fimAlertPaths : undefined,
     });
   }
 

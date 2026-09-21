@@ -1,0 +1,6 @@
+/* TV monitor (/monitor): eine Viewport-Höhe, kein Scroll */
+html:has(.mc-wall),
+html:has(.mc-wall) body {
+  overflow: hidden;
+  height: 100%;
+}

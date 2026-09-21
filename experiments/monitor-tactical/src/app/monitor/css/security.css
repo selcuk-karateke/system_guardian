@@ -1,0 +1,161 @@
+﻿/* â”€â”€ Security: full-screen frame â”€â”€ */
+.mc-secframe {
+    position: absolute;
+    inset: 0;
+    z-index: 8;
+    pointer-events: none;
+}
+
+.mc-secframe-edge {
+    position: absolute;
+    background: rgb(0 255 136 / 35%);
+    box-shadow: 0 0 24px rgb(0 255 136 / 25%);
+}
+
+.mc-secframe--warn .mc-secframe-edge {
+    background: rgb(255 176 0 / 55%);
+    box-shadow: 0 0 32px rgb(255 176 0 / 35%);
+}
+
+.mc-secframe--crit .mc-secframe-edge {
+    background: rgb(255 59 59 / 65%);
+    box-shadow: 0 0 40px rgb(255 59 59 / 45%);
+}
+
+.mc-secframe-edge--top,
+.mc-secframe-edge--bottom {
+    left: 0;
+    right: 0;
+    height: 10px;
+}
+
+.mc-secframe-edge--top {
+    top: 0;
+}
+
+.mc-secframe-edge--bottom {
+    bottom: 0;
+}
+
+.mc-secframe-edge--left,
+.mc-secframe-edge--right {
+    top: 0;
+    bottom: 0;
+    width: 10px;
+}
+
+.mc-secframe-edge--left {
+    left: 0;
+}
+
+.mc-secframe-edge--right {
+    right: 0;
+}
+
+.mc-secframe--warn .mc-secframe-edge--top,
+.mc-secframe--warn .mc-secframe-edge--bottom {
+    height: 14px;
+}
+
+.mc-secframe--crit .mc-secframe-edge--left,
+.mc-secframe--crit .mc-secframe-edge--right {
+    width: 16px;
+}
+
+.mc-secframe-leds {
+    position: absolute;
+    inset: 14px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    pointer-events: none;
+}
+
+.mc-secframe-led {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+
+.mc-secframe-led:nth-child(1) {
+    top: 18px;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+.mc-secframe-led:nth-child(2) {
+    top: 50%;
+    right: 22px;
+    transform: translateY(-50%);
+}
+
+.mc-secframe-led:nth-child(3) {
+    bottom: 18px;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+.mc-secframe-led:nth-child(4) {
+    top: 50%;
+    left: 22px;
+    transform: translateY(-50%);
+}
+
+.mc-secframe-led:nth-child(5) {
+    top: 18px;
+    right: 280px;
+}
+
+.mc-secframe-led:nth-child(6) {
+    bottom: 18px;
+    right: 280px;
+}
+
+.mc-secframe-led-dot {
+    width: calc(22px * var(--mc-scale));
+    height: calc(22px * var(--mc-scale));
+    border-radius: 50%;
+    background: var(--mc-ok);
+    box-shadow: 0 0 16px var(--mc-ok);
+}
+
+.mc-secframe-led--warning .mc-secframe-led-dot {
+    background: var(--mc-warn);
+    box-shadow: 0 0 20px var(--mc-warn);
+}
+
+.mc-secframe-led--critical .mc-secframe-led-dot {
+    background: var(--mc-crit);
+    box-shadow: 0 0 24px var(--mc-crit);
+    animation: mc-led-blink 3s ease-in-out infinite;
+}
+
+@keyframes mc-led-blink {
+    50% {
+        opacity: 0.55;
+    }
+}
+
+.mc-secframe-threat {
+    position: absolute;
+    top: 14px;
+    left: 14px;
+    width: calc(48px * var(--mc-scale));
+    height: calc(48px * var(--mc-scale));
+    border-radius: 50%;
+    border: 4px solid var(--mc-ok);
+    box-shadow: 0 0 28px rgb(0 255 136 / 40%);
+}
+
+.mc-secframe-threat--warn {
+    border-color: var(--mc-warn);
+    box-shadow: 0 0 32px rgb(255 176 0 / 45%);
+}
+
+.mc-secframe-threat--crit {
+    border-color: var(--mc-crit);
+    box-shadow: 0 0 36px rgb(255 59 59 / 5%);
+    animation: mc-led-blink 2.5s ease-in-out infinite;
+}

@@ -25,7 +25,8 @@ export function MonitorTile({
 }) {
   const s = STATUS[status as keyof typeof STATUS] ?? STATUS.unknown;
   const lines =
-    details?.filter((line) => line.trim()).slice(0, 3) ?? defaultLines(status);
+    details?.filter((line) => line.trim()) ?? defaultLines(status);
+  const manyLines = lines.length > 3;
 
   return (
     <div className={`monitor-glass monitor-cell ${s.cell}`}>
@@ -33,11 +34,13 @@ export function MonitorTile({
         <span className="monitor-cell-name">
           {MODULE_LABELS[module] ?? module}
         </span>
-        <div className="monitor-cell-details">
+        <div
+          className={`monitor-cell-details${manyLines ? " monitor-cell-details--many" : ""}`}
+        >
           {lines.map((line, i) => (
             <span
               key={`${i}-${line}`}
-              className={`monitor-cell-detail${i === 0 ? " monitor-cell-detail--primary" : ""}${i > 0 ? " monitor-cell-detail--sub" : ""}`}
+              className="monitor-cell-detail"
               title={line}
             >
               {line}

@@ -2,6 +2,7 @@ import { createHash } from "crypto";
 import { getFimPaths } from "@/lib/config";
 import { diffAndStore } from "@/lib/history/persist";
 import { getSshClient } from "@/lib/ssh";
+import { getFileChangeHint } from "./file-change-hint";
 import type { AlertInput, CheckResult } from "./types";
 
 function hashContent(content: string): string {
@@ -66,12 +67,18 @@ export async function runFimCheck(serverId: string): Promise<CheckResult> {
     });
   }
 
+  const changedPaths = diffs
+    .filter((d) => d.changeType === "changed" || d.changeType === "removed")
+    .map((d) => d.entityKey);
+
   for (const d of diffs) {
     status = "critical";
+    const hint = await getFileChangeHint(ssh, d.entityKey);
     alerts.push({
       level: "critical",
-      message: `FIM: ${d.entityKey} was modified`,
-      recommendation: "Verify change was authorized; check auth.log and package updates",
+      message: `FIM: ${d.entityKey} geändert${hint ? ` — ${hint}` : ""}`,
+      recommendation:
+        "Prüfen ob Änderung beabsichtigt (eigener Login, Coolify, apt). Sonst auth.log / journalctl -u ssh",
     });
   }
 
@@ -86,7 +93,14 @@ export async function runFimCheck(serverId: string): Promise<CheckResult> {
   return {
     module: "fim",
     status,
-    data: { files: hashes, missing, isBaseline, pathCount: paths.length },
+    data: {
+      paths,
+      files: hashes,
+      missing,
+      changedPaths,
+      isBaseline,
+      pathCount: paths.length,
+    },
     alerts,
   };
 }

@@ -23,6 +23,8 @@ export const LOG_CRITICAL_PATTERNS: RegExp[] = [
 export const LOG_WARNING_PATTERNS: RegExp[] = [
   /Failed password|Invalid user|authentication failure/i,
   /sshd\[.*error/i,
+  /\bxmrig\b|stratum\+tcp|cryptonight|kinsing/i,
+  /reverse shell|\/dev\/tcp\//i,
 ];
 
 export function isIgnoredLogLine(line: string): boolean {

@@ -11,6 +11,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:seed": "tsx src/db/seed.ts",
+    "db:reset": "tsx scripts/db-reset.ts",
+    "db:ping": "tsx scripts/db-ping.ts",
     "test:ssh": "tsx scripts/test-ssh.ts",
     "setup:ssh-key": "tsx scripts/setup-ssh-key.ts"
   },

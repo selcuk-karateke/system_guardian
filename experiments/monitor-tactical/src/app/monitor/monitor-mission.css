@@ -1,0 +1,11 @@
+/**
+ * Mission Control wallboard styles (split by zone).
+ * Same rules as before — organized by module.
+ */
+@import "./css/shell.css";
+@import "./css/security.css";
+@import "./css/network.css";
+@import "./css/core.css";
+@import "./css/docker.css";
+@import "./css/events.css";
+@import "./css/actions.css";

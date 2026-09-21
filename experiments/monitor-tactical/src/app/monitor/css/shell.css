@@ -1,0 +1,131 @@
+﻿/**
+ * Shell: viewport, header, stage scaler, zone hits, footer, TV overrides.
+ */
+.mc-wall {
+    --mc-cyan: #00e5ff;
+    --mc-ok: #00ff88;
+    --mc-warn: #ffb000;
+    --mc-crit: #ff3b3b;
+    --mc-bg: #020508;
+    --mc-scale: 1.4;
+
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100dvh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    color: #e8f4ff;
+    font-family: var(--font-geist-sans), system-ui, sans-serif;
+    background: var(--mc-bg);
+}
+
+.mc-header {
+    position: relative;
+    z-index: 5;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 12px 32px;
+    border-bottom: 1px solid rgb(0 229 255 / 12%);
+}
+
+.mc-brand {
+    font-family: var(--font-orbitron), sans-serif;
+    font-size: calc(26px * var(--mc-scale));
+    color: var(--mc-cyan);
+    letter-spacing: 0.16em;
+}
+
+.mc-live {
+    color: var(--mc-ok);
+}
+
+.mc-host {
+    flex: 1;
+    font-family: var(--font-geist-mono), monospace;
+    font-size: calc(18px * var(--mc-scale));
+    color: rgb(148 163 184 / 70%);
+}
+
+.mc-header-meta {
+    display: flex;
+    align-items: center;
+    gap: 28px;
+}
+
+.mc-wall .monitor-clock {
+    font-family: var(--font-geist-mono), monospace;
+    font-size: calc(42px * var(--mc-scale));
+    color: var(--mc-cyan);
+}
+
+.mc-link {
+    font-size: calc(16px * var(--mc-scale));
+    color: rgb(148 163 184 / 65%);
+    text-decoration: none;
+}
+
+.mc-viewport {
+    position: relative;
+    z-index: 1;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.mc-stage {
+    position: relative;
+    flex-shrink: 0;
+    transform-origin: center center;
+}
+
+.mc-deck {
+    position: relative;
+    width: 100%;
+    height: 100%;
+}
+
+.mc-zone-hit,
+.mc-sec-hit {
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+}
+
+.mc-sec-hit {
+    z-index: 9;
+}
+
+.mc-actions-bar {
+    position: absolute;
+    left: 50%;
+    bottom: 20px;
+    transform: translateX(-50%);
+    z-index: 25;
+    pointer-events: auto;
+}
+
+.mc-actions-bar .mc-zone-actions {
+    position: static;
+    flex-direction: row;
+    justify-content: center;
+}
+
+.monitor-tv-shell[data-pixel-shift="1"] .mc-wall {
+    transform: translate(2px, 0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mc-netmap-link--active,
+    .mc-beacon-fill,
+    .mc-incident,
+    .mc-secframe-led--critical .mc-secframe-led-dot {
+        animation: none;
+    }
+}

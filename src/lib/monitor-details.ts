@@ -1,4 +1,7 @@
 import type { metricsSnapshots } from "@/db/schema";
+import { parseFailedUnitName } from "@/lib/checks/services";
+import { getFimPaths } from "@/lib/config";
+import { MONITOR_PLACEHOLDER_MODULES } from "@/lib/module-labels";
 
 type MetricsRow = typeof metricsSnapshots.$inferSelect;
 
@@ -144,10 +147,18 @@ export function formatModuleDetailLines(
     status?: string;
     checkedAt?: Date | null;
     metrics?: MetricsRow | null;
+    /** TV monitor: kürzere Zeilen, alle Einträge */
+    compact?: boolean;
+    /** Offene FIM-Alerts: Pfade die noch nicht entschärft wurden */
+    fimAlertPaths?: string[];
   },
 ): string[] {
+  if ((MONITOR_PLACEHOLDER_MODULES as readonly string[]).includes(module)) {
+    return ["Platzhalter"];
+  }
+
   if (data) {
-    const fromData = formatModuleDetailLinesFromData(module, data);
+    const fromData = formatModuleDetailLinesFromData(module, data, opts);
     if (fromData?.length) return fromData;
   }
 
@@ -189,6 +200,7 @@ function shortenLabel(text: string, max = 24): string {
 function formatModuleDetailLinesFromData(
   module: string,
   data: Record<string, unknown>,
+  opts?: { compact?: boolean; fimAlertPaths?: string[] },
 ): string[] | null {
   switch (module) {
     case "docker": {
@@ -220,6 +232,7 @@ function formatModuleDetailLinesFromData(
             ageHours?: number;
             ageDays?: number;
             latestFile?: string;
+            latestKind?: string;
           }
         | undefined;
       if (summary?.present === false) return ["no backup"];
@@ -229,7 +242,9 @@ function formatModuleDetailLinesFromData(
             ? `${Math.round(summary.ageHours)}h old`
             : `${Math.round(summary.ageDays ?? 0)}d old`;
         const file = summary.latestFile.split("/").pop() ?? summary.latestFile;
-        return [`${summary.sizeHuman} · ${age}`, shortenLabel(file, 28)];
+        const kind =
+          summary.latestKind === "daily_snapshot" ? "daily · " : "";
+        return [`${kind}${summary.sizeHuman} · ${age}`, shortenLabel(file, 28)];
       }
       return null;
     }
@@ -276,8 +291,19 @@ function formatModuleDetailLinesFromData(
       return ["no matches"];
     }
     case "ssh_keys": {
-      const n = data.keyCount as number | undefined;
-      return n != null ? [`${n} keys`] : null;
+      const total = data.keyCount as number | undefined;
+      const rootN = data.rootKeyCount as number | undefined;
+      const homeUsers = data.homeUserCount as number | undefined;
+      const homeKeys = data.homeKeyCount as number | undefined;
+      if (total == null) return null;
+      if (rootN == null || homeUsers == null || homeKeys == null) {
+        return [`${total} keys`];
+      }
+      if (homeUsers === 0) return [`${total} keys · root ${rootN}`];
+      return [
+        `${total} keys`,
+        `root ${rootN} · ${homeUsers} user${homeUsers === 1 ? "" : "s"} (${homeKeys})`,
+      ];
     }
     case "users": {
       const human = data.humanCount as number | undefined;
@@ -293,23 +319,43 @@ function formatModuleDetailLinesFromData(
     }
     case "logins": {
       const root = data.lastRootLogin as
-        | { masked?: string; trusted?: boolean }
+        | {
+            masked?: string;
+            trusted?: boolean;
+            at?: string | null;
+            active?: boolean;
+          }
         | undefined;
       const f2b = data.fail2ban as
         | {
             currentlyBanned?: number;
+            totalBanned?: number;
+            totalBannedDelta?: number;
             serviceActive?: boolean;
             jailAvailable?: boolean;
           }
         | undefined;
       const lines: string[] = [];
       if (root?.masked) {
+        const when = root.at
+          ? ` · ${root.at}${root.active ? " aktiv" : ""}`
+          : "";
         lines.push(
-          `root ${root.masked} · ${root.trusted ? "known" : "unknown"}`,
+          `root ${root.masked} · ${root.trusted ? "known" : "unknown"}${when}`,
         );
       }
       if (f2b?.serviceActive && f2b.jailAvailable) {
-        lines.push(`fail2ban · ${f2b.currentlyBanned ?? 0} banned`);
+        const active = f2b.currentlyBanned ?? 0;
+        const total = f2b.totalBanned;
+        if (total != null) {
+          const delta =
+            f2b.totalBannedDelta != null && f2b.totalBannedDelta > 0
+              ? ` (+${f2b.totalBannedDelta})`
+              : "";
+          lines.push(`fail2ban · ${active} aktiv · total ${total}${delta}`);
+        } else {
+          lines.push(`fail2ban · ${active} aktiv`);
+        }
       } else if (f2b && !f2b.serviceActive) {
         lines.push("fail2ban inactive");
       }
@@ -318,8 +364,19 @@ function formatModuleDetailLinesFromData(
       return f != null ? [`${f} failed auth`] : null;
     }
     case "cron": {
+      const system = data.systemCount as number | undefined;
+      const human = data.humanCount as number | undefined;
+      if (system != null && human != null) {
+        return [`System ${system} · Human ${human}`];
+      }
       const n = data.jobCount as number | undefined;
       return n != null ? [`${n} cron jobs`] : null;
+    }
+    case "processes": {
+      const n = data.suspiciousCount as number | undefined;
+      if (n != null && n > 0) return [`${n} suspicious`];
+      const high = (data.highCpu as string[] | undefined)?.[0];
+      return high ? [shortenLabel(high, 48)] : ["ok"];
     }
     case "raid": {
       if (data.skipped) return ["mdadm disabled"];
@@ -339,6 +396,59 @@ function formatModuleDetailLinesFromData(
       const ok = sites.filter((s) => s.statusCode && s.statusCode < 400).length;
       return [`${ok}/${sites.length} reachable`];
     }
+    case "services": {
+      const lines: string[] = [];
+      const watched = data.watched as
+        | { label: string; state: string; ok: boolean }[]
+        | undefined;
+      if (watched?.length) {
+        for (const w of watched) {
+          lines.push(w.ok ? `${w.label}: aktiv` : `${w.label}: ${w.state} ⚠`);
+        }
+      }
+      const failed = (data.failedUnitNames ?? data.failedUnits) as
+        | string[]
+        | undefined;
+      const ignored = data.ignoredFailedUnits as string[] | undefined;
+      if (failed?.length) {
+        for (const raw of failed.slice(0, opts?.compact ? 3 : 10)) {
+          const u = parseFailedUnitName(raw) ?? raw;
+          lines.push(opts?.compact ? `failed: ${u}` : `systemd failed: ${u}`);
+        }
+        if (failed.length > 3 && opts?.compact) {
+          lines.push(`+${failed.length - 3} weitere failed`);
+        }
+      } else if (ignored?.length && opts?.compact) {
+        lines.push(`${ignored[0]} failed (ignoriert)`);
+      }
+      if (lines.length) return lines;
+      return ["alle Pflichtdienste aktiv"];
+    }
+    case "security_posture": {
+      const summary = data.summaryLine as string | undefined;
+      const window = data.window as
+        | { logSince?: string; logUntil?: string; hours?: number; mode?: string }
+        | undefined;
+      const iocItems = data.iocItems as
+        | { label: string; status: string; detail: string }[]
+        | undefined;
+      const lines: string[] = [];
+      if (summary) lines.push(summary);
+      if (window?.logSince && window?.logUntil) {
+        const from = window.logSince.slice(0, 16).replace("T", " ");
+        const to = window.logUntil.slice(11, 16);
+        lines.push(`Fenster ${from}–${to}`);
+      }
+      if (iocItems?.length) {
+        const pass = iocItems.filter((i) => i.status === "pass").length;
+        lines.push(`IOC ${pass}/${iocItems.length} ok`);
+        const bad = iocItems.filter((i) => i.status !== "pass");
+        for (const item of bad.slice(0, 2)) {
+          lines.push(`${item.label}: ${item.detail.slice(0, 40)}`);
+        }
+      }
+      return lines.length ? lines : null;
+    }
     case "scanner": {
       const installed = data.installed as string[] | undefined;
       return installed?.length
@@ -346,10 +456,31 @@ function formatModuleDetailLinesFromData(
         : ["no scanners"];
     }
     case "fim": {
-      const n = data.pathCount as number | undefined;
-      return n != null ? [`${n} paths`] : null;
+      const files = data.files as Record<string, string> | undefined;
+      const missing = data.missing as string[] | undefined;
+      const changed = new Set([
+        ...((data.changedPaths as string[] | undefined) ?? []),
+        ...(opts?.fimAlertPaths ?? []),
+      ]);
+      const configured =
+        (data.paths as string[] | undefined)?.length
+          ? (data.paths as string[])
+          : getFimPaths();
+      return configured.map((p) => {
+        const label = opts?.compact ? (p.split("/").pop() ?? p) : p;
+        if (missing?.includes(p)) {
+          return opts?.compact ? `${label} ✗` : `${p} (nicht lesbar)`;
+        }
+        if (changed.has(p)) {
+          return opts?.compact ? `${label} ⚠ geändert` : `${p} ⚠ geändert`;
+        }
+        if (files?.[p]) return `${label} ✓`;
+        return label;
+      });
     }
     case "network": {
+      const sus = (data.suspiciousConnections as string[] | undefined)?.length;
+      if (sus != null && sus > 0) return [`${sus} suspicious conn`];
       const n = data.listenerCount as number | undefined;
       const pub = (data.publicPorts as string[] | undefined)?.length;
       if (n != null && pub != null) return [`${n} listener`, `${pub} public`];

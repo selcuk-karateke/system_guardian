@@ -1,13 +1,23 @@
 import {
   getTrustedLoginIps,
+  isTrustedLoginIp,
   maskLoginIp,
 } from "@/lib/config";
-import { diffAndStore } from "@/lib/history/persist";
+import {
+  formatRootLoginAlertDetail,
+  parseRootLoginLine,
+  type ParsedRootLogin,
+} from "./last-login";
+import {
+  formatSinceLastCheck,
+  hoursSinceSnapshot,
+  isBanSpike,
+} from "@/lib/checks/fail2ban-metrics";
+import { diffAndStore, getLatestSnapshotMeta } from "@/lib/history/persist";
 import { getSshClient } from "@/lib/ssh";
 import type { AlertInput, CheckResult } from "./types";
 
 const FAILED_AUTH_WARN_THRESHOLD = 10;
-const BAN_SPIKE_THRESHOLD = 100;
 
 export async function runLoginsCheck(serverId: string): Promise<CheckResult> {
   void serverId;
@@ -25,32 +35,22 @@ export async function runLoginsCheck(serverId: string): Promise<CheckResult> {
   let status: CheckResult["status"] = "healthy";
   const logins: string[] = [];
   const failedIps = new Set<string>();
-  const untrustedRootIps = new Set<string>();
   const trustedIps = getTrustedLoginIps();
 
-  let lastRootLogin: {
-    ip: string;
-    masked: string;
-    trusted: boolean;
-    line: string;
-  } | null = null;
+  let lastRootLogin: ParsedRootLogin | null = null;
+  const untrustedRootLogins: ParsedRootLogin[] = [];
 
   for (const line of last.stdout.split("\n")) {
     const trimmed = line.trim();
     if (!trimmed) continue;
     logins.push(trimmed);
 
-    if (line.startsWith("root ") && !lastRootLogin) {
-      const ipMatch = line.match(/\d+\.\d+\.\d+\.\d+/);
-      if (ipMatch) {
-        const ip = ipMatch[0];
-        lastRootLogin = {
-          ip,
-          masked: maskLoginIp(ip),
-          trusted: trustedIps.has(ip),
-          line: trimmed,
-        };
-        if (!trustedIps.has(ip)) untrustedRootIps.add(ip);
+    const parsed = parseRootLoginLine(trimmed, trustedIps, maskLoginIp);
+    if (!parsed) continue;
+    if (!lastRootLogin) lastRootLogin = parsed;
+    if (!parsed.trusted) {
+      if (!untrustedRootLogins.some((l) => l.ip === parsed.ip)) {
+        untrustedRootLogins.push(parsed);
       }
     }
   }
@@ -58,18 +58,53 @@ export async function runLoginsCheck(serverId: string): Promise<CheckResult> {
   for (const line of auth.stdout.split("\n")) {
     if (line.includes("Failed password")) {
       const ipMatch = line.match(/from\s+(\S+)/);
-      if (ipMatch && !trustedIps.has(ipMatch[1])) failedIps.add(ipMatch[1]);
+      if (ipMatch && !isTrustedLoginIp(ipMatch[1])) failedIps.add(ipMatch[1]);
     }
   }
 
   const fail2ban = parseFail2banStatus(f2b.stdout, f2bSvc.stdout);
 
-  if (untrustedRootIps.size > 0) {
+  const untrustedKeys = untrustedRootLogins.map(
+    (l) => `${l.ip}|${l.at ?? ""}`,
+  );
+  const { diffs: loginDiffs, isBaseline: loginBaseline } = await diffAndStore(
+    serverId,
+    "root_logins",
+    { untrusted: untrustedKeys },
+    (prev, curr) => {
+      const prevSet = new Set((prev?.untrusted as string[]) ?? []);
+      const currList = (curr.untrusted as string[]) ?? [];
+      return currList
+        .filter((key) => !prevSet.has(key))
+        .map((key) => ({
+          changeType: "added" as const,
+          entityKey: key,
+          newValue: key,
+        }));
+    },
+  );
+
+  const newUntrustedLogins = loginDiffs
+    .map((d) => {
+      const [ip, atPart] = d.entityKey.split("|");
+      return untrustedRootLogins.find(
+        (l) => l.ip === ip && (l.at ?? "") === (atPart ?? ""),
+      );
+    })
+    .filter((l): l is ParsedRootLogin => l != null);
+
+  if (loginBaseline && untrustedRootLogins.length > 0) {
+    alerts.push({
+      level: "info",
+      message: `Login-Baseline: ${untrustedRootLogins.length} historische Root-Logins von unbekannten IPs erfasst (kein Alert)`,
+    });
+  } else if (newUntrustedLogins.length > 0) {
     status = "warning";
     alerts.push({
       level: "warning",
-      message: `Root login from unknown IP: ${[...untrustedRootIps].map(maskLoginIp).join(", ")}`,
-      recommendation: "Add to TRUSTED_LOGIN_IPS or verify access",
+      message: `Neuer Root-Login von unbekannter IP: ${newUntrustedLogins.map(formatRootLoginAlertDetail).join("; ")}`,
+      recommendation:
+        "In TRUSTED_LOGIN_IPS eintragen wenn bekannt, sonst last/auth.log prüfen",
     });
   }
 
@@ -99,7 +134,11 @@ export async function runLoginsCheck(serverId: string): Promise<CheckResult> {
     });
   }
 
-  const { diffs } = await diffAndStore(
+  const prevF2bMeta = await getLatestSnapshotMeta(serverId, "fail2ban");
+  const hoursSince = hoursSinceSnapshot(prevF2bMeta?.createdAt ?? null);
+  const prevTotalBanned = Number(prevF2bMeta?.payload.totalBanned ?? 0);
+
+  const { diffs, previousSnapshotAt } = await diffAndStore(
     serverId,
     "fail2ban",
     {
@@ -109,27 +148,34 @@ export async function runLoginsCheck(serverId: string): Promise<CheckResult> {
     (prev, curr) => {
       const prevTotal = Number(prev?.totalBanned ?? 0);
       const currTotal = Number(curr.totalBanned);
-      const delta = currTotal - prevTotal;
-      if (delta > BAN_SPIKE_THRESHOLD) {
-        return [
-          {
-            changeType: "changed" as const,
-            entityKey: "ban_spike",
-            previousValue: String(prevTotal),
-            newValue: String(delta),
-          },
-        ];
-      }
-      return [];
+      const { spike } = isBanSpike(prevTotal, currTotal, hoursSince);
+      if (!spike) return [];
+      return [
+        {
+          changeType: "changed" as const,
+          entityKey: "ban_spike",
+          previousValue: String(prevTotal),
+          newValue: String(currTotal),
+        },
+      ];
     },
   );
+
+  const banMetrics =
+    prevF2bMeta != null
+      ? isBanSpike(prevTotalBanned, fail2ban.totalBanned, hoursSince)
+      : { spike: false, delta: 0, ratePerHour: 0 };
 
   for (const d of diffs) {
     if (d.entityKey === "ban_spike") {
       status = status === "critical" ? "critical" : "warning";
+      const prev = Number(d.previousValue ?? 0);
+      const curr = Number(d.newValue ?? fail2ban.totalBanned);
+      const delta = curr - prev;
+      const sinceLabel = formatSinceLastCheck(hoursSince);
       alerts.push({
         level: "warning",
-        message: `fail2ban ban spike: +${d.newValue} bans since last check`,
+        message: `fail2ban Ban-Spike: +${delta} Ereignisse in ${sinceLabel} (Total ${prev}→${curr}, ${fail2ban.currentlyBanned} aktiv)`,
         recommendation: "Review auth.log for coordinated SSH attack",
       });
     }
@@ -150,7 +196,28 @@ export async function runLoginsCheck(serverId: string): Promise<CheckResult> {
       recentLogins: logins.slice(0, 15),
       failedCount: failedIps.size,
       lastRootLogin,
-      fail2ban,
+      untrustedRootLogins: untrustedRootLogins.map((l) => ({
+        masked: l.masked,
+        at: l.at,
+        active: l.active,
+      })),
+      newUntrustedLogins: newUntrustedLogins.map((l) => ({
+        masked: l.masked,
+        at: l.at,
+        active: l.active,
+      })),
+      fail2ban: {
+        ...fail2ban,
+        totalBannedDelta: banMetrics.delta > 0 ? banMetrics.delta : undefined,
+        banRatePerHour:
+          banMetrics.ratePerHour > 0
+            ? Math.round(banMetrics.ratePerHour)
+            : undefined,
+        sinceLastCheckHours:
+          previousSnapshotAt != null
+            ? Math.round(hoursSince * 10) / 10
+            : undefined,
+      },
     },
     alerts,
   };

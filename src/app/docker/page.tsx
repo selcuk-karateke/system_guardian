@@ -1,35 +1,83 @@
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DockerInventoryPanel } from "@/components/dashboard/docker-inventory-panel";
+import { buildDockerInventoryGroups } from "@/lib/docker/inventory";
 import { getLatestCheckByModule } from "@/lib/dashboard-data";
+import { getTrivyScansByDigest } from "@/lib/trivy/store";
+import type { TrivyScanRecord } from "@/lib/trivy/types";
+
+function indexScans(scans: Record<string, TrivyScanRecord>) {
+  const byKey: Record<string, TrivyScanRecord> = {};
+  for (const record of Object.values(scans)) {
+    byKey[record.imageDigest] = record;
+    byKey[record.imageRef] = record;
+  }
+  return byKey;
+}
 
 export default async function DockerPage() {
   let docker: Awaited<ReturnType<typeof getLatestCheckByModule>> | undefined;
   let coolify: Awaited<ReturnType<typeof getLatestCheckByModule>> | undefined;
+  let scansByKey: Record<string, TrivyScanRecord> = {};
 
   try {
-    docker = await getLatestCheckByModule("docker");
-    coolify = await getLatestCheckByModule("coolify");
+    [docker, coolify] = await Promise.all([
+      getLatestCheckByModule("docker"),
+      getLatestCheckByModule("coolify"),
+    ]);
+    scansByKey = indexScans(await getTrivyScansByDigest());
   } catch {
     /* empty */
   }
 
   const containers =
-    (docker?.data as { containers?: Array<{ Names: string; Status: string; State: string }> })
-      ?.containers ?? [];
+    (docker?.data as {
+      containers?: Array<{
+        Names: string;
+        Image?: string;
+        Status: string;
+        State: string;
+        displayName?: string;
+        coolify?: {
+          projectName?: string;
+          environmentName?: string;
+          fqdn?: string;
+          type?: string;
+        };
+      }>;
+    })?.containers ?? [];
+
+  const inventory = (
+    docker?.data as {
+      inventory?: {
+        onlyCoolifyStack?: boolean;
+        foreignRunning?: { name: string; image: string }[];
+        wordpressRunning?: string[];
+        monitoringRunning?: { name: string; image: string }[];
+      };
+    }
+  )?.inventory;
 
   const checkMode = (docker?.data as { checkMode?: string })?.checkMode ?? "mock";
   const isMock = checkMode === "mock";
+  const groups = buildDockerInventoryGroups(containers);
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Docker</h1>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <h1 className="text-3xl font-bold">Docker</h1>
+        <p className="text-sm text-zinc-500">
+          Running: {(docker?.data as { running?: number })?.running ?? 0} /
+          Total: {(docker?.data as { total?: number })?.total ?? 0}
+        </p>
+      </div>
 
       {isMock && (
         <div className="rounded-lg border border-sky-900/50 bg-sky-950/30 px-4 py-3 text-sm text-sky-200">
-          <strong>CHECK_MODE=mock</strong> – Die Container unten sind{" "}
-          <strong>Testdaten</strong>, nicht dein PC und nicht dein Hetzner-Server.
-          Coolify, Postgres usw. sind nur simuliert. Für echte Daten:{" "}
-          <code className="text-sky-100">CHECK_MODE=ssh</code> + SSH-Zugang zum Host.
+          <strong>CHECK_MODE=mock</strong> – Testdaten. Trivy-Button speichert
+          Mock-Ergebnisse. Für echte Scans:{" "}
+          <code className="text-sky-100">CHECK_MODE=ssh</code> + Trivy auf dem
+          Host.
         </div>
       )}
 
@@ -40,68 +88,54 @@ export default async function DockerPage() {
         </div>
       )}
 
-      <div className="flex gap-4">
-        <Card className="flex-1">
+      {inventory && (
+        <Card>
           <CardHeader>
-            <CardTitle>Container</CardTitle>
+            <CardTitle>Kurzüberblick</CardTitle>
           </CardHeader>
-          <CardContent>
-            <p className="text-sm text-zinc-400 mb-4">
-              Running: {(docker?.data as { running?: number })?.running ?? 0} /
-              Total: {(docker?.data as { total?: number })?.total ?? 0}
+          <CardContent className="text-sm space-y-2 text-zinc-300">
+            <p>
+              Nur Coolify-Stack:{" "}
+              <Badge variant={inventory.onlyCoolifyStack ? "healthy" : "warning"}>
+                {inventory.onlyCoolifyStack ? "ja" : "nein"}
+              </Badge>
             </p>
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-zinc-500 text-left">
-                  <th className="pb-2">Name</th>
-                  <th>State</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {containers.map((c) => (
-                  <tr key={c.Names} className="border-t border-zinc-800">
-                    <td className="py-2">{c.Names}</td>
-                    <td>
-                      <Badge
-                        variant={
-                          c.State === "running"
-                            ? "healthy"
-                            : c.State === "exited"
-                              ? "warning"
-                              : "critical"
-                        }
-                      >
-                        {c.State}
-                      </Badge>
-                    </td>
-                    <td className="text-zinc-400">{c.Status}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            {inventory.foreignRunning && inventory.foreignRunning.length > 0 && (
+              <p className="text-red-300">
+                Fremde Images (running):{" "}
+                {inventory.foreignRunning
+                  .map((f) => `${f.name} → ${f.image}`)
+                  .join("; ")}
+              </p>
+            )}
           </CardContent>
         </Card>
+      )}
 
-        <Card className="w-80">
-          <CardHeader>
-            <CardTitle>Coolify</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            {Object.entries(
-              (coolify?.data as { services?: Record<string, string> })?.services ??
-                {},
-            ).map(([name, state]) => (
-              <div key={name} className="flex justify-between">
-                <span>{name}</span>
-                <Badge variant={state === "running" ? "healthy" : "critical"}>
-                  {state}
-                </Badge>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      </div>
+      <DockerInventoryPanel
+        groups={groups}
+        checkMode={checkMode}
+        scansByImage={scansByKey}
+      />
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Coolify-Dienste</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-3">
+          {Object.entries(
+            (coolify?.data as { services?: Record<string, string> })?.services ??
+              {},
+          ).map(([name, state]) => (
+            <div key={name} className="flex justify-between gap-2">
+              <span className="text-zinc-300">{name}</span>
+              <Badge variant={state === "running" ? "healthy" : "critical"}>
+                {state}
+              </Badge>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
     </div>
   );
 }

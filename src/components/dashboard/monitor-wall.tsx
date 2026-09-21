@@ -1,8 +1,9 @@
 import Link from "next/link";
+import { MonitorAlertTicker } from "./monitor-alert-ticker";
 import { MonitorClock } from "./monitor-clock";
 import { MonitorHeroMetric } from "./monitor-metric";
+import { MonitorReloadButton } from "./monitor-reload-button";
 import { MonitorTile } from "./monitor-tile";
-import { MODULE_LABELS } from "@/lib/module-labels";
 import type { MonitorMetricCards } from "@/lib/monitor-details";
 
 const COLUMNS = [
@@ -20,7 +21,7 @@ const COLUMNS = [
     modules: ["docker", "coolify", "database", "ssl", "website", "cron"],
   },
   {
-    modules: ["fim", "ssh_keys", "users", "logins", "scanner"],
+    modules: ["fim", "ssh_keys", "users", "logins", "scanner", "reserved"],
   },
 ] as const;
 
@@ -55,7 +56,9 @@ export function MonitorWall({
   counts,
   alerts,
 }: Props) {
-  const topAlert = alerts.find((a) => a.level === "critical") ?? alerts[0];
+  const tickerAlerts = alerts.filter(
+    (a) => a.level === "critical" || a.level === "warning",
+  );
 
   return (
     <div className="monitor-wall" data-status={globalStatus}>
@@ -102,6 +105,7 @@ export function MonitorWall({
           </div>
           <div className="monitor-top-right">
             <MonitorClock />
+            <MonitorReloadButton />
             <Link href="/" className="monitor-top-link">
               Dashboard
             </Link>
@@ -180,25 +184,8 @@ export function MonitorWall({
           ))}
         </main>
 
-        <footer
-          className={`monitor-glass monitor-bottom ${
-            topAlert?.level === "critical"
-              ? "monitor-bottom--critical"
-              : topAlert?.level === "warning"
-                ? "monitor-bottom--warning"
-                : ""
-          }`}
-        >
-          {topAlert ? (
-            <Link href={`/alerts/${topAlert.id}`} className="monitor-bottom-link">
-              <span className="monitor-bottom-label">
-                {topAlert.level === "critical" ? "Critical" : "Warning"}
-              </span>
-              {MODULE_LABELS[topAlert.module] ?? topAlert.module} — {topAlert.message}
-            </Link>
-          ) : (
-            <span className="monitor-bottom-empty">No open alerts</span>
-          )}
+        <footer className="monitor-glass monitor-bottom">
+          <MonitorAlertTicker alerts={tickerAlerts} intervalMs={3000} />
         </footer>
       </div>
     </div>

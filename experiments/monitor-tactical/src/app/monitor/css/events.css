@@ -1,0 +1,105 @@
+﻿/* â”€â”€ Events (visual cards) â”€â”€ */
+.mc-events-zone {
+    position: absolute;
+    right: 28px;
+    top: 36px;
+    bottom: 28px;
+    width: 232px;
+    z-index: 5;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.mc-incidents {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    flex: 1;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.mc-incident {
+    position: relative;
+    min-height: calc(72px * var(--mc-scale));
+    padding: 12px 12px 12px calc(28px * var(--mc-scale));
+    background: rgb(0 0 0 / 40%);
+    animation: mc-incident-in 0.7s ease both;
+}
+
+@keyframes mc-incident-in {
+    from {
+        opacity: 0;
+        transform: translateX(16px);
+    }
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+.mc-incident-bar {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: calc(10px * var(--mc-scale));
+}
+
+.mc-incident--info .mc-incident-bar {
+    background: var(--mc-cyan);
+}
+
+.mc-incident--warning .mc-incident-bar {
+    background: var(--mc-warn);
+    box-shadow: 0 0 16px rgb(255 176 0 / 40%);
+}
+
+.mc-incident--critical .mc-incident-bar {
+    background: var(--mc-crit);
+    animation: mc-led-blink 2.5s ease-in-out infinite;
+}
+
+.mc-incident-glyph {
+    position: absolute;
+    left: calc(14px * var(--mc-scale));
+    top: 50%;
+    transform: translateY(-50%);
+    width: calc(12px * var(--mc-scale));
+    height: calc(12px * var(--mc-scale));
+    border-radius: 2px;
+    background: currentColor;
+    opacity: 0.5;
+}
+
+.mc-incident--warning .mc-incident-glyph {
+    transform: translateY(-50%) rotate(45deg);
+    background: var(--mc-warn);
+    opacity: 1;
+}
+
+.mc-incident--critical .mc-incident-glyph {
+    border-radius: 50%;
+    background: var(--mc-crit);
+    opacity: 1;
+}
+
+.mc-incident-title {
+    margin: 0;
+    font-family: var(--font-orbitron), sans-serif;
+    font-size: calc(17px * var(--mc-scale));
+    font-weight: 700;
+    line-height: 1.2;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.mc-incident-empty {
+    flex: 1;
+}

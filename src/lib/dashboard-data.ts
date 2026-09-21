@@ -1,4 +1,4 @@
-import { desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, isNull, ne } from "drizzle-orm";
 import { db } from "@/db";
 import {
   alerts,
@@ -9,18 +9,86 @@ import {
   servers,
 } from "@/db/schema";
 import { getCheckMode, worstStatus } from "@/lib/config";
+import {
+  MONITOR_MODULE_ORDER,
+  MONITOR_PLACEHOLDER_MODULES,
+} from "@/lib/module-labels";
 import type { CheckStatus } from "@/lib/checks/types";
 
 export type GlobalStatus = "healthy" | "warning" | "critical";
 
-export async function getGlobalStatus(): Promise<GlobalStatus> {
-  const recent = await db
-    .select()
-    .from(checkRuns)
-    .orderBy(desc(checkRuns.createdAt))
-    .limit(30);
+type ModuleStatusRow = { module: string; status: string; at: Date | null };
 
-  const statuses = recent.map((r) => r.status as CheckStatus);
+/** Worst level from unresolved warning/critical alerts for one module. */
+function statusFromOpenAlerts(
+  rows: { level: string }[],
+): CheckStatus | null {
+  let worst: CheckStatus = "healthy";
+  for (const a of rows) {
+    if (a.level === "critical") return "critical";
+    if (a.level === "warning") worst = "warning";
+  }
+  return worst === "healthy" ? null : worst;
+}
+
+/**
+ * Check-Run-Status + offene Alerts zusammenführen.
+ * Entschärfte Alerts senken den angezeigten Status — sonst bleibt WARNING hängen.
+ */
+export function effectiveModuleStatus(
+  checkStatus: string,
+  openAlerts: { level: string }[],
+): CheckStatus {
+  const fromAlerts = statusFromOpenAlerts(openAlerts);
+  if (fromAlerts) return fromAlerts;
+  if (checkStatus === "warning" || checkStatus === "critical") return "healthy";
+  if (checkStatus === "healthy") return "healthy";
+  return "healthy";
+}
+
+async function getOpenAlertsGroupedByModule(): Promise<
+  Map<string, { level: string }[]>
+> {
+  const open = await db
+    .select({ module: alerts.module, level: alerts.level })
+    .from(alerts)
+    .where(and(isNull(alerts.resolvedAt), ne(alerts.level, "info")));
+  const byModule = new Map<string, { level: string }[]>();
+  for (const row of open) {
+    const list = byModule.get(row.module) ?? [];
+    list.push({ level: row.level });
+    byModule.set(row.module, list);
+  }
+  return byModule;
+}
+
+function applyEffectiveStatuses(
+  rows: ModuleStatusRow[],
+  openByModule: Map<string, { level: string }[]>,
+): ModuleStatusRow[] {
+  return rows.map((row) => ({
+    ...row,
+    status: effectiveModuleStatus(
+      row.status,
+      openByModule.get(row.module) ?? [],
+    ),
+  }));
+}
+
+/** TV-Banner: nur Monitor-Kacheln (ohne Platzhalter), nicht z. B. security_posture allein */
+export async function getGlobalStatus(): Promise<GlobalStatus> {
+  const [modules, openByModule] = await Promise.all([
+    getAllModuleStatuses(),
+    getOpenAlertsGroupedByModule(),
+  ]);
+  const effective = applyEffectiveStatuses(modules, openByModule);
+  const placeholders = new Set<string>(MONITOR_PLACEHOLDER_MODULES);
+  const statuses: CheckStatus[] = [];
+  for (const mod of MONITOR_MODULE_ORDER) {
+    if (placeholders.has(mod)) continue;
+    const row = effective.find((m) => m.module === mod);
+    if (row?.status) statuses.push(row.status as CheckStatus);
+  }
   return worstStatus(statuses.length ? statuses : ["healthy"]);
 }
 
@@ -35,15 +103,19 @@ export async function getServerOverview() {
         .limit(1)
     : [];
 
-  const recentModules = await db
-    .select()
-    .from(checkRuns)
-    .orderBy(desc(checkRuns.createdAt))
-    .limit(20);
+  const [recentModules, openByModule] = await Promise.all([
+    db.select().from(checkRuns).orderBy(desc(checkRuns.createdAt)).limit(20),
+    getOpenAlertsGroupedByModule(),
+  ]);
 
   const moduleStatus: Record<string, string> = {};
   for (const r of recentModules) {
-    if (!moduleStatus[r.module]) moduleStatus[r.module] = r.status;
+    if (!moduleStatus[r.module]) {
+      moduleStatus[r.module] = effectiveModuleStatus(
+        r.status,
+        openByModule.get(r.module) ?? [],
+      );
+    }
   }
 
   return {
@@ -58,11 +130,18 @@ export async function getServerOverview() {
   };
 }
 
-export async function getRecentAlerts(limit = 50) {
+export async function getRecentAlerts(
+  limit = 50,
+  opts?: { includeInfo?: boolean },
+) {
+  const conditions = [isNull(alerts.resolvedAt)];
+  if (!opts?.includeInfo) {
+    conditions.push(ne(alerts.level, "info"));
+  }
   return db
     .select()
     .from(alerts)
-    .where(isNull(alerts.resolvedAt))
+    .where(and(...conditions))
     .orderBy(desc(alerts.createdAt))
     .limit(limit);
 }
@@ -95,9 +174,7 @@ export async function getDomains() {
 }
 
 /** Latest status per module for monitor grid */
-export async function getAllModuleStatuses(): Promise<
-  { module: string; status: string; at: Date | null }[]
-> {
+export async function getAllModuleStatuses(): Promise<ModuleStatusRow[]> {
   const runs = await db
     .select()
     .from(checkRuns)
@@ -111,11 +188,14 @@ export async function getAllModuleStatuses(): Promise<
     }
   }
 
-  return [...seen.entries()].map(([module, v]) => ({
+  const raw = [...seen.entries()].map(([module, v]) => ({
     module,
     status: v.status,
     at: v.at,
   }));
+
+  const openByModule = await getOpenAlertsGroupedByModule();
+  return applyEffectiveStatuses(raw, openByModule);
 }
 
 export async function getLastCheckTime(): Promise<Date | null> {

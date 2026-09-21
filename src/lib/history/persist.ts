@@ -18,10 +18,15 @@ export async function persistCheckRun(
   });
 }
 
-export async function getLatestSnapshot(
+export type SnapshotMeta = {
+  payload: Record<string, unknown>;
+  createdAt: Date;
+};
+
+export async function getLatestSnapshotMeta(
   serverId: string,
   category: string,
-): Promise<Record<string, unknown> | null> {
+): Promise<SnapshotMeta | null> {
   const rows = await db
     .select()
     .from(snapshots)
@@ -30,7 +35,16 @@ export async function getLatestSnapshot(
     .limit(200);
 
   const match = rows.find((r) => r.category === category);
-  return match?.payload ?? null;
+  if (!match) return null;
+  return { payload: match.payload, createdAt: match.createdAt };
+}
+
+export async function getLatestSnapshot(
+  serverId: string,
+  category: string,
+): Promise<Record<string, unknown> | null> {
+  const meta = await getLatestSnapshotMeta(serverId, category);
+  return meta?.payload ?? null;
 }
 
 export async function saveSnapshot(
@@ -63,6 +77,8 @@ export type DiffAndStoreResult = {
   diffs: DiffItem[];
   /** First snapshot for this category – no change alerts (baseline). */
   isBaseline: boolean;
+  /** When the previous snapshot was stored (null on baseline). */
+  previousSnapshotAt: Date | null;
 };
 
 /**
@@ -78,16 +94,21 @@ export async function diffAndStore(
     curr: Record<string, unknown>,
   ) => DiffItem[],
 ): Promise<DiffAndStoreResult> {
-  const prev = await getLatestSnapshot(serverId, category);
+  const prevMeta = await getLatestSnapshotMeta(serverId, category);
+  const prev = prevMeta?.payload ?? null;
   const isBaseline = prev === null;
 
   await saveSnapshot(serverId, category, currentPayload);
 
   if (isBaseline) {
-    return { diffs: [], isBaseline: true };
+    return { diffs: [], isBaseline: true, previousSnapshotAt: null };
   }
 
   const diffs = toDiff(prev, currentPayload);
   await persistDiffs(serverId, category, diffs);
-  return { diffs, isBaseline: false };
+  return {
+    diffs,
+    isBaseline: false,
+    previousSnapshotAt: prevMeta!.createdAt,
+  };
 }

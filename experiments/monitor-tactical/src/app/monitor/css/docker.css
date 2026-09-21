@@ -1,0 +1,140 @@
+﻿/* â”€â”€ Docker topology (bottom band) â”€â”€ */
+.mc-topo-zone {
+    position: absolute;
+    left: 200px;
+    right: 272px;
+    bottom: 28px;
+    height: 148px;
+    z-index: 5;
+}
+
+.mc-topo {
+    height: 100%;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.mc-topo-health {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 6px;
+    background: rgb(255 255 255 / 6%);
+}
+
+.mc-topo-health-bar {
+    display: block;
+    height: 100%;
+    background: var(--mc-ok);
+    transition: width 1s ease;
+}
+
+.mc-topo--warn .mc-topo-health-bar {
+    background: var(--mc-warn);
+}
+
+.mc-topo--down .mc-topo-health-bar,
+.mc-topo--crit .mc-topo-health-bar {
+    background: var(--mc-crit);
+}
+
+.mc-topo-svg {
+    position: absolute;
+    inset: 20px 0 0;
+    width: 100%;
+    height: 80px;
+}
+
+.mc-topo-spine {
+    stroke: rgb(0 255 136 / 25%);
+    stroke-width: 4;
+}
+
+.mc-topo-nodes {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 0 24px;
+    margin-top: 24px;
+}
+
+.mc-topo-node {
+    flex: 1;
+    text-align: center;
+    position: relative;
+}
+
+.mc-topo-node-ring {
+    display: block;
+    width: calc(72px * var(--mc-scale));
+    height: calc(72px * var(--mc-scale));
+    margin: 0 auto 8px;
+    border-radius: 50%;
+    border: 4px solid rgb(0 255 136 / 45%);
+    background: rgb(0 255 136 / 8%);
+    box-shadow: 0 0 24px rgb(0 255 136 / 20%);
+}
+
+.mc-topo-node--warning .mc-topo-node-ring {
+    border-color: var(--mc-warn);
+    background: rgb(255 176 0 / 10%);
+    box-shadow: 0 0 28px rgb(255 176 0 / 25%);
+}
+
+.mc-topo-node--critical .mc-topo-node-ring {
+    border-color: var(--mc-crit);
+    background: rgb(255 59 59 / 12%);
+}
+
+.mc-topo-node {
+    position: relative;
+}
+
+.mc-topo-node-count {
+    position: absolute;
+    left: 50%;
+    top: calc(36px * var(--mc-scale));
+    transform: translate(-50%, -55%);
+    font-family: var(--font-orbitron), sans-serif;
+    font-size: calc(32px * var(--mc-scale));
+    font-weight: 800;
+    line-height: 1;
+}
+
+.mc-topo-node-name {
+    font-family: var(--font-orbitron), sans-serif;
+    font-size: calc(18px * var(--mc-scale));
+    letter-spacing: 0.12em;
+    color: rgb(0 229 255 / 75%);
+}
+
+.mc-topo-pulse {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    gap: 8px;
+}
+
+.mc-topo-run {
+    width: calc(20px * var(--mc-scale));
+    height: calc(20px * var(--mc-scale));
+    border-radius: 50%;
+    background: var(--mc-ok);
+    box-shadow: 0 0 16px var(--mc-ok);
+}
+
+.mc-topo-fail {
+    width: calc(20px * var(--mc-scale));
+    height: calc(20px * var(--mc-scale));
+    border-radius: 50%;
+    background: var(--mc-crit);
+    animation: mc-led-blink 2s ease-in-out infinite;
+}

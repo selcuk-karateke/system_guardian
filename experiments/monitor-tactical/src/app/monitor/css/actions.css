@@ -1,0 +1,25 @@
+﻿.mc-zone-actions,
+.mc-zone-btn {
+    pointer-events: auto;
+}
+
+.mc-zone-actions {
+    position: absolute;
+    z-index: 25;
+    display: flex;
+    gap: 10px;
+}
+
+.mc-zone-btn {
+    font-family: var(--font-geist-mono), monospace;
+    font-size: calc(17px * var(--mc-scale));
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 10px 16px;
+    border: 1px solid rgb(0 229 255 / 45%);
+    border-radius: 4px;
+    background: rgb(0 0 0 / 65%);
+    color: #fff;
+    cursor: pointer;
+}

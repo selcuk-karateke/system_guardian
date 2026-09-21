@@ -36,12 +36,14 @@ export default async function DashboardPage() {
         <div>
           <h1 className="text-3xl font-bold">Dashboard</h1>
           <p className="text-zinc-400 mt-1">Gesamtstatus der Infrastruktur</p>
-          <Link
-            href="/monitor"
-            className="inline-block mt-3 sg-link hover:underline text-sm font-medium"
-          >
-            Vollbild für Fernseher / Monitor →
-          </Link>
+          <div className="flex flex-wrap gap-4 mt-3 text-sm">
+            <Link href="/monitor" className="sg-link hover:underline font-medium">
+              Monitor (TV) →
+            </Link>
+            <Link href="/history" className="sg-link hover:underline font-medium">
+              Historie & Zeitfilter →
+            </Link>
+          </div>
         </div>
         <div className="flex flex-col items-end gap-4">
           <StatusBadge status={globalStatus} />
@@ -53,9 +55,27 @@ export default async function DashboardPage() {
 
       {dbError && (
         <Card className="border-amber-800">
-          <CardContent className="pt-6 text-amber-300">
-            Datenbank nicht erreichbar: {dbError}. Prüfe lokales PostgreSQL,
-            DATABASE_URL in .env.local, dann npm run db:migrate und npm run db:seed.
+          <CardContent className="pt-6 text-amber-300 space-y-2">
+            <p>Datenbank nicht erreichbar: {dbError}</p>
+            {/zu viele Verbindungen|too many connections|53300/i.test(dbError) ? (
+              <p className="text-sm text-amber-200/90">
+                PostgreSQL ist voll (zu viele offene Verbindungen durch{" "}
+                <code className="text-amber-100">pnpm dev</code> / Scripts):{" "}
+                <code className="text-amber-100">pnpm dev</code> stoppen, dann
+                PostgreSQL-Dienst neu starten (Windows Admin:{" "}
+                <code className="text-amber-100">
+                  Restart-Service postgresql-x64-17
+                </code>
+                ), danach <code className="text-amber-100">pnpm dev</code>{" "}
+                wieder starten.
+              </p>
+            ) : (
+              <p className="text-sm text-amber-200/90">
+                Prüfe lokales PostgreSQL, DATABASE_URL in .env.local, dann{" "}
+                <code className="text-amber-100">npm run db:migrate</code> und{" "}
+                <code className="text-amber-100">npm run db:seed</code>.
+              </p>
+            )}
           </CardContent>
         </Card>
       )}

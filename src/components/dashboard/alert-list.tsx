@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { dismissAlert } from "@/app/actions/alerts";
+import { CopyReportButton } from "@/components/dashboard/copy-report-button";
 import { MODULE_LABELS } from "@/lib/module-labels";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,6 +16,7 @@ export type AlertRow = {
   message: string;
   createdAt: string;
   recommendation?: string | null;
+  reportText?: string;
 };
 
 export function AlertList({
@@ -85,6 +87,14 @@ export function AlertList({
             >
               Details
             </Link>
+          )}
+          {a.reportText && (
+            <CopyReportButton
+              text={a.reportText}
+              label="Kopieren"
+              copiedLabel="OK"
+              size="sm"
+            />
           )}
           <Button
             type="button"

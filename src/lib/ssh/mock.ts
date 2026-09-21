@@ -16,6 +16,11 @@ Swap:    4294967296           0  4294967296
 md0 : active raid1 sda1[0] sdb1[1]
       524288 blocks super 1.2 [2/2] [UU]
 `,
+  "docker inspect": `/rtamvw4r4a62y8gkheeg0vi3-202201900178\x1e{"coolify.projectName":"dachpro","coolify.environmentName":"development","coolify.name":"rtamvw4r4a62y8gkheeg0vi3","coolify.type":"application","coolify.applicationId":"15","coolify.managed":"true"}\x1eCOOLIFY_FQDN=dev.dachpro.com|COOLIFY_BRANCH=development
+/mwoso040kckcgck4g4wog8ow\x1e{"coolify.managed":"true","coolify.projectName":"kosmetikstudio","coolify.environmentName":"production","coolify.type":"database","coolify.database.subType":"standalone-postgresql","coolify.resourceName":"postgresql-database-mwoso040kckcgck4g4wog8ow"}\x1e
+/coolify\x1e{"coolify.managed":"true","coolify.name":"coolify"}\x1e
+/coolify-db\x1e{"coolify.managed":"true"}\x1e
+`,
   "docker ps -a --format '{{json .}}'": [
     '{"ID":"a1","Names":"coolify","Image":"coolifyio/coolify","Status":"Up 2 weeks (healthy)","State":"running"}',
     '{"ID":"a2","Names":"coolify-realtime","Image":"coolifyio/realtime","Status":"Up 2 weeks","State":"running"}',
@@ -29,6 +34,20 @@ tcp   LISTEN 0      128    0.0.0.0:22         0.0.0.0:*    users:(("sshd",pid=1)
 tcp   LISTEN 0      128    0.0.0.0:80         0.0.0.0:*    users:(("nginx",pid=2))
 tcp   LISTEN 0      128    0.0.0.0:443        0.0.0.0:*    users:(("nginx",pid=2))
 `,
+  "ss -tunap": `Netid State Recv-Q Send-Q Local Address:Port Peer Address:Port Process
+tcp   LISTEN 0      128    0.0.0.0:22         0.0.0.0:*    users:(("sshd",pid=1))
+tcp   LISTEN 0      128    0.0.0.0:80         0.0.0.0:*    users:(("nginx",pid=2))
+tcp   ESTAB  0      0      10.0.0.5:443       203.0.113.10:52134 users:(("nginx",pid=2))
+`,
+  "ps auxww": `USER       PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND
+root         1  0.0  0.1 169000 12000 ?        Ss   Jun01   0:10 /sbin/init
+root       412  0.1  0.2  25000  8000 ?        Ss   Jun01   1:20 sshd: /usr/sbin/sshd
+www-data  1200  0.2  0.5  88000 40000 ?        S    Jun02   0:45 nginx: worker process
+`,
+  "docker stats --no-stream": [
+    '{"Name":"coolify","CPUPerc":"2.50%","MemPerc":"12.00%"}',
+    '{"Name":"coolify-db","CPUPerc":"5.00%","MemPerc":"45.00%"}',
+  ].join("\n"),
   "cat /root/.ssh/authorized_keys": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleKey user@host\n",
   "cat '/etc/ssh/sshd_config'": "Port 22\nPermitRootLogin prohibit-password\n",
   "cat '/etc/sudoers'": "Defaults env_reset\n",
@@ -41,16 +60,29 @@ deploy:x:1000:1000:Deploy User:/home/deploy:/bin/bash
 root     pts/1        198.51.100.5     Tue Jun  2 14:00 - 14:30  (00:30)
 `,
   "grep -i 'Failed password' /var/log/auth.log 2>/dev/null | tail -20": "Jun  3 07:00:00 sshd[999]: Failed password for invalid user admin from 203.0.113.99 port 22\n",
-  "ls -la /etc/cron.d /var/spool/cron/crontabs 2>/dev/null": "/etc/cron.d/backup\n",
-  "for period in daily": `periodic\tcron.daily\tman-db
-periodic\tcron.daily\tlogrotate
+  "ls -la /etc/cron.d /var/spool/cron/crontabs 2>/dev/null":
+    "/etc/cron.d/e2scrub_all\n",
+  "for period in daily": `periodic\tcron.daily\tapt-compat
+periodic\tcron.daily\tapt
 periodic\tcron.daily\tdpkg
-periodic\tcron.daily\taptitude
-periodic\tcron.daily\tapt-compat
-file\tcron.d\tbackup\t0 3 * * * root /usr/local/bin/backup.sh
-crontab\troot\t0 2 * * * /usr/local/bin/backup.sh
+periodic\tcron.daily\tlogrotate
+periodic\tcron.daily\tman-db
+periodic\tcron.daily\trkhunter
+periodic\tcron.daily\tunattended-upgrades
+periodic\tcron.daily\tsysstat
+periodic\tcron.weekly\tman-db
+periodic\tcron.weekly\trkhunter
+periodic\tcron.monthly\tunattended-upgrades
+file\tcron.d\te2scrub_all\t30 3 * * 6 root test -e /usr/sbin/e2scrub_all && /usr/sbin/e2scrub_all
+file\tcrontab\tmain\tSHELL=/bin/sh PATH=... run-parts /etc/cron.hourly ...
 `,
-  "crontab -l 2>/dev/null": "0 2 * * * /usr/local/bin/backup.sh\n",
+  "crontab -l 2>/dev/null": "",
+  "for u in docker fail2ban ssh sshd": `unit\tdocker\tactive
+unit\tfail2ban\tactive
+unit\tssh\tactive
+unit\tsshd\tinactive
+`,
+  "systemctl list-units --type=service --state=failed": "",
   "which nmap": "",
   "which masscan": "",
   "which zmap": "",
@@ -61,8 +93,58 @@ crontab\troot\t0 2 * * * /usr/local/bin/backup.sh
 };
 
 function matchFixture(command: string): string {
+  if (command.includes("sshd -T") && command.includes("permitrootlogin")) {
+    return "permitrootlogin prohibit-password\n";
+  }
+  if (
+    command.includes("/root/.ssh/authorized_keys") &&
+    command.includes("/home/*/.ssh")
+  ) {
+    return [
+      "root\tssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleKey user@host",
+      "deploy\tssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDeployKey deploy@host",
+    ].join("\n");
+  }
+  if (command.includes("docker inspect") && command.includes("--format")) {
+    if (command.includes("{{.Config.Image}}")) {
+      const m = command.match(/'([^']+)'/);
+      const name = m?.[1] ?? "coolify";
+      if (name === "coolify") return "coolifyio/coolify:latest\n";
+      if (name.includes("wordpress")) return "wordpress:latest\n";
+      return `rtamvw4r4a62y8gkheeg0vi3:7658e627650b47595b0424631971\n`;
+    }
+    if (command.includes("{{.Image}}")) {
+      return "sha256:abc123mockdigest0000000000000000000000000000000000\n";
+    }
+    return FIXTURES["docker inspect"] ?? "";
+  }
+  if (command.includes("command -v trivy")) {
+    return "/usr/bin/trivy\n";
+  }
+  if (command.includes("trivy image")) {
+    return JSON.stringify({
+      Results: [
+        {
+          Target: "mock",
+          Vulnerabilities: [],
+        },
+      ],
+    });
+  }
   for (const [key, value] of Object.entries(FIXTURES)) {
     if (command.includes(key) || command === key) return value;
+  }
+  if (command.includes("/backups/daily") && command.includes("-maxdepth 1")) {
+    const now = Math.floor(Date.now() / 1000) - 7200;
+    const today = new Date().toISOString().slice(0, 10);
+    return `${now} /backups/daily/${today}\n`;
+  }
+  if (command.includes("du -sb") && command.includes("/backups/daily/")) {
+    return "5368709120\n";
+  }
+  if (command.includes("/backups/monthly")) {
+    const now = Math.floor(Date.now() / 1000) - 86400;
+    return `${now} 2147483648 /backups/monthly/full-backup-2026-06.tar.gz\n`;
   }
   if (command.includes("kawai-complete-backup") || command.includes("*.tar.gz")) {
     const now = Math.floor(Date.now() / 1000) - 3600;

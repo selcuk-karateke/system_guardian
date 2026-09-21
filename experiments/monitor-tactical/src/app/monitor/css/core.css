@@ -1,0 +1,89 @@
+﻿/* â”€â”€ System beacon (compact, top-left) â”€â”€ */
+.mc-beacon-zone {
+    position: absolute;
+    left: 56px;
+    top: 56px;
+    width: 150px;
+    height: 150px;
+    z-index: 6;
+}
+
+.mc-beacon {
+    width: 100%;
+    height: 100%;
+    position: relative;
+}
+
+.mc-beacon-ring {
+    position: relative;
+    width: 100%;
+    height: 100%;
+}
+
+.mc-beacon-ring svg {
+    width: 100%;
+    height: 100%;
+    transform: rotate(-90deg);
+}
+
+.mc-beacon-track {
+    fill: none;
+    stroke: rgb(255 255 255 / 8%);
+    stroke-width: 8;
+}
+
+.mc-beacon-fill {
+    fill: none;
+    stroke-width: 8;
+    stroke-linecap: round;
+    animation: mc-beacon-pulse 5s ease-in-out infinite;
+}
+
+.mc-beacon--ok .mc-beacon-fill {
+    stroke: var(--mc-ok);
+}
+
+.mc-beacon--warn .mc-beacon-fill {
+    stroke: var(--mc-warn);
+}
+
+.mc-beacon--crit .mc-beacon-fill {
+    stroke: var(--mc-crit);
+}
+
+@keyframes mc-beacon-pulse {
+    50% {
+        opacity: 0.75;
+    }
+}
+
+.mc-beacon-pct {
+    display: none;
+}
+
+.mc-beacon-dots {
+    position: absolute;
+    bottom: -8px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 10px;
+}
+
+.mc-beacon-dot {
+    width: calc(16px * var(--mc-scale));
+    height: calc(16px * var(--mc-scale));
+    border-radius: 50%;
+}
+
+.mc-beacon-dot--ok {
+    background: var(--mc-ok);
+}
+
+.mc-beacon-dot--warn {
+    background: var(--mc-warn);
+}
+
+.mc-beacon-dot--crit {
+    background: var(--mc-crit);
+}

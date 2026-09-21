@@ -4,11 +4,14 @@ import { runBackupsCheck } from "./backups";
 import { runCoolifyCheck } from "./coolify";
 import { runCronCheck } from "./cron";
 import { runFimCheck } from "./fim";
+import { runSecurityPostureCheck } from "./incident-clearance";
+import { runServicesCheck } from "./services";
 import { runDatabaseCheck } from "./database";
 import { runDockerCheck } from "./docker";
 import { runLoginsCheck } from "./logins";
 import { runLogsCheck } from "./logs";
 import { runNetworkCheck } from "./network";
+import { runProcessesCheck } from "./processes";
 import { runPortsCheck } from "./ports";
 import { runRaidCheck } from "./raid";
 import { runScannerCheck } from "./scanner";
@@ -37,8 +40,11 @@ export const SECURITY_CHECKS = [
   runUsersCheck,
   runLoginsCheck,
   runCronCheck,
+  runProcessesCheck,
   runNetworkCheck,
   runScannerCheck,
+  runServicesCheck,
+  runSecurityPostureCheck,
 ] as const;
 
 export async function runServerCheckBatch(

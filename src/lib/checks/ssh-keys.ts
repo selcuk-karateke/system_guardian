@@ -1,23 +1,71 @@
 import { createHash } from "crypto";
 import { diffAndStore } from "@/lib/history/persist";
 import { getSshClient } from "@/lib/ssh";
+import { getFileChangeHint } from "./file-change-hint";
 import type { AlertInput, CheckResult } from "./types";
 
-function hashKeys(content: string): Record<string, string> {
-  const map: Record<string, string> = {};
-  for (const line of content.split("\n").filter((l) => l.trim() && !l.startsWith("#"))) {
-    const hash = createHash("sha256").update(line.trim()).digest("hex").slice(0, 16);
-    map[hash] = line.trim().slice(0, 80);
+export const COLLECT_SSH_KEYS_SCRIPT = `
+if [ -f /root/.ssh/authorized_keys ]; then
+  while IFS= read -r line || [ -n "$line" ]; do
+    printf 'root\\t%s\\n' "$line"
+  done < /root/.ssh/authorized_keys
+fi
+for f in /home/*/.ssh/authorized_keys; do
+  [ -f "$f" ] || continue
+  u=$(basename "$(dirname "$(dirname "$f")")")
+  while IFS= read -r line || [ -n "$line" ]; do
+    printf '%s\\t%s\\n' "$u" "$line"
+  done < "$f"
+done
+`.trim();
+
+function lineToKeyEntry(line: string): { hash: string; preview: string } | null {
+  const trimmed = line.trim();
+  if (!trimmed || trimmed.startsWith("#")) return null;
+  const hash = createHash("sha256").update(trimmed).digest("hex").slice(0, 16);
+  return { hash, preview: trimmed.slice(0, 80) };
+}
+
+export function parseSshKeysCollectOutput(stdout: string): {
+  keys: Record<string, string>;
+  rootKeyCount: number;
+  homeKeyCount: number;
+  homeUserCount: number;
+} {
+  const keys: Record<string, string> = {};
+  let rootKeyCount = 0;
+  const homeByUser = new Set<string>();
+  let homeKeyCount = 0;
+
+  for (const raw of stdout.split("\n")) {
+    const line = raw.trim();
+    if (!line) continue;
+    const tab = line.indexOf("\t");
+    if (tab < 0) continue;
+    const scope = line.slice(0, tab);
+    const entry = lineToKeyEntry(line.slice(tab + 1));
+    if (!entry) continue;
+    keys[entry.hash] = entry.preview;
+    if (scope === "root") rootKeyCount++;
+    else {
+      homeKeyCount++;
+      homeByUser.add(scope);
+    }
   }
-  return map;
+
+  return {
+    keys,
+    rootKeyCount,
+    homeKeyCount,
+    homeUserCount: homeByUser.size,
+  };
 }
 
 export async function runSshKeysCheck(serverId: string): Promise<CheckResult> {
   const ssh = getSshClient();
-  const { stdout } = await ssh.exec(
-    "cat /root/.ssh/authorized_keys 2>/dev/null; cat /home/*/.ssh/authorized_keys 2>/dev/null",
-  );
-  const keyMap = hashKeys(stdout);
+  const { stdout } = await ssh.exec(COLLECT_SSH_KEYS_SCRIPT);
+  const { keys: keyMap, rootKeyCount, homeKeyCount, homeUserCount } =
+    parseSshKeysCollectOutput(stdout);
   const alerts: AlertInput[] = [];
   let status: CheckResult["status"] = "healthy";
 
@@ -64,17 +112,26 @@ export async function runSshKeysCheck(serverId: string): Promise<CheckResult> {
         : d.changeType === "removed"
           ? "SSH key removed"
           : "SSH key changed";
+    const hint = await getFileChangeHint(ssh, "/root/.ssh/authorized_keys");
     alerts.push({
       level: "critical",
-      message: `${label} (fingerprint ${d.entityKey})`,
-      recommendation: "Verify authorized_keys change was intentional",
+      message: `${label} (fingerprint ${d.entityKey})${hint ? ` — ${hint}` : ""}`,
+      recommendation:
+        "Prüfen ob Key beabsichtigt (root vs. /home/*/.ssh). Sonst Zeile aus authorized_keys entfernen",
     });
   }
+
+  const keyCount = Object.keys(keyMap).length;
 
   return {
     module: "ssh_keys",
     status,
-    data: { keyCount: Object.keys(keyMap).length },
+    data: {
+      keyCount,
+      rootKeyCount,
+      homeKeyCount,
+      homeUserCount,
+    },
     alerts,
   };
 }

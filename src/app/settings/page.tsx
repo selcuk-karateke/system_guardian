@@ -50,6 +50,35 @@ export default async function SettingsPage() {
 
       <Card>
         <CardHeader>
+          <CardTitle>Beobachtung & Historie</CardTitle>
+        </CardHeader>
+        <CardContent className="text-sm text-zinc-400 space-y-2">
+          <p>
+            <strong className="text-zinc-200">Rollierendes Fenster:</strong>{" "}
+            <code className="text-zinc-300">OBSERVATION_HOURS</code> (Standard 24)
+            für IOC-Log-Grep in <code>security_posture</code>.
+          </p>
+          <p>
+            <strong className="text-zinc-200">Historie:</strong>{" "}
+            <a href="/history" className="text-sky-400 underline">
+              /history
+            </a>{" "}
+            — Checks, Änderungen und Alerts nach Zeitraum filtern; Point-in-time
+            zeigt letzten Stand pro Modul.
+          </p>
+          <p>
+            API: <code className="text-zinc-300">GET /api/history?from=&to=&module=</code>
+          </p>
+          <p className="text-xs">
+            Festes Incident-Fenster nur mit{" "}
+            <code>INCIDENT_USE_FIXED_WINDOW=true</code> + INCIDENT_LOG_SINCE/UNTIL
+            in .env.local.
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle>Intervalle (Coolify Scheduled Tasks)</CardTitle>
         </CardHeader>
         <CardContent className="text-sm font-mono text-zinc-400 space-y-1">
