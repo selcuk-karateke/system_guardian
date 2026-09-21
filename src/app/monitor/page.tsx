@@ -79,6 +79,20 @@ export default async function MonitorPage() {
     if (s in counts) counts[s]++;
   }
 
+  // Banner must match tile counts (ignore stale alerts / legacy modules)
+  if (counts.critical > 0) globalStatus = "critical";
+  else if (counts.warning > 0) globalStatus = "warning";
+  else globalStatus = "healthy";
+
+  // Footer: only alerts for modules that are currently warning/critical
+  const liveAlerts = alerts.filter((a) => {
+    const s = statusMap[a.module];
+    return (
+      (s === "warning" || s === "critical") &&
+      (a.level === "warning" || a.level === "critical")
+    );
+  });
+
   const sshHost = process.env.SSH_HOST;
   const hostIp =
     sshHost ?? overview?.server?.ipv4 ?? overview?.server?.host ?? "—";
@@ -116,7 +130,7 @@ export default async function MonitorPage() {
         statusMap={statusMap}
         moduleDetails={moduleDetails}
         counts={counts}
-        alerts={alerts.map((a) => ({
+        alerts={liveAlerts.map((a) => ({
           id: a.id,
           level: a.level,
           module: a.module,

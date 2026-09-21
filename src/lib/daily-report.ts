@@ -31,7 +31,34 @@ export async function generateAndSendDailyReport(
     .orderBy(desc(metricsSnapshots.createdAt))
     .limit(1);
 
-  const statuses = recentChecks.map((c) => c.status as CheckStatus);
+  const latestByModule = new Map<string, CheckStatus>();
+  for (const c of recentChecks) {
+    if (!latestByModule.has(c.module)) {
+      latestByModule.set(c.module, c.status as CheckStatus);
+    }
+  }
+  const activeModules = [
+    "server_health",
+    "raid",
+    "docker",
+    "coolify",
+    "database",
+    "ssl",
+    "website",
+    "ports",
+    "backups",
+    "logs",
+    "fim",
+    "ssh_keys",
+    "users",
+    "logins",
+    "cron",
+    "network",
+    "scanner",
+  ];
+  const statuses = activeModules
+    .map((m) => latestByModule.get(m))
+    .filter((s): s is CheckStatus => Boolean(s));
   const globalStatus = worstStatus(statuses.length ? statuses : ["healthy"]);
 
   const lines = [
