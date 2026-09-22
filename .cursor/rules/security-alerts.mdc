@@ -7,7 +7,8 @@ alwaysApply: false
 # Alerts & notifications
 
 - Levels: `info` | `warning` | `critical`
-- Dedup: same `module` + `message` within 1 hour – skip unless `critical`
+- Dedup: same `module` + `message` within 1 hour among **open** alerts – skip unless `critical`
+- After each check: open alerts for that module whose message is **not** in the current result are auto-resolved (`reconcileOpenAlerts`)
 - CRITICAL: Telegram + email immediately (when configured)
 - WARNING: configurable instant notify
 - INFO: store only, no push by default

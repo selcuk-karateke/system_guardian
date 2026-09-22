@@ -215,19 +215,24 @@ export async function runSecurityPostureCheck(
     group: "ioc",
   });
 
-  const connHits: string[] = [];
+  // Only non-IOC outbound hits (blocked IPs are a separate check above).
+  // Unknown HTTPS must stay WARNING — CRITICAL only for real IOC / temp-path / bad ports.
+  const connHits: { reason: string; severity: "critical" | "warning" }[] = [];
   for (const line of ss.stdout.split("\n")) {
     const conn = parseSsTunapLine(line);
     if (!conn || !isOutboundEstablished(conn)) continue;
     const hit = isSuspiciousConnection(conn);
-    if (hit && !blockedIps.includes(conn.remoteIp)) connHits.push(hit.reason);
+    if (hit && !blockedIps.includes(conn.remoteIp)) connHits.push(hit);
   }
   if (connHits.length > 0) {
+    const anyCritical = connHits.some((h) => h.severity === "critical");
     items.push({
       id: "connections_other",
-      label: "Keine weiteren verdächtigen Verbindungen",
-      status: "fail",
-      detail: connHits.slice(0, 3).join("; "),
+      label: anyCritical
+        ? "Verdächtige ausgehende Verbindungen"
+        : "Unbekannte ausgehende Verbindungen",
+      status: anyCritical ? "fail" : "warn",
+      detail: connHits.slice(0, 3).map((h) => h.reason).join("; "),
       group: "ioc",
     });
   }
