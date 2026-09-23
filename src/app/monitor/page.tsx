@@ -20,7 +20,7 @@ import {
   formatModuleDetailLines,
   getLatestCheckDataByModule,
 } from "@/lib/monitor-details";
-import { MONITOR_MODULE_ORDER } from "@/lib/module-labels";
+import { MONITOR_MODULE_ORDER, MONITOR_PLACEHOLDER_MODULES } from "@/lib/module-labels";
 import { formatUptime } from "@/lib/utils";
 
 export default async function MonitorPage() {
@@ -37,7 +37,7 @@ export default async function MonitorPage() {
         getGlobalStatus(),
         getServerOverview(),
         getAllModuleStatuses(),
-        getRecentAlerts(12),
+        getRecentAlerts(40),
         getLastCheckTime(),
         getLatestCheckDataByModule(),
       ]);
@@ -84,14 +84,34 @@ export default async function MonitorPage() {
   else if (counts.warning > 0) globalStatus = "warning";
   else globalStatus = "healthy";
 
-  // Footer: only alerts for modules that are currently warning/critical
+  // Footer: alerts for monitor tiles that are currently warning/critical
+  // (same set as "2 Warn" badges — ignore modules not on the wall)
+  const placeholders = new Set<string>(MONITOR_PLACEHOLDER_MODULES);
   const liveAlerts = alerts.filter((a) => {
+    if (!(MONITOR_MODULE_ORDER as readonly string[]).includes(a.module)) {
+      return false;
+    }
+    if (placeholders.has(a.module)) return false;
     const s = statusMap[a.module];
     return (
       (s === "warning" || s === "critical") &&
       (a.level === "warning" || a.level === "critical")
     );
   });
+
+  // One ticker line per module so "2 Warn" matches footer (not N open rows)
+  const levelRank = (level: string) =>
+    level === "critical" ? 0 : level === "warning" ? 1 : 2;
+  const ranked = [...liveAlerts].sort(
+    (a, b) => levelRank(a.level) - levelRank(b.level),
+  );
+  const tickerAlerts: typeof liveAlerts = [];
+  const seenModules = new Set<string>();
+  for (const a of ranked) {
+    if (seenModules.has(a.module)) continue;
+    seenModules.add(a.module);
+    tickerAlerts.push(a);
+  }
 
   const sshHost = process.env.SSH_HOST;
   const hostIp =
@@ -130,7 +150,7 @@ export default async function MonitorPage() {
         statusMap={statusMap}
         moduleDetails={moduleDetails}
         counts={counts}
-        alerts={liveAlerts.map((a) => ({
+        alerts={tickerAlerts.map((a) => ({
           id: a.id,
           level: a.level,
           module: a.module,
