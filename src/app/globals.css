@@ -22,6 +22,18 @@ body {
   font-family: var(--font-sans), system-ui, sans-serif;
 }
 
+/* Redoc dark: force remaining light panels */
+.redoc-dark .redoc-wrap,
+.redoc-dark {
+  background: #09090b !important;
+  color: #e4e4e7;
+}
+.redoc-dark [role="search"] input {
+  background: #18181b !important;
+  color: #e4e4e7 !important;
+  border-color: #3f3f46 !important;
+}
+
 /* TV monitor (/monitor): eine Viewport-Höhe, kein Scroll */
 html:has(.monitor-wall),
 html:has(.monitor-wall) body {

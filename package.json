@@ -14,7 +14,8 @@
     "db:reset": "tsx scripts/db-reset.ts",
     "db:ping": "tsx scripts/db-ping.ts",
     "test:ssh": "tsx scripts/test-ssh.ts",
-    "setup:ssh-key": "tsx scripts/setup-ssh-key.ts"
+    "setup:ssh-key": "tsx scripts/setup-ssh-key.ts",
+    "docs:check": "tsx scripts/docs-check.ts"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",

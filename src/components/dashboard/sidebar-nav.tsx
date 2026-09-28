@@ -13,6 +13,7 @@ const NAV = [
   { href: "/security", label: "Sicherheit" },
   { href: "/history", label: "Historie" },
   { href: "/notifications", label: "Benachrichtigungen" },
+  { href: "/docs", label: "Dokumentation" },
   { href: "/settings", label: "Einstellungen" },
 ];
 

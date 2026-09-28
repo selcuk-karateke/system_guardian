@@ -5,8 +5,8 @@ import { SECURITY_CONCEPTS } from "@/lib/security/concepts";
 export default function SecurityDocsPage() {
   return (
     <div className="space-y-6 max-w-3xl">
-      <Link href="/security" className="text-sm text-sky-400 hover:underline">
-        ← Zurück zu Sicherheit
+      <Link href="/docs" className="text-sm text-sky-400 hover:underline">
+        ← Dokumentation
       </Link>
       <h1 className="text-3xl font-bold">Security-Features erklärt</h1>
       <p className="text-zinc-400 text-sm">

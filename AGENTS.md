@@ -7,6 +7,10 @@
 3. `npm install` → `npm run db:migrate` → `npm run db:seed` → `npm run dev`
 4. Local dev uses `CHECK_MODE=mock` (no SSH required)
 
+**Ops / Sysadmin collaborator:** read [docs/SYSADMIN.md](docs/SYSADMIN.md) (orientation map). In the running app: `/docs` and `/docs/api` (Redoc).
+
+After adding a check module or API route, run `npm run docs:check` (catalog + OpenAPI drift).
+
 ## Directory tree
 
 ```

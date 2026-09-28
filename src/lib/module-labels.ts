@@ -14,9 +14,11 @@ export const MODULE_LABELS: Record<string, string> = {
   users: "Users",
   logins: "Logins",
   cron: "Cron",
+  processes: "Prozesse",
   network: "Network",
   scanner: "Scanner",
   services: "Dienste",
+  security_posture: "Security Posture",
   reserved: "Reserve",
 };
 
