@@ -110,9 +110,10 @@ curl -H "Authorization: Bearer dev-secret" http://localhost:3000/api/cron/server
 |----------|--------|
 | **[docs/SYSADMIN.md](docs/SYSADMIN.md)** | **Sysadmin-Handbuch** – wo ist was, Checks, Betrieb, Zuarbeit |
 | [docs/README.md](docs/README.md) | Doku-Index |
+| [docs/backlog.json](docs/backlog.json) · App `/docs/roadmap` | Roadmap – Collaborators tragen `idea`-Einträge per PR ein |
 | App: `/docs` · `/docs/api` | Hub + **Redoc** (OpenAPI) |
 | [docs/SECURITY-FEATURES.md](docs/SECURITY-FEATURES.md) | SIEM-Begriffe, Module, UI `/security` |
-| [docs/FUTURE-INTEGRATIONS.md](docs/FUTURE-INTEGRATIONS.md) | Roadmap / Phase 2–3 |
+| [docs/FUTURE-INTEGRATIONS.md](docs/FUTURE-INTEGRATIONS.md) | Roadmap / Phase 2–3 (ausführlich) |
 | [docs/COOLIFY.md](docs/COOLIFY.md) | Production-Deploy |
 | [AGENTS.md](AGENTS.md) | Entwickler-Einstieg |
 

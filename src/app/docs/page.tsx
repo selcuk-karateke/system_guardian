@@ -8,6 +8,11 @@ const LINKS = [
     body: "Wo ist was? Architektur, Check-Katalog, Env/Allowlists, Betrieb, Zuarbeit – Einstieg für Systemadmins.",
   },
   {
+    href: "/docs/roadmap",
+    title: "Roadmap & Backlog",
+    body: "Was als Nächstes gebaut wird. Collaborators tragen Ideen in docs/backlog.json ein (PR).",
+  },
+  {
     href: "/docs/api",
     title: "HTTP-API (Redoc)",
     body: "OpenAPI-Spec interaktiv – Health, Status, Cron, Historie. Gängiges Format für Ops & Integrationen.",
@@ -21,9 +26,24 @@ const LINKS = [
 
 const REPO_DOCS = [
   {
+    file: "docs/backlog.json",
+    title: "Backlog (editierbar)",
+    body: "JSON-Wunschliste — Collaborators hängen idea-Einträge per PR an.",
+  },
+  {
+    file: "docs/BACKLOG.md",
+    title: "Backlog-Anleitung",
+    body: "Wie man einen Eintrag hinzufügt.",
+  },
+  {
+    file: "docs/FUTURE-INTEGRATIONS.md",
+    title: "Roadmap (ausführlich)",
+    body: "Phasen, Prioritäten, was bewusst nicht gebaut wird.",
+  },
+  {
     file: "docs/SYSADMIN.md",
     title: "Sysadmin-Handbuch",
-    body: "Wo ist was? Architektur, Check-Katalog, Env/Allowlists, Betrieb, Zuarbeit – Einstieg für Systemadmins.",
+    body: "Wo ist was? Architektur, Check-Katalog, Env/Allowlists, Betrieb, Zuarbeit.",
   },
   {
     file: "docs/COOLIFY.md",

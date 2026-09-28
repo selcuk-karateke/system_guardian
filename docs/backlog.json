@@ -1,0 +1,60 @@
+{
+  "items": [
+    {
+      "id": "docker-healthcheck",
+      "title": "Docker HEALTHCHECK (unhealthy) erkennen",
+      "status": "planned",
+      "proposedBy": "core",
+      "area": "monitoring",
+      "notes": "Laufende Container mit unhealthy-State als Warning/Critical"
+    },
+    {
+      "id": "trivy-weekly",
+      "title": "Trivy Wochen-Scan mit Diff-Alerts",
+      "status": "planned",
+      "proposedBy": "core",
+      "area": "security",
+      "notes": "1×/Woche; nur neue HIGH/CRITICAL gegenüber Cache"
+    },
+    {
+      "id": "rdap-domain-expiry",
+      "title": "Domain-Ablauf via RDAP (DENIC)",
+      "status": "planned",
+      "proposedBy": "core",
+      "area": "monitoring",
+      "notes": "monitoredDomains, wöchentlich; ≠ SSL-Ablauf"
+    },
+    {
+      "id": "virustotal-reputation",
+      "title": "VirusTotal Domain-Reputation",
+      "status": "idea",
+      "proposedBy": "core",
+      "area": "security",
+      "notes": "Optional API-Key; 1×/Woche Report"
+    },
+    {
+      "id": "hibp-ops-mails",
+      "title": "Have I Been Pwned für Ops-Mails",
+      "status": "idea",
+      "proposedBy": "core",
+      "area": "security",
+      "notes": "Manuell/monatlich; API v3"
+    },
+    {
+      "id": "cve-module-ui",
+      "title": "CVE-/Vulnerability-Modul in UI",
+      "status": "idea",
+      "proposedBy": "core",
+      "area": "security",
+      "notes": "apt upgradable + optional trivy; Phase 2"
+    },
+    {
+      "id": "log-regex-config",
+      "title": "Konfigurierbare Log-Regex / mehr Log-Dateien",
+      "status": "idea",
+      "proposedBy": "core",
+      "area": "monitoring",
+      "notes": "Heute feste Muster in log-patterns.ts"
+    }
+  ]
+}

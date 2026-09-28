@@ -7,6 +7,10 @@
 import { readFileSync, readdirSync, existsSync } from "fs";
 import { join, relative } from "path";
 import { MODULE_CATALOG } from "../src/lib/docs/module-catalog";
+import {
+  assertValidRoadmapItems,
+  loadRoadmapItems,
+} from "../src/lib/docs/roadmap";
 import { MODULE_LABELS } from "../src/lib/module-labels";
 
 const ROOT = process.cwd();
@@ -192,21 +196,37 @@ function checkOpenApi() {
   );
 }
 
+function checkBacklog() {
+  try {
+    const items = loadRoadmapItems();
+    const errs = assertValidRoadmapItems(items);
+    for (const e of errs) fail(`backlog.json: ${e}`);
+    console.log(`Backlog: ${items.length} Einträge in docs/backlog.json`);
+  } catch (e) {
+    fail(
+      `backlog.json nicht lesbar: ${e instanceof Error ? e.message : String(e)}`,
+    );
+  }
+}
+
 function main() {
   console.log("docs:check — Drift zwischen Code und Doku\n");
   checkModules();
   checkOpenApi();
+  checkBacklog();
 
   for (const w of warnings) console.warn(`WARN  ${w}`);
   if (errors.length) {
     console.error("\nFEHLER:");
     for (const e of errors) console.error(`  • ${e}`);
     console.error(
-      `\n${errors.length} Problem(e). Katalog: src/lib/docs/module-catalog.ts · Spec: public/openapi.yaml`,
+      `\n${errors.length} Problem(e). Katalog: src/lib/docs/module-catalog.ts · Spec: public/openapi.yaml · Backlog: docs/backlog.json`,
     );
     process.exit(1);
   }
-  console.log("\nOK — Katalog, Labels und OpenAPI passen zu den Checks.");
+  console.log(
+    "\nOK — Katalog, Labels, OpenAPI und Backlog passen zusammen.",
+  );
 }
 
 main();

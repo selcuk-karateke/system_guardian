@@ -253,5 +253,6 @@ Agent-/Dev-Einstieg: [AGENTS.md](../AGENTS.md).
 |----------|--------|
 | [COOLIFY.md](./COOLIFY.md) | Deploy, Auth, Cron-Schedule |
 | [SECURITY-FEATURES.md](./SECURITY-FEATURES.md) | SIEM-Begriffe ↔ Guardian |
-| [FUTURE-INTEGRATIONS.md](./FUTURE-INTEGRATIONS.md) | Roadmap |
+| [FUTURE-INTEGRATIONS.md](./FUTURE-INTEGRATIONS.md) | Roadmap (Phasen) |
+| [backlog.json](./backlog.json) | **Nächste Features / Collaborator-Ideen** (UI: `/docs/roadmap`) |
 | OpenAPI / Redoc | App: `/docs/api` · Spec: `/openapi.yaml` |
