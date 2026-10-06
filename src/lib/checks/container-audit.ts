@@ -1,4 +1,5 @@
 import { getTrustedShellProcessPatterns } from "@/lib/config";
+import type { ContainerCategory } from "@/lib/checks/docker-inventory";
 
 export type AppRole =
   | "coolify-app"

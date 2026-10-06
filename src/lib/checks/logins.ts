@@ -9,18 +9,20 @@ import {
   type ParsedRootLogin,
 } from "./last-login";
 import {
-  formatSinceLastCheck,
   hoursSinceSnapshot,
   isBanSpike,
 } from "@/lib/checks/fail2ban-metrics";
 import { diffAndStore, getLatestSnapshotMeta } from "@/lib/history/persist";
+import {
+  alertFromSecurityEvent,
+  fail2banBanSpikeToSecurityEvent,
+} from "@/lib/security/events";
 import { getSshClient } from "@/lib/ssh";
 import type { AlertInput, CheckResult } from "./types";
 
 const FAILED_AUTH_WARN_THRESHOLD = 10;
 
 export async function runLoginsCheck(serverId: string): Promise<CheckResult> {
-  void serverId;
   const ssh = getSshClient();
   const [last, auth, f2b, f2bSvc] = await Promise.all([
     ssh.exec("last -n 30 2>/dev/null"),
@@ -172,12 +174,17 @@ export async function runLoginsCheck(serverId: string): Promise<CheckResult> {
       const prev = Number(d.previousValue ?? 0);
       const curr = Number(d.newValue ?? fail2ban.totalBanned);
       const delta = curr - prev;
-      const sinceLabel = formatSinceLastCheck(hoursSince);
-      alerts.push({
-        level: "warning",
-        message: `fail2ban Ban-Spike: +${delta} Ereignisse in ${sinceLabel} (Total ${prev}→${curr}, ${fail2ban.currentlyBanned} aktiv)`,
-        recommendation: "Review auth.log for coordinated SSH attack",
+      const event = fail2banBanSpikeToSecurityEvent({
+        serverId,
+        prevTotal: prev,
+        currTotal: curr,
+        currentlyBanned: fail2ban.currentlyBanned,
+        hoursSince,
+        delta,
+        jail: fail2ban.jail,
       });
+      const alert = alertFromSecurityEvent(event);
+      if (alert) alerts.push(alert);
     }
   }
 
