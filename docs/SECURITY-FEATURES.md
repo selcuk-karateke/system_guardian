@@ -26,7 +26,8 @@ System Guardian **integriert** Security-Funktionen, die für **euren Host** rele
 | Modul | Route | Was passiert |
 |-------|-------|----------------|
 | `logs` | Server-Cron (15 min) | `journalctl` + `dmesg`, Muster: ERROR, FATAL, OOM, Disk |
-| `logins` | Security-Cron (60 min) | `last`, `auth.log` – Root-Login, Failed Passwords |
+| `logins` | Security-Cron (60 min) | `who`/`w`, `last`, `auth.log`, fail2ban – SSH Who's Online |
+| `web_presence` | Security-Cron (60 min) | Traefik/coolify-proxy Access-Logs (15m Fenster) – Unique-IPs, Bots, Top-Pfade (kein Session-Store) |
 
 **Warum so bei uns:** Kein Log-Archiv – wir prüfen **live per SSH** die letzten Zeilen. Reicht für „gibt es gerade ein Problem?“. Kein Kibana, weil Next.js-Dashboard + PostgreSQL-Historie für euren Maßstab reichen.
 
@@ -44,7 +45,8 @@ System Guardian **integriert** Security-Funktionen, die für **euren Host** rele
 
 | Modul | Erkennt |
 |-------|---------|
-| `logins` | Fehlgeschlagene SSH-Logins, Root-Sessions |
+| `logins` | Fehlgeschlagene SSH-Logins, aktive Sessions (`who`/`w`), Root-Sessions |
+| `web_presence` | Kurzes Traefik-Request-Fenster (Unique-IPs / Bots) — kein Live-Session-Store |
 | `scanner` | nmap, masscan, … installiert oder in Logs |
 | `ports` / `network` | Neue offene Ports |
 | `users` | Neue User, UID 0 |

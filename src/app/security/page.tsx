@@ -10,6 +10,8 @@ import {
   type Fail2banData,
 } from "@/components/security/fail2ban-summary";
 import { IncidentClearanceCard } from "@/components/security/incident-clearance-card";
+import { SshPresenceCard } from "@/components/security/ssh-presence-card";
+import { WebPresenceCard } from "@/components/security/web-presence-card";
 import { SECURITY_CONCEPTS } from "@/lib/security/concepts";
 import { getOpenControlIssues } from "@/lib/control-summary";
 import type { CoolifyMeta } from "@/lib/checks/coolify-meta";
@@ -20,6 +22,7 @@ const MODULES = [
   "ssh_keys",
   "users",
   "logins",
+  "web_presence",
   "cron",
   "processes",
   "network",
@@ -105,6 +108,19 @@ export default async function SecurityPage() {
           }
         }
       />
+
+      <div className="grid lg:grid-cols-2 gap-4">
+        <SshPresenceCard
+          data={
+            checks.logins?.data as import("@/components/security/ssh-presence-card").LoginsPresenceData
+          }
+        />
+        <WebPresenceCard
+          data={
+            checks.web_presence?.data as import("@/lib/checks/web-presence").WebPresenceData
+          }
+        />
+      </div>
 
       <Card>
         <CardHeader>

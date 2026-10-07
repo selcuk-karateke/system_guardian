@@ -13,6 +13,7 @@ export const MODULE_LABELS: Record<string, string> = {
   ssh_keys: "SSH Keys",
   users: "Users",
   logins: "Logins",
+  web_presence: "Web Presence",
   cron: "Cron",
   processes: "Prozesse",
   network: "Network",

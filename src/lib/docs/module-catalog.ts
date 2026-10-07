@@ -25,7 +25,16 @@ export const MODULE_CATALOG: readonly ModuleCatalogEntry[] = [
   { id: "fim", batch: "security", summary: "Datei-Hashes unter FIM_PATHS" },
   { id: "ssh_keys", batch: "security", summary: "authorized_keys Änderungen" },
   { id: "users", batch: "security", summary: "neue User / UID 0" },
-  { id: "logins", batch: "security", summary: "Root-Login, Failed Auth" },
+  {
+    id: "logins",
+    batch: "security",
+    summary: "SSH Who's Online, Root-Login, Failed Auth, fail2ban",
+  },
+  {
+    id: "web_presence",
+    batch: "security",
+    summary: "Coolify/Traefik Access-Logs (Unique-IPs, Bots, Top-Pfade)",
+  },
   { id: "cron", batch: "security", summary: "Crontab-Änderungen" },
   { id: "processes", batch: "security", summary: "hohe CPU / verdächtige Muster" },
   { id: "network", batch: "security", summary: "Outbound ss-Peers vs. Baseline" },

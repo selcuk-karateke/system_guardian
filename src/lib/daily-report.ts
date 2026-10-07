@@ -52,6 +52,7 @@ export async function generateAndSendDailyReport(
     "ssh_keys",
     "users",
     "logins",
+    "web_presence",
     "cron",
     "network",
     "scanner",

@@ -19,6 +19,7 @@ import { runServerHealthCheck } from "./server-health";
 import { runSslCheck } from "./ssl";
 import { runSshKeysCheck } from "./ssh-keys";
 import { runUsersCheck } from "./users";
+import { runWebPresenceCheck } from "./web-presence";
 import { runWebsiteCheck } from "./website";
 
 export const SERVER_CHECKS = [
@@ -39,6 +40,7 @@ export const SECURITY_CHECKS = [
   runSshKeysCheck,
   runUsersCheck,
   runLoginsCheck,
+  runWebPresenceCheck,
   runCronCheck,
   runProcessesCheck,
   runNetworkCheck,

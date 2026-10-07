@@ -56,10 +56,37 @@ daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin
 www-data:x:33:33:www-data:/var/www:/usr/sbin/nologin
 deploy:x:1000:1000:Deploy User:/home/deploy:/bin/bash
 `,
-  "last -n 20": `deploy   pts/0        203.0.113.10     Wed Jun  3 08:00   still logged in
+  "last -n": `deploy   pts/0        203.0.113.10     Wed Jun  3 08:00   still logged in
 root     pts/1        198.51.100.5     Tue Jun  2 14:00 - 14:30  (00:30)
+deploy   pts/2        203.0.113.10     Mon Jun  1 10:00 - 11:00  (01:00)
+`,
+  "grep -E 'Failed password|Accepted password|Accepted publickey' /var/log/auth.log": `Jun  3 07:00:00 sshd[999]: Failed password for invalid user admin from 203.0.113.99 port 22
+Jun  3 07:01:00 sshd[1000]: Failed password for invalid user root from 203.0.113.99 port 22
+Jun  3 07:02:00 sshd[1001]: Failed password for invalid user test from 198.51.100.200 port 22
+Jun  3 08:00:00 sshd[1002]: Accepted publickey for deploy from 203.0.113.10 port 52100
 `,
   "grep -i 'Failed password' /var/log/auth.log 2>/dev/null | tail -20": "Jun  3 07:00:00 sshd[999]: Failed password for invalid user admin from 203.0.113.99 port 22\n",
+  who: `deploy   pts/0        2026-06-03 08:00 (203.0.113.10)
+root     pts/1        2026-06-03 09:15 (10.0.1.20)
+`,
+  "w -h": `deploy   pts/0    203.0.113.10    08:00    2:15   0.05s  0.01s  -bash
+root     pts/1    10.0.1.20       09:15    0.00s  0.10s  0.02s  w
+`,
+  "ss -tnp sport = :22": `State Recv-Q Send-Q Local Address:Port Peer Address:Port Process
+ESTAB 0      0      10.0.0.5:22         203.0.113.10:52100 users:(("sshd",pid=1200,fd=4))
+ESTAB 0      0      10.0.0.5:22         10.0.1.20:44022 users:(("sshd",pid=1201,fd=4))
+`,
+  "fail2ban-client status sshd": `Status for the jail: sshd
+|- Filter
+|  |- Currently failed: 3
+|  |- Total failed:     120
+|  \`- File list:       /var/log/auth.log
+\`- Actions
+   |- Currently banned: 2
+   |- Total banned:     45
+   \`- Banned IP list:   203.0.113.99 198.51.100.200
+`,
+  "systemctl is-active fail2ban": "active\n",
   "ls -la /etc/cron.d /var/spool/cron/crontabs 2>/dev/null":
     "/etc/cron.d/e2scrub_all\n",
   "for period in daily": `periodic\tcron.daily\tapt-compat
@@ -93,6 +120,54 @@ unit\tsshd\tinactive
 };
 
 function matchFixture(command: string): string {
+  if (
+    command.includes("docker logs") &&
+    command.includes("--since") &&
+    (command.includes("coolify-proxy") || command.includes("PROXY="))
+  ) {
+    return [
+      "PROXY:coolify-proxy",
+      JSON.stringify({
+        ClientHost: "203.0.113.50",
+        RequestMethod: "GET",
+        RequestPath: "/shop/masks",
+        RequestHost: "shop.example.com",
+        DownstreamStatus: 200,
+        RequestUserAgent:
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0",
+        StartUTC: "2026-06-03T08:01:00Z",
+      }),
+      JSON.stringify({
+        ClientHost: "198.51.100.10",
+        RequestMethod: "GET",
+        RequestPath: "/robots.txt",
+        RequestHost: "shop.example.com",
+        DownstreamStatus: 200,
+        RequestUserAgent: "Mozilla/5.0 (compatible; bingbot/2.0)",
+        StartUTC: "2026-06-03T08:02:00Z",
+      }),
+      JSON.stringify({
+        ClientHost: "203.0.113.50",
+        RequestMethod: "GET",
+        RequestPath: "/cart",
+        RequestHost: "shop.example.com",
+        DownstreamStatus: 200,
+        RequestUserAgent:
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0",
+        StartUTC: "2026-06-03T08:03:00Z",
+      }),
+      JSON.stringify({
+        ClientHost: "192.0.2.80",
+        RequestMethod: "GET",
+        RequestPath: "/",
+        RequestHost: "shop.example.com",
+        DownstreamStatus: 404,
+        RequestUserAgent: "SemrushBot/7~bl",
+        StartUTC: "2026-06-03T08:04:00Z",
+      }),
+      '203.0.113.77 - - [03/Jun/2026:08:05:00 +0000] "GET /profil HTTP/1.1" 200 1200 "-" "Mozilla/5.0 (X11; Linux x86_64) Firefox/125.0"',
+    ].join("\n");
+  }
   if (command.includes("sshd -T") && command.includes("permitrootlogin")) {
     return "permitrootlogin prohibit-password\n";
   }

@@ -1,8 +1,4 @@
-import {
-  getTrustedLoginIps,
-  isTrustedLoginIp,
-  maskLoginIp,
-} from "@/lib/config";
+import { getTrustedLoginIps, maskLoginIp } from "@/lib/config";
 import {
   formatRootLoginAlertDetail,
   parseRootLoginLine,
@@ -18,25 +14,31 @@ import {
   fail2banBanSpikeToSecurityEvent,
 } from "@/lib/security/events";
 import { getSshClient } from "@/lib/ssh";
+import {
+  mergeActiveSessions,
+  parseFailedAuthSources,
+} from "./session-presence";
 import type { AlertInput, CheckResult } from "./types";
 
 const FAILED_AUTH_WARN_THRESHOLD = 10;
 
 export async function runLoginsCheck(serverId: string): Promise<CheckResult> {
   const ssh = getSshClient();
-  const [last, auth, f2b, f2bSvc] = await Promise.all([
+  const [last, auth, f2b, f2bSvc, who, wOut, ss22] = await Promise.all([
     ssh.exec("last -n 30 2>/dev/null"),
     ssh.exec(
       "grep -E 'Failed password|Accepted password|Accepted publickey' /var/log/auth.log 2>/dev/null | tail -50",
     ),
     ssh.exec("fail2ban-client status sshd 2>/dev/null"),
     ssh.exec("systemctl is-active fail2ban 2>/dev/null || echo inactive"),
+    ssh.exec("who 2>/dev/null"),
+    ssh.exec("w -h 2>/dev/null | head -20"),
+    ssh.exec("ss -tnp sport = :22 2>/dev/null | head -15"),
   ]);
 
   const alerts: AlertInput[] = [];
   let status: CheckResult["status"] = "healthy";
   const logins: string[] = [];
-  const failedIps = new Set<string>();
   const trustedIps = getTrustedLoginIps();
 
   let lastRootLogin: ParsedRootLogin | null = null;
@@ -57,12 +59,16 @@ export async function runLoginsCheck(serverId: string): Promise<CheckResult> {
     }
   }
 
-  for (const line of auth.stdout.split("\n")) {
-    if (line.includes("Failed password")) {
-      const ipMatch = line.match(/from\s+(\S+)/);
-      if (ipMatch && !isTrustedLoginIp(ipMatch[1])) failedIps.add(ipMatch[1]);
-    }
-  }
+  const failedAuthSources = parseFailedAuthSources(auth.stdout);
+  const failedIps = new Set(
+    failedAuthSources.filter((s) => !s.trusted).map((s) => s.ip),
+  );
+
+  const activeSessions = mergeActiveSessions(who.stdout, wOut.stdout);
+  const sshEstablished = ss22.stdout
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l && !/^State/i.test(l) && /ESTAB/i.test(l));
 
   const fail2ban = parseFail2banStatus(f2b.stdout, f2bSvc.stdout);
 
@@ -202,6 +208,10 @@ export async function runLoginsCheck(serverId: string): Promise<CheckResult> {
     data: {
       recentLogins: logins.slice(0, 15),
       failedCount: failedIps.size,
+      failedAuthSources: failedAuthSources.slice(0, 20),
+      activeSessions,
+      activeCount: activeSessions.length,
+      sshEstablishedCount: sshEstablished.length,
       lastRootLogin,
       untrustedRootLogins: untrustedRootLogins.map((l) => ({
         masked: l.masked,
@@ -215,6 +225,7 @@ export async function runLoginsCheck(serverId: string): Promise<CheckResult> {
       })),
       fail2ban: {
         ...fail2ban,
+        bannedIpsMasked: fail2ban.bannedIps.map(maskLoginIp),
         totalBannedDelta: banMetrics.delta > 0 ? banMetrics.delta : undefined,
         banRatePerHour:
           banMetrics.ratePerHour > 0

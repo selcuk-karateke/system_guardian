@@ -11,6 +11,7 @@ const MODULES = [
   "cron",
   "services",
   "logins",
+  "web_presence",
   "fim",
   "server_health",
 ];
