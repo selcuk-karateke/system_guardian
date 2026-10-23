@@ -15,6 +15,13 @@
       "when": 1780474000000,
       "tag": "0001_cpu_cores",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1780475000000,
+      "tag": "0002_alert_last_seen",
+      "breakpoints": true
     }
   ]
 }

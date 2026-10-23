@@ -41,6 +41,30 @@
       "notes": "Nach Restart Auto-Bind; nach Backup/Restore planen"
     },
     {
+      "id": "alert-lifecycle-recheck",
+      "title": "Alert-Lifecycle: Nachprüfung + Auto-Close + lastSeenAt",
+      "status": "done",
+      "proposedBy": "core",
+      "area": "monitoring",
+      "notes": "Fehlerbericht P1: kein Dedup-Duplikat; stale per Modul/Server schließen; last_seen_at"
+    },
+    {
+      "id": "alert-container-context",
+      "title": "Container-ID/Name/Image in Security-Alerts",
+      "status": "done",
+      "proposedBy": "core",
+      "area": "security",
+      "notes": "PID→cgroup→docker inspect; reason + recommendation; security_posture + network"
+    },
+    {
+      "id": "ops-checklist-kawai",
+      "title": "Ops-Checkliste kawai (SSH, Secrets, Ports)",
+      "status": "done",
+      "proposedBy": "core",
+      "area": "ops",
+      "notes": "docs/OPS-CHECKLIST-KAWAI.md aus PDF-Anhängen"
+    },
+    {
       "id": "docker-healthcheck",
       "title": "Docker HEALTHCHECK (unhealthy) erkennen",
       "status": "planned",

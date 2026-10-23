@@ -16,7 +16,7 @@
     "test:ssh": "tsx scripts/test-ssh.ts",
     "setup:ssh-key": "tsx scripts/setup-ssh-key.ts",
     "docs:check": "tsx scripts/docs-check.ts",
-    "test": "tsx --test src/lib/security/events.test.ts src/lib/checks/session-presence.test.ts src/lib/checks/web-presence.test.ts"
+    "test": "tsx --test src/lib/security/events.test.ts src/lib/checks/session-presence.test.ts src/lib/checks/web-presence.test.ts src/lib/alerts/pipeline.test.ts src/lib/checks/container-process.test.ts"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",

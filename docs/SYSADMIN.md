@@ -138,7 +138,7 @@ Zwei Batches, zwei Cron-Jobs.
 | **WARNING** | Nicht akut (SSL bald ablaufend, neuer Port, Restart) | Notify je nach Kanal |
 | **CRITICAL** | Sofort (RAID fail, Backup weg, unbekannter Root-Login, DB down, IOC) | Sofort-Notify |
 
-**Auto-Resolve:** Wenn ein Modul-Lauf die Alert-Message nicht mehr produziert, setzt `reconcileOpenAlerts` `resolved_at` (siehe `src/lib/alerts/pipeline.ts`). Entschärfte Alerts zählen nicht mehr zum globalen WARNING/CRITICAL.
+**Alert-Lifecycle:** Offene Alerts werden **nicht** bei jedem Cron neu eingefügt (Dedup über Modul + Message + Server). Stattdessen wird `last_seen_at` aktualisiert. Wenn ein Modul-Lauf die Message nicht mehr produziert, setzt `reconcileOpenAlerts` `resolved_at` (Auto-Close). UI/Bericht zeigen „zuletzt bestätigt“. Entschärfte Alerts zählen nicht mehr zum globalen WARNING/CRITICAL.
 
 ---
 
@@ -254,5 +254,6 @@ Agent-/Dev-Einstieg: [AGENTS.md](../AGENTS.md).
 | [COOLIFY.md](./COOLIFY.md) | Deploy, Auth, Cron-Schedule |
 | [SECURITY-FEATURES.md](./SECURITY-FEATURES.md) | SIEM-Begriffe ↔ Guardian |
 | [FUTURE-INTEGRATIONS.md](./FUTURE-INTEGRATIONS.md) | Roadmap (Phasen) |
+| [OPS-CHECKLIST-KAWAI.md](./OPS-CHECKLIST-KAWAI.md) | **Ops-Abhakliste** Host kawai (SSH, Secrets, Ports) |
 | [backlog.json](./backlog.json) | **Nächste Features / Collaborator-Ideen** (UI: `/docs/roadmap`) |
 | OpenAPI / Redoc | App: `/docs/api` · Spec: `/openapi.yaml` |

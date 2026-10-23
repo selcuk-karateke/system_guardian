@@ -11,6 +11,7 @@ export type AlertReportInput = {
   message: string;
   recommendation?: string | null;
   createdAt: Date;
+  lastSeenAt?: Date | null;
   resolvedAt?: Date | null;
   notificationSent?: boolean;
 };
@@ -469,6 +470,11 @@ export function buildAlertReport(
     `Alert-ID: ${alert.id}`,
     `Status: ${resolved ? "geschlossen" : "offen"}`,
     `Alert erkannt: ${formatDeDate(alert.createdAt)} (${APP_TIMEZONE})`,
+    ...(alert.lastSeenAt && !resolved
+      ? [
+          `Zuletzt bestätigt: ${formatDeDate(alert.lastSeenAt)} (${APP_TIMEZONE})`,
+        ]
+      : []),
     ...(resolved && alert.resolvedAt
       ? [`Geschlossen am: ${formatDeDate(alert.resolvedAt)} (${APP_TIMEZONE})`]
       : []),

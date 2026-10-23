@@ -56,6 +56,31 @@ describe("suspiciousSsHitToSecurityEvent", () => {
     assert.equal(event.occurredAt.toISOString(), occurredAt.toISOString());
   });
 
+  it("enriches reason and metadata with container context", () => {
+    const event = suspiciousSsHitToSecurityEvent(
+      sampleConn(),
+      {
+        severity: "warning",
+        reason: "Outbound 443 to 1.2.3.4 (hermes)",
+      },
+      {
+        serverId: SERVER_ID,
+        container: {
+          pid: 1,
+          containerId: "ec056641fd2aabcdef0123456789ab",
+          containerName: "hermes-agent",
+          image: "nousresearch/hermes-agent:latest",
+        },
+      },
+    );
+    assert.equal(event.metadata.containerName, "hermes-agent");
+    assert.equal(event.metadata.pid, 1);
+    assert.match(
+      String(event.metadata.reason),
+      /\[container hermes-agent · nousresearch\/hermes-agent:latest #ec056641fd2a\]/,
+    );
+  });
+
   it("defaults occurredAt to now when omitted", () => {
     const before = Date.now();
     const event = suspiciousSsHitToSecurityEvent(

@@ -124,6 +124,13 @@ export default async function AlertDetailPage({
         </h1>
         <p className="text-sm text-zinc-500">
           Alert erkannt: {formatAppDateTime(alert.createdAt)} ({APP_TIMEZONE})
+          {!resolved && alert.lastSeenAt && (
+            <>
+              {" "}
+              · zuletzt bestätigt:{" "}
+              {formatAppDateTime(alert.lastSeenAt)} ({APP_TIMEZONE})
+            </>
+          )}
         </p>
       </div>
 

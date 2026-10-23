@@ -75,6 +75,8 @@ export const alerts = pgTable("alerts", {
   message: text("message").notNull(),
   recommendation: text("recommendation"),
   resolvedAt: timestamp("resolved_at"),
+  /** Letzte Check-Runde, in der die Ursache noch vorlag (Alert-Lifecycle). */
+  lastSeenAt: timestamp("last_seen_at").defaultNow().notNull(),
   notificationSent: boolean("notification_sent").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

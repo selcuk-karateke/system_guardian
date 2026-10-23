@@ -21,6 +21,10 @@ import {
   isSuspiciousConnection,
   parseSsTunapLine,
 } from "./connection-patterns";
+import {
+  parsePidFromSsProcess,
+  resolveContainersByPids,
+} from "./container-process";
 import { getFileChangeHint } from "./file-change-hint";
 import { isSuspiciousProcessLine, parsePsAuxLines } from "./process-patterns";
 import {
@@ -223,21 +227,32 @@ export async function runSecurityPostureCheck(
 
   // Only non-IOC outbound hits (blocked IPs are a separate check above).
   // Unknown HTTPS must stay WARNING — CRITICAL only for real IOC / temp-path / bad ports.
-  // Path: ss-Hit → SecurityEvent → clearance item / AlertInput
-  const ssConnectionEvents: SecurityEvent[] = [];
+  // Path: ss-Hit → SecurityEvent (+ Container-Kontext) → clearance item / AlertInput
+  const ssHits: {
+    line: string;
+    conn: NonNullable<ReturnType<typeof parseSsTunapLine>>;
+    hit: NonNullable<ReturnType<typeof isSuspiciousConnection>>;
+  }[] = [];
   for (const line of ss.stdout.split("\n")) {
     const conn = parseSsTunapLine(line);
     if (!conn || !isOutboundEstablished(conn)) continue;
     const hit = isSuspiciousConnection(conn);
     if (hit && !blockedIps.includes(conn.remoteIp)) {
-      ssConnectionEvents.push(
-        suspiciousSsHitToSecurityEvent(conn, hit, {
-          serverId,
-          rawLine: line,
-        }),
-      );
+      ssHits.push({ line, conn, hit });
     }
   }
+  const ssPids = ssHits
+    .map((h) => parsePidFromSsProcess(h.conn.process))
+    .filter((p): p is number => p != null);
+  const containerByPid = await resolveContainersByPids(ssh, ssPids);
+  const ssConnectionEvents: SecurityEvent[] = ssHits.map(({ line, conn, hit }) => {
+    const pid = parsePidFromSsProcess(conn.process);
+    return suspiciousSsHitToSecurityEvent(conn, hit, {
+      serverId,
+      rawLine: line,
+      container: pid != null ? containerByPid.get(pid) ?? null : null,
+    });
+  });
   const ssClearance = clearanceFieldsFromSsSecurityEvents(ssConnectionEvents);
   if (ssClearance) {
     items.push({

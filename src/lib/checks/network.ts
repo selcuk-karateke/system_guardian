@@ -8,6 +8,11 @@ import {
   isSuspiciousConnection,
   parseSsTunapLine,
 } from "./connection-patterns";
+import {
+  enrichReasonWithContainer,
+  parsePidFromSsProcess,
+  resolveContainersByPids,
+} from "./container-process";
 import { runPortsCheck } from "./ports";
 import type { AlertInput, CheckResult } from "./types";
 
@@ -38,6 +43,13 @@ export async function runNetworkCheck(serverId: string): Promise<CheckResult> {
   const suspiciousConns: string[] = [];
   const outboundEstablished: string[] = [];
 
+  type HitRow = {
+    line: string;
+    conn: NonNullable<ReturnType<typeof parseSsTunapLine>>;
+    hit: NonNullable<ReturnType<typeof isSuspiciousConnection>>;
+  };
+  const hitRows: HitRow[] = [];
+
   for (const line of stdout.split("\n")) {
     const conn = parseSsTunapLine(line);
     if (!conn) continue;
@@ -48,16 +60,31 @@ export async function runNetworkCheck(serverId: string): Promise<CheckResult> {
 
     const hit = isSuspiciousConnection(conn);
     if (!hit) continue;
-    suspiciousConns.push(`${hit.reason} · ${line.slice(0, 160)}`);
+    hitRows.push({ line, conn, hit });
+    if (hitRows.length >= 10) break;
+  }
+
+  const containerByPid = await resolveContainersByPids(
+    ssh,
+    hitRows
+      .map((r) => parsePidFromSsProcess(r.conn.process))
+      .filter((p): p is number => p != null),
+  );
+
+  for (const { line, conn, hit } of hitRows) {
+    const pid = parsePidFromSsProcess(conn.process);
+    const container = pid != null ? containerByPid.get(pid) : undefined;
+    const reason = enrichReasonWithContainer(hit.reason, container);
+    suspiciousConns.push(`${reason} · ${line.slice(0, 160)}`);
     if (hit.severity === "critical") status = "critical";
     else if (status === "healthy") status = "warning";
     alerts.push({
       level: hit.severity,
-      message: `Suspicious connection: ${hit.reason}`,
-      recommendation:
-        "ss -tunap + docker ps; block IP (ufw), stop container, check image digest",
+      message: `Suspicious connection: ${reason}`,
+      recommendation: container?.containerId
+        ? "Prozess in Container (cgroup) — docker inspect / Logs; kein pkill -u Host-User."
+        : "ss -tunap + docker ps; block IP (ufw), stop container, check image digest",
     });
-    if (suspiciousConns.length >= 10) break;
   }
 
   const outboundKeys = outboundEstablished.map((s) => s.slice(0, 120));

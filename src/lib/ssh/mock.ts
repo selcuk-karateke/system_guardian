@@ -246,6 +246,14 @@ function matchFixture(command: string): string {
     return " db_size | 104857600\n(1 row)\n";
   }
   if (command.includes("dpkg -l")) return "";
+  if (command.includes("SG_PID_CONTAINER_LOOKUP")) {
+    // Mock: PID 1 = hermes-agent container (forensik-ähnlicher Fall)
+    return [
+      "SG_PID_CONTAINER_LOOKUP",
+      "1\tec056641fd2aabcdef0123456789abcdef0123456789abcdef0123456789ab\thermes-agent\tnousresearch/hermes-agent:latest",
+      "2\ta1b2c3d4e5f6789012345678abcdef0123456789abcdef0123456789abcdef\tcoolify-proxy\ttraefik:v3.7",
+    ].join("\n");
+  }
   return "";
 }
 

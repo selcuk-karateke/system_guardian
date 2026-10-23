@@ -3,6 +3,11 @@ import type {
   ConnectionSeverity,
   ParsedConnection,
 } from "@/lib/checks/connection-patterns";
+import {
+  enrichReasonWithContainer,
+  parsePidFromSsProcess,
+  type ContainerProcessInfo,
+} from "@/lib/checks/container-process";
 import { formatSinceLastCheck } from "@/lib/checks/fail2ban-metrics";
 
 export type SecuritySeverity = "critical" | "warning" | "info";
@@ -29,6 +34,8 @@ export type SsHitEventContext = {
   rawLine?: string;
   /** Defaults to now when the event is created */
   occurredAt?: Date;
+  /** Optional PID→Docker mapping from /proc cgroup */
+  container?: ContainerProcessInfo | null;
 };
 
 function ruleIdForSsHit(hit: SsHit): string {
@@ -46,6 +53,9 @@ export function suspiciousSsHitToSecurityEvent(
   ctx: SsHitEventContext,
 ): SecurityEvent {
   const rawLine = ctx.rawLine ?? "";
+  const pid =
+    ctx.container?.pid ?? parsePidFromSsProcess(conn.process) ?? undefined;
+  const reason = enrichReasonWithContainer(hit.reason, ctx.container);
   return {
     ruleId: ruleIdForSsHit(hit),
     source: "ss.tunap",
@@ -55,7 +65,7 @@ export function suspiciousSsHitToSecurityEvent(
       `${conn.proto} ${conn.state} ${conn.local} ${conn.remote} ${conn.process}`.trim(),
     entity: `${conn.remoteIp}:${conn.remotePort || "?"}`,
     metadata: {
-      reason: hit.reason,
+      reason,
       proto: conn.proto,
       state: conn.state,
       local: conn.local,
@@ -63,6 +73,14 @@ export function suspiciousSsHitToSecurityEvent(
       remoteIp: conn.remoteIp,
       remotePort: conn.remotePort,
       process: conn.process.slice(0, 200),
+      ...(pid != null ? { pid } : {}),
+      ...(ctx.container?.containerId
+        ? { containerId: ctx.container.containerId }
+        : {}),
+      ...(ctx.container?.containerName
+        ? { containerName: ctx.container.containerName }
+        : {}),
+      ...(ctx.container?.image ? { containerImage: ctx.container.image } : {}),
     },
     serverId: ctx.serverId,
     occurredAt: ctx.occurredAt ?? new Date(),
@@ -87,9 +105,19 @@ export function alertInputFromSsSecurityEvents(
     .map((e) => String(e.metadata.reason ?? e.raw))
     .join("; ");
 
+  const hasContainer = events.some(
+    (e) => e.metadata.containerId || e.metadata.containerName,
+  );
+
   return {
     level: anyCritical ? "critical" : "warning",
     message: `${label}: ${detail}`,
+    ...(hasContainer
+      ? {
+          recommendation:
+            "Prozess gehört zu einem Container (cgroup) — docker inspect / Logs prüfen; kein pkill -u Host-User (UID-Mapping).",
+        }
+      : {}),
   };
 }
 
