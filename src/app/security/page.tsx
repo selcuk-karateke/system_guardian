@@ -73,7 +73,7 @@ export default async function SecurityPage() {
           <CardHeader>
             <CardTitle>Offene Punkte (Früherkennung)</CardTitle>
           </CardHeader>
-          <CardContent className="text-sm space-y-2 max-h-64 overflow-auto">
+          <CardContent className="sg-stagger text-sm space-y-2 max-h-64 overflow-auto">
             {openIssues.map((issue, i) => (
               <p
                 key={`${issue.source}-${i}`}
@@ -109,7 +109,7 @@ export default async function SecurityPage() {
         }
       />
 
-      <div className="grid lg:grid-cols-2 gap-4">
+      <div className="sg-stagger grid lg:grid-cols-2 gap-4">
         <SshPresenceCard
           data={
             checks.logins?.data as import("@/components/security/ssh-presence-card").LoginsPresenceData
@@ -126,7 +126,7 @@ export default async function SecurityPage() {
         <CardHeader>
           <CardTitle>Was ist was – und warum so?</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="sg-stagger space-y-6">
           {SECURITY_CONCEPTS.map((c) => (
             <div
               key={c.id}
@@ -159,7 +159,7 @@ export default async function SecurityPage() {
         </CardContent>
       </Card>
 
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="sg-stagger grid md:grid-cols-2 lg:grid-cols-3 gap-4">
         {MODULES.map((mod) => (
           <Card key={mod}>
             <CardHeader>
@@ -256,7 +256,7 @@ export default async function SecurityPage() {
           <CardTitle>Änderungshistorie</CardTitle>
         </CardHeader>
         <CardContent>
-          <ul className="text-sm space-y-2">
+          <ul className="sg-stagger text-sm space-y-2">
             {changes.map((c) => (
               <li key={c.id} className="text-zinc-400">
                 <span className="text-zinc-200">{c.category}</span> –{" "}

@@ -5,7 +5,7 @@ import {
   runSecurityCheckBatch,
   runServerCheckBatch,
 } from "@/lib/checks";
-import { getDefaultServerId } from "@/lib/servers";
+import { getDefaultServerId, listActiveServers } from "@/lib/servers";
 
 function revalidateDashboards() {
   revalidatePath("/");
@@ -22,15 +22,27 @@ export type TriggerResult = {
   modules?: { module: string; status: string }[];
 };
 
+async function activeServerIds(): Promise<string[]> {
+  const rows = await listActiveServers();
+  if (rows.length > 0) return rows.map((r) => r.id);
+  return [await getDefaultServerId()];
+}
+
 export async function triggerServerChecks(): Promise<TriggerResult> {
   try {
-    const serverId = await getDefaultServerId();
-    const results = await runServerCheckBatch(serverId);
+    const ids = await activeServerIds();
+    const modules: { module: string; status: string }[] = [];
+    for (const serverId of ids) {
+      const results = await runServerCheckBatch(serverId);
+      modules.push(
+        ...results.map((r) => ({ module: r.module, status: r.status })),
+      );
+    }
     revalidateDashboards();
     return {
       ok: true,
-      message: `${results.length} Server-Checks abgeschlossen`,
-      modules: results.map((r) => ({ module: r.module, status: r.status })),
+      message: `${modules.length} Server-Checks auf ${ids.length} Server(n)`,
+      modules,
     };
   } catch (e) {
     return {
@@ -42,13 +54,19 @@ export async function triggerServerChecks(): Promise<TriggerResult> {
 
 export async function triggerSecurityChecks(): Promise<TriggerResult> {
   try {
-    const serverId = await getDefaultServerId();
-    const results = await runSecurityCheckBatch(serverId);
+    const ids = await activeServerIds();
+    const modules: { module: string; status: string }[] = [];
+    for (const serverId of ids) {
+      const results = await runSecurityCheckBatch(serverId);
+      modules.push(
+        ...results.map((r) => ({ module: r.module, status: r.status })),
+      );
+    }
     revalidateDashboards();
     return {
       ok: true,
-      message: `${results.length} Security-Checks abgeschlossen`,
-      modules: results.map((r) => ({ module: r.module, status: r.status })),
+      message: `${modules.length} Security-Checks auf ${ids.length} Server(n)`,
+      modules,
     };
   } catch (e) {
     return {

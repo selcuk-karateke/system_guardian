@@ -24,7 +24,7 @@ export default async function InfrastructurePage() {
       <h1 className="text-3xl font-bold">Infrastruktur</h1>
       {error && <p className="text-amber-400">{error}</p>}
 
-      <div className="grid md:grid-cols-3 gap-4">
+      <div className="sg-stagger grid md:grid-cols-3 gap-4">
         <Card>
           <CardHeader>
             <CardTitle>CPU / Load</CardTitle>

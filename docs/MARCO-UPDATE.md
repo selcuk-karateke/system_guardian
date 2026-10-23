@@ -2,20 +2,12 @@
 
 Hey Marco —
 
-**Guardian (Code, schon auf master):**
-- Live-Monitoring mit Server-Auswahl (Dashboard / Monitor / Historie)
-- Alerts: Auto-Close wenn Ursache weg + `last_seen_at`; Outbound zeigt Container Name/Image (kein „bwilson/hermes = Host-Login“-Fehlschluss)
-- Docker: **unhealthy** auch bei `State=running` (HEALTHCHECK) → Warning
-- **Monitoring-Profil** pro Server: `host` (alles) vs `container` (ohne RAID/SSH-Keys/Users/…) — Spalte `servers.monitor_profile`, sichtbar unter `/servers/[id]`
-- `hermes` ist jetzt default in `TRUSTED_OUTBOUND_PROCESSES` (Coolify-App, CF/Telegram ok)
+Guardian-Code ist erstmal durch (Live-Monitoring, Alerts, Docker unhealthy, Profile).
 
-**Dein Part (Host kawai, nicht Code):**  
-→ [`OPS-CHECKLIST-KAWAI.md`](./OPS-CHECKLIST-KAWAI.md) — vor allem SSH härten (PermitRootLogin / PasswordAuth), Secrets aus History rotieren, Ports/`bwilson`-Gruppen.
+**Deine Aufgabe:** Server **kawai** absichern — bitte die Liste abarbeiten:
 
-**Profil setzen** (wenn ein Ziel nur App-Fokus braucht):
-```sql
-UPDATE servers SET monitor_profile = 'container' WHERE name = '…';
--- zurück: monitor_profile = 'host'
-```
+→ `docs/OPS-CHECKLIST-KAWAI.md`
 
-Bei Fragen zu Checks: `/docs` und Roadmap `/docs/roadmap`.
+Schwerpunkte: SSH härten (kein Root-/Passwort-Login), Secrets aus der History rotieren, offene Ports und `bwilson`-Rechte prüfen.
+
+Wenn was unklar ist oder blockiert: kurz Bescheid.
