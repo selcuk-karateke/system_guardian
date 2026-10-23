@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { servers } from "@/db/schema";
 
@@ -21,4 +21,21 @@ export async function getDefaultServerId(): Promise<string> {
     .returning();
 
   return created.id;
+}
+
+export async function listActiveServers() {
+  return db
+    .select()
+    .from(servers)
+    .where(eq(servers.isActive, true))
+    .orderBy(desc(servers.createdAt));
+}
+
+export async function getServerById(id: string) {
+  const [row] = await db
+    .select()
+    .from(servers)
+    .where(eq(servers.id, id))
+    .limit(1);
+  return row ?? null;
 }

@@ -1,6 +1,46 @@
 {
   "items": [
     {
+      "id": "dashboard-server-list",
+      "title": "Dashboard: Server-Liste mit Status",
+      "status": "done",
+      "proposedBy": "marco",
+      "area": "ux",
+      "notes": "Punkt 1 Live-Monitoring-Umbau; Detail unter /servers/[id]"
+    },
+    {
+      "id": "live-view-server-select",
+      "title": "Live-Ansicht mit Server-Auswahl + Detailmeldungen",
+      "status": "planned",
+      "proposedBy": "marco",
+      "area": "ux",
+      "notes": "Nach Dashboard-Server-Liste; Monitor/Security serverselektiert"
+    },
+    {
+      "id": "events-by-server",
+      "title": "Ereignisse nach Server-Auswahl",
+      "status": "planned",
+      "proposedBy": "marco",
+      "area": "ux",
+      "notes": "History/Alerts gefiltert; Detailseite filtert schon"
+    },
+    {
+      "id": "per-target-monitor-profiles",
+      "title": "Monitoring-Profile je Zieltyp (Host vs. Container)",
+      "status": "idea",
+      "proposedBy": "marco",
+      "area": "monitoring",
+      "notes": "z.B. Debian SSH wichtig, Nextcloud-Container nicht; Einzelfall"
+    },
+    {
+      "id": "deploy-credential-auto-bind",
+      "title": "Deploy: Zugangsdaten → automatische Wächter-Einbindung",
+      "status": "idea",
+      "proposedBy": "marco",
+      "area": "ops",
+      "notes": "Nach Restart Auto-Bind; nach Backup/Restore planen"
+    },
+    {
       "id": "docker-healthcheck",
       "title": "Docker HEALTHCHECK (unhealthy) erkennen",
       "status": "planned",

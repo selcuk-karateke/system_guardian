@@ -46,13 +46,19 @@ export function effectiveModuleStatus(
   return "healthy";
 }
 
-async function getOpenAlertsGroupedByModule(): Promise<
-  Map<string, { level: string }[]>
-> {
+async function getOpenAlertsGroupedByModule(
+  serverId?: string,
+): Promise<Map<string, { level: string }[]>> {
+  const conditions = [
+    isNull(alerts.resolvedAt),
+    ne(alerts.level, "info"),
+  ];
+  if (serverId) conditions.push(eq(alerts.serverId, serverId));
+
   const open = await db
     .select({ module: alerts.module, level: alerts.level })
     .from(alerts)
-    .where(and(isNull(alerts.resolvedAt), ne(alerts.level, "info")));
+    .where(and(...conditions));
   const byModule = new Map<string, { level: string }[]>();
   for (const row of open) {
     const list = byModule.get(row.module) ?? [];
@@ -92,8 +98,17 @@ export async function getGlobalStatus(): Promise<GlobalStatus> {
   return worstStatus(statuses.length ? statuses : ["healthy"]);
 }
 
-export async function getServerOverview() {
-  const [server] = await db.select().from(servers).limit(1);
+export async function getServerOverview(serverId?: string) {
+  const server = serverId
+    ? (
+        await db
+          .select()
+          .from(servers)
+          .where(eq(servers.id, serverId))
+          .limit(1)
+      )[0]
+    : (await db.select().from(servers).limit(1))[0];
+
   const [metrics] = server
     ? await db
         .select()
@@ -103,9 +118,20 @@ export async function getServerOverview() {
         .limit(1)
     : [];
 
+  const runConditions = server
+    ? eq(checkRuns.serverId, server.id)
+    : undefined;
+
   const [recentModules, openByModule] = await Promise.all([
-    db.select().from(checkRuns).orderBy(desc(checkRuns.createdAt)).limit(20),
-    getOpenAlertsGroupedByModule(),
+    server
+      ? db
+          .select()
+          .from(checkRuns)
+          .where(runConditions)
+          .orderBy(desc(checkRuns.createdAt))
+          .limit(40)
+      : db.select().from(checkRuns).orderBy(desc(checkRuns.createdAt)).limit(20),
+    getOpenAlertsGroupedByModule(server?.id),
   ]);
 
   const moduleStatus: Record<string, string> = {};
@@ -118,9 +144,13 @@ export async function getServerOverview() {
     }
   }
 
+  const statuses = Object.values(moduleStatus) as CheckStatus[];
+  const status = worstStatus(statuses.length ? statuses : ["healthy"]);
+
   return {
     server,
     metrics,
+    status,
     checkMode: getCheckMode(),
     moduleStatus,
     docker: moduleStatus.docker ?? "unknown",
@@ -130,13 +160,73 @@ export async function getServerOverview() {
   };
 }
 
+/** Dashboard: one row per active server with aggregated status. */
+export async function getServersWithStatus() {
+  const rows = await db
+    .select()
+    .from(servers)
+    .where(eq(servers.isActive, true))
+    .orderBy(desc(servers.createdAt));
+
+  const result: {
+    id: string;
+    name: string;
+    host: string;
+    ipv4: string | null;
+    status: GlobalStatus;
+    cpuPercent: number | null;
+    ramPercent: number | null;
+    diskPercent: number | null;
+    lastCheckAt: Date | null;
+    openAlertCount: number;
+  }[] = [];
+
+  for (const server of rows) {
+    const overview = await getServerOverview(server.id);
+    const [lastCheck] = await db
+      .select({ createdAt: checkRuns.createdAt })
+      .from(checkRuns)
+      .where(eq(checkRuns.serverId, server.id))
+      .orderBy(desc(checkRuns.createdAt))
+      .limit(1);
+    const openAlertRows = await db
+      .select({ id: alerts.id })
+      .from(alerts)
+      .where(
+        and(
+          eq(alerts.serverId, server.id),
+          isNull(alerts.resolvedAt),
+          ne(alerts.level, "info"),
+        ),
+      );
+
+    result.push({
+      id: server.id,
+      name: server.name,
+      host: server.host,
+      ipv4: server.ipv4,
+      status: overview.status,
+      cpuPercent: overview.metrics?.cpuPercent ?? null,
+      ramPercent: overview.metrics?.ramPercent ?? null,
+      diskPercent: overview.metrics?.diskPercent ?? null,
+      lastCheckAt: lastCheck?.createdAt ?? null,
+      openAlertCount: openAlertRows.length,
+    });
+  }
+
+  return result;
+}
+
 export async function getRecentAlerts(
   limit = 50,
-  opts?: { includeInfo?: boolean },
+  opts?: { includeInfo?: boolean; serverId?: string },
 ) {
   const conditions = [isNull(alerts.resolvedAt)];
   if (!opts?.includeInfo) {
     conditions.push(ne(alerts.level, "info"));
+  }
+  if (opts?.serverId) {
+    conditions.push(eq(alerts.serverId, opts.serverId));
   }
   return db
     .select()
@@ -151,11 +241,16 @@ export async function getAlertById(id: string) {
   return row ?? null;
 }
 
-export async function getLatestCheckByModule(module: string) {
+export async function getLatestCheckByModule(
+  module: string,
+  serverId?: string,
+) {
+  const conditions = [eq(checkRuns.module, module)];
+  if (serverId) conditions.push(eq(checkRuns.serverId, serverId));
   const [row] = await db
     .select()
     .from(checkRuns)
-    .where(eq(checkRuns.module, module))
+    .where(and(...conditions))
     .orderBy(desc(checkRuns.createdAt))
     .limit(1);
   return row;
