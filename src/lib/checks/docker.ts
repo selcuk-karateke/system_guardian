@@ -15,6 +15,11 @@ import {
   type CoolifyMeta,
 } from "./coolify-meta";
 import { filterRoutineCoolifyDiffs, isCoolifyManagedContainer } from "./coolify-deploy";
+import {
+  isDockerStatusRestarting,
+  isDockerStatusUnhealthy,
+  unhealthyAlertLevel,
+} from "./docker-health";
 import { diffHashMaps, diffStringSets } from "@/lib/history/diff";
 import { diffAndStore } from "@/lib/history/persist";
 import { getSshClient } from "@/lib/ssh";
@@ -128,9 +133,20 @@ export async function runDockerCheck(serverId: string): Promise<CheckResult> {
   const stoppedUnexpected: string[] = [];
 
   for (const c of containers) {
-    if (c.State === "running") continue;
+    // HEALTHCHECK: oft State=running + Status "Up … (unhealthy)"
+    if (isDockerStatusUnhealthy(c.Status, c.State)) {
+      const level = unhealthyAlertLevel(c.State);
+      if (level === "critical") status = "critical";
+      else if (status === "healthy") status = "warning";
+      alerts.push({
+        level,
+        message: `Container ${label(c.Names)} unhealthy`,
+        recommendation: `docker inspect --format '{{.State.Health}}' ${c.Names}; docker logs --tail 100 ${c.Names}`,
+      });
+      if (c.State === "running") continue;
+    }
 
-    if (c.Status.toLowerCase().includes("restarting")) {
+    if (isDockerStatusRestarting(c.Status, c.State)) {
       status = "critical";
       alerts.push({
         level: "critical",
@@ -139,14 +155,7 @@ export async function runDockerCheck(serverId: string): Promise<CheckResult> {
       continue;
     }
 
-    if (c.Status.toLowerCase().includes("unhealthy")) {
-      status = "critical";
-      alerts.push({
-        level: "critical",
-        message: `Container ${label(c.Names)} unhealthy`,
-      });
-      continue;
-    }
+    if (c.State === "running") continue;
 
     if (c.State === "exited" || c.State === "dead") {
       if (isExpectedStoppedContainer(c.Names)) {

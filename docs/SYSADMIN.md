@@ -255,5 +255,8 @@ Agent-/Dev-Einstieg: [AGENTS.md](../AGENTS.md).
 | [SECURITY-FEATURES.md](./SECURITY-FEATURES.md) | SIEM-Begriffe ↔ Guardian |
 | [FUTURE-INTEGRATIONS.md](./FUTURE-INTEGRATIONS.md) | Roadmap (Phasen) |
 | [OPS-CHECKLIST-KAWAI.md](./OPS-CHECKLIST-KAWAI.md) | **Ops-Abhakliste** Host kawai (SSH, Secrets, Ports) |
+| [MARCO-UPDATE.md](./MARCO-UPDATE.md) | Kurztext für Collaborator-Chat |
+
+**Monitoring-Profil** (`servers.monitor_profile`): `host`/`full` = alle Module; `container` = App-Fokus (kein RAID/SSH-Keys/Users/Logins/Cron/Scanner/Services/FIM/Backups).
 | [backlog.json](./backlog.json) | **Nächste Features / Collaborator-Ideen** (UI: `/docs/roadmap`) |
 | OpenAPI / Redoc | App: `/docs/api` · Spec: `/openapi.yaml` |

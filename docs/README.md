@@ -4,6 +4,7 @@
 |----------|---------|--------|
 | **[SYSADMIN.md](./SYSADMIN.md)** | Systemadmins / Ops-Collaborators | Wo ist was, Checks, Betrieb, Zuarbeit |
 | **[OPS-CHECKLIST-KAWAI.md](./OPS-CHECKLIST-KAWAI.md)** | Ops (Marco / Host) | Abhak-Liste aus Forensik-/Analyse-PDFs |
+| **[MARCO-UPDATE.md](./MARCO-UPDATE.md)** | Chat an Marco | Kopierfertige Kurzinfo Status + Aufgaben |
 | **[backlog.json](./backlog.json)** | Alle Collaborators | Roadmap-Ideen eintragen (PR) |
 | [BACKLOG.md](./BACKLOG.md) | Collaborators | Anleitung zum Eintragen |
 | [FUTURE-INTEGRATIONS.md](./FUTURE-INTEGRATIONS.md) | Planung | Phasen & Prioritäten |

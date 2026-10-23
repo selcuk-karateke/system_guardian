@@ -8,6 +8,7 @@ export type ServerStatusItem = {
   name: string;
   host: string;
   ipv4: string | null;
+  monitorProfile?: string;
   status: GlobalStatus;
   cpuPercent: number | null;
   ramPercent: number | null;
@@ -59,6 +60,9 @@ export function ServerStatusList({
                   </p>
                   <p className="text-xs text-zinc-500 font-mono truncate">
                     {s.ipv4 ?? s.host}
+                    {s.monitorProfile && s.monitorProfile !== "host"
+                      ? ` · ${s.monitorProfile}`
+                      : ""}
                   </p>
                 </div>
                 <StatusBadge status={s.status} />

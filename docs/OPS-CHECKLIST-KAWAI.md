@@ -1,5 +1,7 @@
 # Ops-Checkliste – Server „kawai“
 
+**Owner: Marco** (Selcuk eskaliert / peitscht; Guardian-Code macht das nicht am Host.)
+
 Quellen (PDFs, Stand Okt. 2026): Server-Analyse, Coolify-Forensik, bwilson/Docker-Forensik, Guardian-Fehlerbericht, Unattended-Upgrades-Doku, Hetzner-Backup-Doku.
 
 Ziel: **Host härten & Aufräumen** — getrennt vom Guardian-Code. Abhaken in der Reihenfolge; Änderungen dokumentieren (Ticket/Chat).

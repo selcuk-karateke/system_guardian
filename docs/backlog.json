@@ -27,10 +27,10 @@
     {
       "id": "per-target-monitor-profiles",
       "title": "Monitoring-Profile je Zieltyp (Host vs. Container)",
-      "status": "idea",
+      "status": "done",
       "proposedBy": "marco",
       "area": "monitoring",
-      "notes": "z.B. Debian SSH wichtig, Nextcloud-Container nicht; Einzelfall"
+      "notes": "servers.monitor_profile; container-Allowlist; UI auf /servers/[id]"
     },
     {
       "id": "deploy-credential-auto-bind",
@@ -67,10 +67,10 @@
     {
       "id": "docker-healthcheck",
       "title": "Docker HEALTHCHECK (unhealthy) erkennen",
-      "status": "planned",
+      "status": "done",
       "proposedBy": "core",
       "area": "monitoring",
-      "notes": "Laufende Container mit unhealthy-State als Warning/Critical"
+      "notes": "Fix: running+unhealthy war tot; jetzt Warning + Inspect-Empfehlung"
     },
     {
       "id": "trivy-weekly",

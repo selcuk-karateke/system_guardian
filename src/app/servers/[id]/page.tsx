@@ -10,6 +10,10 @@ import {
   getRecentAlerts,
   getServerOverview,
 } from "@/lib/dashboard-data";
+import {
+  parseMonitorProfile,
+  profileLabel,
+} from "@/lib/monitor-profiles";
 import { getServerById } from "@/lib/servers";
 import { formatUptime } from "@/lib/utils";
 
@@ -52,6 +56,16 @@ export default async function ServerDetailPage({
           <p className="text-zinc-400 mt-1 font-mono text-sm">
             {server.ipv4 ?? server.host}
           </p>
+          <p className="text-xs text-zinc-500 mt-2">
+            Monitoring-Profil:{" "}
+            <span className="text-zinc-300">
+              {profileLabel(parseMonitorProfile(server.monitorProfile))}
+            </span>
+            <span className="text-zinc-600">
+              {" "}
+              ({parseMonitorProfile(server.monitorProfile)})
+            </span>
+          </p>
         </div>
         <div className="flex flex-col items-end gap-4">
           <StatusBadge status={overview?.status ?? "healthy"} />
@@ -76,6 +90,12 @@ export default async function ServerDetailPage({
             <div>
               <dt className="text-zinc-500">Host</dt>
               <dd className="font-medium">{server.host}</dd>
+            </div>
+            <div>
+              <dt className="text-zinc-500">Profil</dt>
+              <dd className="font-medium">
+                {profileLabel(parseMonitorProfile(server.monitorProfile))}
+              </dd>
             </div>
             <div>
               <dt className="text-zinc-500">IP</dt>

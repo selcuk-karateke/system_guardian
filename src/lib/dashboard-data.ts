@@ -173,6 +173,7 @@ export async function getServersWithStatus() {
     name: string;
     host: string;
     ipv4: string | null;
+    monitorProfile: string;
     status: GlobalStatus;
     cpuPercent: number | null;
     ramPercent: number | null;
@@ -205,6 +206,7 @@ export async function getServersWithStatus() {
       name: server.name,
       host: server.host,
       ipv4: server.ipv4,
+      monitorProfile: server.monitorProfile,
       status: overview.status,
       cpuPercent: overview.metrics?.cpuPercent ?? null,
       ramPercent: overview.metrics?.ramPercent ?? null,

@@ -32,6 +32,10 @@ export const servers = pgTable("servers", {
   host: varchar("host", { length: 255 }).notNull(),
   ipv4: varchar("ipv4", { length: 45 }),
   ipv6: varchar("ipv6", { length: 45 }),
+  /** host | container | full — welche Check-Module laufen */
+  monitorProfile: varchar("monitor_profile", { length: 32 })
+    .default("host")
+    .notNull(),
   isActive: boolean("is_active").default(true).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

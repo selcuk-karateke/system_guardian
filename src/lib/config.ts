@@ -175,6 +175,8 @@ export function getTrustedOutboundProcessPatterns(): RegExp[] {
     /nginx/i,
     /apt-get/i,
     /unattended-upgrade/i,
+    /** Coolify-App Hermes Agent/WebUI — bekannter Telegram/CF-Outbound */
+    /hermes/i,
   ];
   if (!raw.trim()) return defaults;
   return [
