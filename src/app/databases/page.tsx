@@ -48,7 +48,7 @@ export default async function DatabasesPage() {
         </CardContent>
       </Card>
 
-      <div className="grid md:grid-cols-2 gap-4">
+      <div className="sg-stagger grid md:grid-cols-2 gap-4">
         {[
           {
             key: "postgresql",

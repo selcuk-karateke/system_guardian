@@ -36,7 +36,7 @@ export function AlertList({
   }
 
   return (
-    <ul className={compact ? "space-y-2" : "space-y-3"}>
+    <ul className={compact ? "sg-stagger space-y-2" : "sg-stagger space-y-3"}>
       {items.map((a) => (
         <li
           key={a.id}

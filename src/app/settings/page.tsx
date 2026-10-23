@@ -1,12 +1,16 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { NotificationTestPanel } from "@/components/settings/notification-test-panel";
+import { ServerAdminPanel } from "@/components/settings/server-admin-panel";
 import { getDomains } from "@/lib/dashboard-data";
 import { getNotificationChannelStatus } from "@/lib/notifications/status";
+import { listActiveServers } from "@/lib/servers";
 
 export default async function SettingsPage() {
   let domains: Awaited<ReturnType<typeof getDomains>> = [];
+  let serverRows: Awaited<ReturnType<typeof listActiveServers>> = [];
   try {
     domains = await getDomains();
+    serverRows = await listActiveServers();
   } catch {
     /* empty */
   }
@@ -16,6 +20,23 @@ export default async function SettingsPage() {
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold">Einstellungen</h1>
+
+      <Card id="servers">
+        <CardHeader>
+          <CardTitle>Server</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ServerAdminPanel
+            servers={serverRows.map((s) => ({
+              id: s.id,
+              name: s.name,
+              host: s.host,
+              ipv4: s.ipv4,
+              monitorProfile: s.monitorProfile,
+            }))}
+          />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

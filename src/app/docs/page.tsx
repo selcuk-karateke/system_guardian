@@ -97,10 +97,10 @@ export default function DocsHubPage() {
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold text-zinc-200">In der App</h2>
-        <div className="grid gap-3">
+        <div className="sg-stagger grid gap-3">
           {LINKS.map((item) => (
             <Link key={item.href} href={item.href} className="block group">
-              <Card className="transition-colors group-hover:border-sky-700/60">
+              <Card className="group-hover:border-sky-700/60">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base text-sky-400 group-hover:underline">
                     {item.title}
@@ -122,7 +122,7 @@ export default function DocsHubPage() {
           Seite. Haupteinstieg:{" "}
           <code className="text-zinc-400">docs/SYSADMIN.md</code>
         </p>
-        <div className="grid gap-3">
+        <div className="sg-stagger grid gap-3">
           {REPO_DOCS.map((item) => (
             <Card key={item.file}>
               <CardHeader className="pb-2">

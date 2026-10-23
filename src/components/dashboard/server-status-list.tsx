@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AddServerTile } from "@/components/dashboard/add-server-tile";
 import { StatusBadge } from "@/components/dashboard/status-badge";
 import { Card, CardContent } from "@/components/ui/card";
 import type { GlobalStatus } from "@/lib/dashboard-data";
@@ -34,24 +35,26 @@ export function ServerStatusList({
 }) {
   if (servers.length === 0) {
     return (
-      <Card>
-        <CardContent className="pt-6 text-sm text-zinc-500">
-          Keine aktiven Server. Seed/Cron anlegen, dann erscheint die Liste
-          hier.
-        </CardContent>
-      </Card>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <Card>
+          <CardContent className="pt-6 text-sm text-zinc-500">
+            Keine aktiven Server. Leg den ersten unter Einstellungen an.
+          </CardContent>
+        </Card>
+        <AddServerTile />
+      </div>
     );
   }
 
   return (
-    <div className="grid gap-3 md:grid-cols-2">
+    <div className="sg-stagger grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
       {servers.map((s) => (
         <Link
           key={s.id}
           href={`/servers/${s.id}`}
-          className="block rounded-lg border border-zinc-800 bg-zinc-900/40 hover:border-zinc-600 transition-colors"
+          className="sg-server-tile block rounded-lg border border-zinc-800 bg-zinc-900/40"
         >
-          <Card className="border-0 bg-transparent shadow-none">
+          <Card className="sg-glass-card--flat border-0 bg-transparent shadow-none">
             <CardContent className="pt-5 space-y-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -99,6 +102,7 @@ export function ServerStatusList({
           </Card>
         </Link>
       ))}
+      <AddServerTile />
     </div>
   );
 }

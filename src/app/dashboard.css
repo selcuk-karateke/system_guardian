@@ -1,6 +1,10 @@
 /**
  * Ops HUD light — dashboard only (.sg-shell).
  * Monitor (/monitor) uses monitor-mission.css and is intentionally excluded.
+ *
+ * Motion tokens adapted from Concept theme (theme.css / motion.css):
+ * shared cubic-bezier family, capped stagger, reduced-motion gates.
+ * Storefront-only patterns (magnets, marquees, parallax) are not ported.
  */
 .sg-shell {
   --sg-ok: #4ade80;
@@ -9,11 +13,26 @@
   --sg-accent: #38bdf8;
   --sg-glass: rgb(14 16 28 / 0.55);
   --sg-edge: rgb(255 255 255 / 0.08);
+  --sg-sidebar-width: 14rem;
+  /* Concept timing tokens — slightly shorter for dense ops UI */
+  --animation-nav: 0.4s cubic-bezier(0.6, 0, 0.4, 1);
+  --animation-primary: 0.45s cubic-bezier(0.3, 1, 0.3, 1);
+  --animation-smooth: 0.55s cubic-bezier(0.7, 0, 0.3, 1);
+  --animation-fast: 0.28s cubic-bezier(0.7, 0, 0.3, 1);
+  --animation-short: 0.18s cubic-bezier(0.7, 0, 0.3, 1);
+  --ease-concept: cubic-bezier(0.2, 0.75, 0.2, 1);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
   background: #050508;
   color: #fafafa;
 }
 
+.sg-shell--collapsed {
+  --sg-sidebar-width: 4.75rem;
+}
+
 .sg-sidebar {
+  width: var(--sg-sidebar-width);
+  transition: width var(--animation-nav);
   background: linear-gradient(
     180deg,
     rgb(14 16 28 / 0.92) 0%,
@@ -22,6 +41,43 @@
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border-color: var(--sg-edge) !important;
+}
+
+.sg-sidebar-header,
+.sg-sidebar-footer {
+  background: inherit;
+}
+
+.sg-sidebar-edge-toggle {
+  position: absolute;
+  top: 0.85rem;
+  right: -0.75rem;
+  z-index: 30;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 999px;
+  border: 1px solid rgb(255 255 255 / 12%);
+  background: rgb(24 24 27);
+  color: rgb(212 212 216);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 45%);
+  cursor: pointer;
+  transition:
+    background var(--animation-short),
+    color var(--animation-short),
+    border-color var(--animation-short);
+}
+
+.sg-sidebar-edge-toggle:hover {
+  color: white;
+  border-color: rgb(56 189 248 / 45%);
+  background: rgb(39 39 42);
+}
+
+.sg-nav-context {
+  border-bottom: 1px solid transparent;
 }
 
 .sg-main {
@@ -37,7 +93,7 @@
   content: "";
   position: fixed;
   inset: 0;
-  left: 14rem;
+  left: var(--sg-sidebar-width);
   pointer-events: none;
   z-index: 0;
   opacity: 0.35;
@@ -46,6 +102,13 @@
     linear-gradient(90deg, rgb(255 255 255 / 2%) 1px, transparent 1px);
   background-size: 48px 48px;
   mask-image: linear-gradient(180deg, black 0%, transparent 85%);
+  transition: left var(--animation-nav);
+}
+
+@media (max-width: 767px) {
+  .sg-main::before {
+    left: 0;
+  }
 }
 
 .sg-main > * {
@@ -73,12 +136,37 @@
   color: rgb(228 228 231);
 }
 
+.sg-nav-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 0.5rem;
+  border: 1px solid transparent;
+  color: rgb(161 161 170);
+  background: transparent;
+  cursor: pointer;
+  transition:
+    background var(--animation-short),
+    border-color var(--animation-short),
+    color var(--animation-short);
+}
+
+.sg-nav-toggle:hover {
+  color: rgb(244 244 245);
+  background: rgb(255 255 255 / 5%);
+  border-color: rgb(255 255 255 / 8%);
+}
+
 .sg-nav-link {
+  position: relative;
   border: 1px solid transparent;
   transition:
-    background 0.15s ease,
-    border-color 0.15s ease,
-    color 0.15s ease;
+    background var(--animation-short),
+    border-color var(--animation-short),
+    color var(--animation-short),
+    box-shadow var(--animation-fast);
 }
 
 .sg-nav-link:hover {
@@ -93,6 +181,51 @@
   box-shadow: inset 0 0 20px rgb(56 189 248 / 6%);
 }
 
+.sg-drawer-backdrop {
+  background: rgb(0 0 0 / 55%);
+  animation: sg-backdrop-enter 0.28s ease both;
+  border: 0;
+  cursor: pointer;
+}
+
+.sg-drawer-panel {
+  animation: sg-drawer-enter 0.38s var(--ease-concept) both;
+  box-shadow: 8px 0 32px rgb(0 0 0 / 45%);
+}
+
+@keyframes sg-drawer-enter {
+  from {
+    opacity: 0;
+    transform: translateX(-100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes sg-backdrop-enter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.sg-nav-link--active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 20%;
+  bottom: 20%;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--sg-accent);
+  box-shadow: 0 0 10px rgb(56 189 248 / 45%);
+  animation: sg-nav-bar 0.35s var(--ease-concept) both;
+}
+
 .sg-glass-card {
   border-color: var(--sg-edge) !important;
   background: linear-gradient(
@@ -105,6 +238,40 @@
   box-shadow:
     0 4px 24px rgb(0 0 0 / 35%),
     inset 0 1px 0 rgb(255 255 255 / 6%);
+  transition:
+    transform var(--animation-fast),
+    box-shadow var(--animation-fast),
+    border-color var(--animation-short);
+}
+
+.sg-glass-card:hover {
+  transform: translateY(-2px);
+  border-color: rgb(255 255 255 / 14%) !important;
+  box-shadow:
+    0 10px 32px rgb(0 0 0 / 45%),
+    inset 0 1px 0 rgb(255 255 255 / 8%);
+}
+
+/* Nested / decorative cards — parent owns the motion */
+.sg-glass-card--flat,
+.sg-glass-card--flat:hover {
+  transform: none !important;
+  transition: none;
+  box-shadow: none !important;
+}
+
+.sg-server-tile {
+  transition:
+    transform var(--animation-fast),
+    border-color var(--animation-short),
+    box-shadow var(--animation-fast),
+    background var(--animation-short);
+}
+
+.sg-server-tile:hover {
+  transform: translateY(-2px);
+  border-color: rgb(161 161 170 / 45%);
+  box-shadow: 0 8px 28px rgb(0 0 0 / 40%);
 }
 
 .sg-alert-row {
@@ -116,6 +283,15 @@
   );
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
+  transition:
+    border-color var(--animation-short),
+    background var(--animation-short),
+    transform var(--animation-fast);
+}
+
+.sg-alert-row:hover {
+  border-color: rgb(255 255 255 / 12%);
+  transform: translateY(-1px);
 }
 
 .sg-status-dot {
@@ -135,16 +311,18 @@
 .sg-status-dot--warning {
   background: var(--sg-warn);
   color: var(--sg-warn);
+  animation: sg-pulse-soft 2.4s ease-in-out infinite;
 }
 
 .sg-status-dot--critical {
   background: var(--sg-crit);
   color: var(--sg-crit);
+  animation: sg-pulse-crit 1.6s ease-in-out infinite;
 }
 
 .sg-link {
   color: rgb(56 189 248);
-  transition: color 0.15s ease;
+  transition: color var(--animation-short);
 }
 
 .sg-link:hover {
@@ -156,9 +334,154 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* —— Motion utilities (Concept-inspired) —— */
+
+@keyframes sg-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes sg-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes sg-nav-bar {
+  from {
+    opacity: 0;
+    transform: scaleY(0.4);
+  }
+  to {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+}
+
+@keyframes sg-pulse-soft {
+  0%,
+  100% {
+    box-shadow: 0 0 6px currentColor;
+    opacity: 1;
+  }
+  50% {
+    box-shadow: 0 0 12px currentColor;
+    opacity: 0.75;
+  }
+}
+
+@keyframes sg-pulse-crit {
+  0%,
+  100% {
+    box-shadow: 0 0 8px currentColor;
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 16px currentColor;
+    transform: scale(1.15);
+  }
+}
+
+.sg-page-enter {
+  animation: sg-fade-up 0.5s var(--ease-concept) both;
+}
+
+/* Capped stagger (Concept storefront: index % 4 * 75ms) */
+.sg-stagger > * {
+  animation: sg-fade-up 0.48s var(--ease-concept) both;
+}
+
+.sg-stagger > *:nth-child(4n + 1) {
+  animation-delay: 0ms;
+}
+
+.sg-stagger > *:nth-child(4n + 2) {
+  animation-delay: 75ms;
+}
+
+.sg-stagger > *:nth-child(4n + 3) {
+  animation-delay: 150ms;
+}
+
+.sg-stagger > *:nth-child(4n + 4) {
+  animation-delay: 225ms;
+}
+
+.sg-stagger-slow > * {
+  animation: sg-fade-up 0.55s var(--ease-out-expo) both;
+}
+
+.sg-stagger-slow > *:nth-child(1) {
+  animation-delay: 0ms;
+}
+
+.sg-stagger-slow > *:nth-child(2) {
+  animation-delay: 60ms;
+}
+
+.sg-stagger-slow > *:nth-child(3) {
+  animation-delay: 120ms;
+}
+
+.sg-stagger-slow > *:nth-child(4) {
+  animation-delay: 180ms;
+}
+
+.sg-stagger-slow > *:nth-child(5) {
+  animation-delay: 240ms;
+}
+
+.sg-stagger-slow > *:nth-child(n + 6) {
+  animation-delay: 280ms;
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .sg-shell {
+    --animation-nav: 0s;
+    --animation-primary: 0s;
+    --animation-smooth: 0s;
+    --animation-fast: 0s;
+    --animation-short: 0s;
+  }
+
   .sg-nav-link,
-  .sg-link {
+  .sg-nav-toggle,
+  .sg-link,
+  .sg-glass-card,
+  .sg-server-tile,
+  .sg-alert-row,
+  .sg-sidebar,
+  .sg-main::before {
     transition: none;
+  }
+
+  .sg-nav-link:hover,
+  .sg-glass-card:hover,
+  .sg-server-tile:hover,
+  .sg-alert-row:hover {
+    transform: none;
+  }
+
+  .sg-page-enter,
+  .sg-stagger > *,
+  .sg-stagger-slow > *,
+  .sg-nav-link--active::before,
+  .sg-drawer-panel,
+  .sg-drawer-backdrop {
+    animation: none !important;
+  }
+
+  .sg-status-dot--warning,
+  .sg-status-dot--critical {
+    animation: none !important;
   }
 }
