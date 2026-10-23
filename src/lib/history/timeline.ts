@@ -11,6 +11,7 @@ export type TimelineFilters = {
   from: Date;
   to: Date;
   module?: string;
+  serverId?: string;
 };
 
 export async function getCheckRunsInRange(filters: TimelineFilters) {
@@ -20,6 +21,9 @@ export async function getCheckRunsInRange(filters: TimelineFilters) {
   ];
   if (filters.module) {
     conditions.push(eq(checkRuns.module, filters.module));
+  }
+  if (filters.serverId) {
+    conditions.push(eq(checkRuns.serverId, filters.serverId));
   }
   return db
     .select()
@@ -34,6 +38,9 @@ export async function getChangeEventsInRange(filters: TimelineFilters) {
     gte(changeEvents.createdAt, filters.from),
     lte(changeEvents.createdAt, filters.to),
   ];
+  if (filters.serverId) {
+    conditions.push(eq(changeEvents.serverId, filters.serverId));
+  }
   return db
     .select()
     .from(changeEvents)
@@ -50,6 +57,9 @@ export async function getAlertsInRange(filters: TimelineFilters) {
   if (filters.module) {
     conditions.push(eq(alerts.module, filters.module));
   }
+  if (filters.serverId) {
+    conditions.push(eq(alerts.serverId, filters.serverId));
+  }
   return db
     .select()
     .from(alerts)
@@ -59,27 +69,38 @@ export async function getAlertsInRange(filters: TimelineFilters) {
 }
 
 export async function getMetricsInRange(filters: TimelineFilters) {
+  const conditions = [
+    gte(metricsSnapshots.createdAt, filters.from),
+    lte(metricsSnapshots.createdAt, filters.to),
+  ];
+  if (filters.serverId) {
+    conditions.push(eq(metricsSnapshots.serverId, filters.serverId));
+  }
   return db
     .select()
     .from(metricsSnapshots)
-    .where(
-      and(
-        gte(metricsSnapshots.createdAt, filters.from),
-        lte(metricsSnapshots.createdAt, filters.to),
-      ),
-    )
+    .where(and(...conditions))
     .orderBy(desc(metricsSnapshots.createdAt))
     .limit(100);
 }
 
 /** Latest check result per module at or before `at` (point-in-time). */
-export async function getPointInTimeChecks(at: Date) {
-  const runs = await db
-    .select()
-    .from(checkRuns)
-    .where(lte(checkRuns.createdAt, at))
-    .orderBy(desc(checkRuns.createdAt))
-    .limit(500);
+export async function getPointInTimeChecks(at: Date, serverId?: string) {
+  const runs = serverId
+    ? await db
+        .select()
+        .from(checkRuns)
+        .where(
+          and(lte(checkRuns.createdAt, at), eq(checkRuns.serverId, serverId)),
+        )
+        .orderBy(desc(checkRuns.createdAt))
+        .limit(500)
+    : await db
+        .select()
+        .from(checkRuns)
+        .where(lte(checkRuns.createdAt, at))
+        .orderBy(desc(checkRuns.createdAt))
+        .limit(500);
 
   const byModule = new Map<string, (typeof runs)[0]>();
   for (const r of runs) {

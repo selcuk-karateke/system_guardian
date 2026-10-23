@@ -82,10 +82,10 @@ function applyEffectiveStatuses(
 }
 
 /** TV-Banner: nur Monitor-Kacheln (ohne Platzhalter), nicht z. B. security_posture allein */
-export async function getGlobalStatus(): Promise<GlobalStatus> {
+export async function getGlobalStatus(serverId?: string): Promise<GlobalStatus> {
   const [modules, openByModule] = await Promise.all([
-    getAllModuleStatuses(),
-    getOpenAlertsGroupedByModule(),
+    getAllModuleStatuses(serverId),
+    getOpenAlertsGroupedByModule(serverId),
   ]);
   const effective = applyEffectiveStatuses(modules, openByModule);
   const placeholders = new Set<string>(MONITOR_PLACEHOLDER_MODULES);
@@ -269,12 +269,21 @@ export async function getDomains() {
 }
 
 /** Latest status per module for monitor grid */
-export async function getAllModuleStatuses(): Promise<ModuleStatusRow[]> {
-  const runs = await db
-    .select()
-    .from(checkRuns)
-    .orderBy(desc(checkRuns.createdAt))
-    .limit(100);
+export async function getAllModuleStatuses(
+  serverId?: string,
+): Promise<ModuleStatusRow[]> {
+  const runs = serverId
+    ? await db
+        .select()
+        .from(checkRuns)
+        .where(eq(checkRuns.serverId, serverId))
+        .orderBy(desc(checkRuns.createdAt))
+        .limit(100)
+    : await db
+        .select()
+        .from(checkRuns)
+        .orderBy(desc(checkRuns.createdAt))
+        .limit(100);
 
   const seen = new Map<string, { status: string; at: Date }>();
   for (const r of runs) {
@@ -289,15 +298,22 @@ export async function getAllModuleStatuses(): Promise<ModuleStatusRow[]> {
     at: v.at,
   }));
 
-  const openByModule = await getOpenAlertsGroupedByModule();
+  const openByModule = await getOpenAlertsGroupedByModule(serverId);
   return applyEffectiveStatuses(raw, openByModule);
 }
 
-export async function getLastCheckTime(): Promise<Date | null> {
-  const [row] = await db
-    .select()
-    .from(checkRuns)
-    .orderBy(desc(checkRuns.createdAt))
-    .limit(1);
+export async function getLastCheckTime(serverId?: string): Promise<Date | null> {
+  const [row] = serverId
+    ? await db
+        .select()
+        .from(checkRuns)
+        .where(eq(checkRuns.serverId, serverId))
+        .orderBy(desc(checkRuns.createdAt))
+        .limit(1)
+    : await db
+        .select()
+        .from(checkRuns)
+        .orderBy(desc(checkRuns.createdAt))
+        .limit(1);
   return row?.createdAt ?? null;
 }

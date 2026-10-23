@@ -506,18 +506,25 @@ function formatModuleDetailLinesFromData(
   }
 }
 
-export async function getLatestCheckDataByModule(): Promise<
-  Record<string, Record<string, unknown>>
-> {
+export async function getLatestCheckDataByModule(
+  serverId?: string,
+): Promise<Record<string, Record<string, unknown>>> {
   const { db } = await import("@/db");
   const { checkRuns } = await import("@/db/schema");
-  const { desc } = await import("drizzle-orm");
+  const { desc, eq } = await import("drizzle-orm");
 
-  const runs = await db
-    .select({ module: checkRuns.module, data: checkRuns.data })
-    .from(checkRuns)
-    .orderBy(desc(checkRuns.createdAt))
-    .limit(120);
+  const runs = serverId
+    ? await db
+        .select({ module: checkRuns.module, data: checkRuns.data })
+        .from(checkRuns)
+        .where(eq(checkRuns.serverId, serverId))
+        .orderBy(desc(checkRuns.createdAt))
+        .limit(120)
+    : await db
+        .select({ module: checkRuns.module, data: checkRuns.data })
+        .from(checkRuns)
+        .orderBy(desc(checkRuns.createdAt))
+        .limit(120);
 
   const map: Record<string, Record<string, unknown>> = {};
   for (const r of runs) {

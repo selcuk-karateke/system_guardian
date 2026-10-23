@@ -1,6 +1,8 @@
+import { Suspense } from "react";
 import { MonitorAutoRefresh } from "@/components/dashboard/monitor-auto-refresh";
 import { MonitorTvProtection } from "@/components/dashboard/monitor-tv-protection";
 import { MonitorWall } from "@/components/dashboard/monitor-wall";
+import { ServerSelect } from "@/components/dashboard/server-select";
 import {
   getMonitorNightEndHour,
   getMonitorNightStartHour,
@@ -21,9 +23,21 @@ import {
   getLatestCheckDataByModule,
 } from "@/lib/monitor-details";
 import { MONITOR_MODULE_ORDER, MONITOR_PLACEHOLDER_MODULES } from "@/lib/module-labels";
+import { listActiveServers } from "@/lib/servers";
 import { formatUptime } from "@/lib/utils";
 
-export default async function MonitorPage() {
+export default async function MonitorPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ server?: string }>;
+}) {
+  const sp = await searchParams;
+  const serverRows = await listActiveServers().catch(() => []);
+  const selectedServerId =
+    serverRows.find((s) => s.id === sp.server)?.id ??
+    serverRows[0]?.id ??
+    "";
+
   let globalStatus: "healthy" | "warning" | "critical" = "healthy";
   let overview: Awaited<ReturnType<typeof getServerOverview>> | null = null;
   let modules: Awaited<ReturnType<typeof getAllModuleStatuses>> = [];
@@ -34,12 +48,14 @@ export default async function MonitorPage() {
   try {
     [globalStatus, overview, modules, alerts, lastCheck, checkData] =
       await Promise.all([
-        getGlobalStatus(),
-        getServerOverview(),
-        getAllModuleStatuses(),
-        getRecentAlerts(40),
-        getLastCheckTime(),
-        getLatestCheckDataByModule(),
+        getGlobalStatus(selectedServerId || undefined),
+        getServerOverview(selectedServerId || undefined),
+        getAllModuleStatuses(selectedServerId || undefined),
+        getRecentAlerts(40, {
+          serverId: selectedServerId || undefined,
+        }),
+        getLastCheckTime(selectedServerId || undefined),
+        getLatestCheckDataByModule(selectedServerId || undefined),
       ]);
   } catch {
     /* empty */
@@ -50,10 +66,7 @@ export default async function MonitorPage() {
   );
 
   const fimAlertPaths = fimPathsFromAlerts(alerts);
-  if (
-    fimAlertPaths.length > 0 &&
-    statusMap.fim !== "critical"
-  ) {
+  if (fimAlertPaths.length > 0 && statusMap.fim !== "critical") {
     statusMap.fim = "critical";
   }
 
@@ -62,7 +75,9 @@ export default async function MonitorPage() {
   }
 
   const moduleDetails: Record<string, string[]> = {};
-  const moduleCheckedAt = Object.fromEntries(modules.map((m) => [m.module, m.at]));
+  const moduleCheckedAt = Object.fromEntries(
+    modules.map((m) => [m.module, m.at]),
+  );
   for (const mod of MONITOR_MODULE_ORDER) {
     moduleDetails[mod] = formatModuleDetailLines(mod, checkData[mod], {
       status: statusMap[mod],
@@ -79,13 +94,10 @@ export default async function MonitorPage() {
     if (s in counts) counts[s]++;
   }
 
-  // Banner must match tile counts (ignore stale alerts / legacy modules)
   if (counts.critical > 0) globalStatus = "critical";
   else if (counts.warning > 0) globalStatus = "warning";
   else globalStatus = "healthy";
 
-  // Footer: alerts for monitor tiles that are currently warning/critical
-  // (same set as "2 Warn" badges — ignore modules not on the wall)
   const placeholders = new Set<string>(MONITOR_PLACEHOLDER_MODULES);
   const liveAlerts = alerts.filter((a) => {
     if (!(MONITOR_MODULE_ORDER as readonly string[]).includes(a.module)) {
@@ -99,7 +111,6 @@ export default async function MonitorPage() {
     );
   });
 
-  // One ticker line per module so "2 Warn" matches footer (not N open rows)
   const levelRank = (level: string) =>
     level === "critical" ? 0 : level === "warning" ? 1 : 2;
   const ranked = [...liveAlerts].sort(
@@ -133,6 +144,18 @@ export default async function MonitorPage() {
 
   return (
     <MonitorAutoRefresh intervalSec={30}>
+      <div className="px-4 pt-3 flex justify-end">
+        <Suspense fallback={null}>
+          <ServerSelect
+            servers={serverRows.map((s) => ({
+              id: s.id,
+              name: s.name,
+              host: s.host,
+            }))}
+            selectedId={selectedServerId}
+          />
+        </Suspense>
+      </div>
       <MonitorTvProtection
         globalStatus={globalStatus}
         nightStartHour={getMonitorNightStartHour()}
@@ -140,23 +163,23 @@ export default async function MonitorPage() {
         pixelShiftSec={getMonitorPixelShiftSec()}
         nightModeEnabled={isMonitorNightModeEnabled()}
       >
-      <MonitorWall
-        globalStatus={globalStatus}
-        hostLabel={hostLabel}
-        hostIp={hostIp}
-        checkMode={overview?.checkMode ?? "mock"}
-        lastCheck={lastCheck}
-        metricCards={metricCards}
-        statusMap={statusMap}
-        moduleDetails={moduleDetails}
-        counts={counts}
-        alerts={tickerAlerts.map((a) => ({
-          id: a.id,
-          level: a.level,
-          module: a.module,
-          message: a.message,
-        }))}
-      />
+        <MonitorWall
+          globalStatus={globalStatus}
+          hostLabel={hostLabel}
+          hostIp={hostIp}
+          checkMode={overview?.checkMode ?? "mock"}
+          lastCheck={lastCheck}
+          metricCards={metricCards}
+          statusMap={statusMap}
+          moduleDetails={moduleDetails}
+          counts={counts}
+          alerts={tickerAlerts.map((a) => ({
+            id: a.id,
+            level: a.level,
+            module: a.module,
+            message: a.message,
+          }))}
+        />
       </MonitorTvProtection>
     </MonitorAutoRefresh>
   );

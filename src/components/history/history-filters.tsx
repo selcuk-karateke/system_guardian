@@ -16,12 +16,20 @@ const MODULES = [
   "server_health",
 ];
 
+export type HistoryServerOption = {
+  id: string;
+  name: string;
+  host: string;
+};
+
 export function HistoryFilters({
   defaultFrom,
   defaultTo,
+  servers,
 }: {
   defaultFrom: string;
   defaultTo: string;
+  servers: HistoryServerOption[];
 }) {
   const router = useRouter();
   const params = useSearchParams();
@@ -33,10 +41,12 @@ export function HistoryFilters({
     const from = form.get("from") as string;
     const to = form.get("to") as string;
     const module = form.get("module") as string;
+    const server = form.get("server") as string;
     const tab = form.get("tab") as string;
     if (from) next.set("from", new Date(from).toISOString());
     if (to) next.set("to", new Date(to).toISOString());
     if (module) next.set("module", module);
+    if (server) next.set("server", server);
     if (tab) next.set("tab", tab);
     router.push(`/history?${next.toString()}`);
   }
@@ -46,6 +56,21 @@ export function HistoryFilters({
       onSubmit={onSubmit}
       className="flex flex-wrap gap-4 items-end rounded-lg border border-zinc-800 bg-zinc-900/50 p-4"
     >
+      <label className="flex flex-col gap-1 text-xs text-zinc-500">
+        Server
+        <select
+          name="server"
+          defaultValue={params.get("server") ?? servers[0]?.id ?? ""}
+          className="bg-zinc-950 border border-zinc-700 rounded px-2 py-1.5 text-sm text-zinc-100"
+        >
+          <option value="">Alle</option>
+          {servers.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.name} ({s.host})
+            </option>
+          ))}
+        </select>
+      </label>
       <label className="flex flex-col gap-1 text-xs text-zinc-500">
         Von (UTC, datetime-local)
         <input

@@ -11,18 +11,18 @@
     {
       "id": "live-view-server-select",
       "title": "Live-Ansicht mit Server-Auswahl + Detailmeldungen",
-      "status": "planned",
+      "status": "done",
       "proposedBy": "marco",
       "area": "ux",
-      "notes": "Nach Dashboard-Server-Liste; Monitor/Security serverselektiert"
+      "notes": "Monitor ?server=; Kacheln/Alerts/Metrics je Server"
     },
     {
       "id": "events-by-server",
       "title": "Ereignisse nach Server-Auswahl",
-      "status": "planned",
+      "status": "done",
       "proposedBy": "marco",
       "area": "ux",
-      "notes": "History/Alerts gefiltert; Detailseite filtert schon"
+      "notes": "Historie-Filter server=; Checks/Changes/Alerts/Point-in-time"
     },
     {
       "id": "per-target-monitor-profiles",

@@ -10,6 +10,7 @@ import {
 } from "@/lib/history/timeline";
 import { getLatestCheckByModule } from "@/lib/dashboard-data";
 import { buildCoolifyLookup, enrichDockerChangeKey } from "@/lib/docker-display";
+import { listActiveServers } from "@/lib/servers";
 
 function toDatetimeLocal(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, "0");
@@ -21,6 +22,7 @@ function parseRange(searchParams: {
   to?: string;
   module?: string;
   tab?: string;
+  server?: string;
 }) {
   const to = searchParams.to ? new Date(searchParams.to) : new Date();
   const from = searchParams.from
@@ -30,6 +32,7 @@ function parseRange(searchParams: {
     from,
     to,
     module: searchParams.module || undefined,
+    serverId: searchParams.server || undefined,
     tab: searchParams.tab ?? "timeline",
   };
 }
@@ -42,13 +45,20 @@ export default async function HistoryPage({
     to?: string;
     module?: string;
     tab?: string;
+    server?: string;
   }>;
 }) {
   const sp = await searchParams;
   const range = parseRange(sp);
-  const filters = { from: range.from, to: range.to, module: range.module };
+  const filters = {
+    from: range.from,
+    to: range.to,
+    module: range.module,
+    serverId: range.serverId,
+  };
 
-  const dockerCheck = await getLatestCheckByModule("docker");
+  const servers = await listActiveServers().catch(() => []);
+  const dockerCheck = await getLatestCheckByModule("docker", range.serverId);
   const coolifyLookup = buildCoolifyLookup(
     (dockerCheck?.data as { containers?: { Names: string; coolify?: object }[] })
       ?.containers as Parameters<typeof buildCoolifyLookup>[0],
@@ -61,12 +71,15 @@ export default async function HistoryPage({
       : Promise.resolve([]),
     getAlertsInRange(filters),
     range.tab === "point"
-      ? getPointInTimeChecks(range.to)
+      ? getPointInTimeChecks(range.to, range.serverId)
       : Promise.resolve([]),
   ]);
 
   const defaultFrom = toDatetimeLocal(range.from);
   const defaultTo = toDatetimeLocal(range.to);
+  const serverLabel = range.serverId
+    ? servers.find((s) => s.id === range.serverId)?.name
+    : null;
 
   return (
     <div className="space-y-8">
@@ -83,11 +96,20 @@ export default async function HistoryPage({
       </div>
 
       <Suspense fallback={<p className="text-zinc-500 text-sm">Filter …</p>}>
-        <HistoryFilters defaultFrom={defaultFrom} defaultTo={defaultTo} />
+        <HistoryFilters
+          defaultFrom={defaultFrom}
+          defaultTo={defaultTo}
+          servers={servers.map((s) => ({
+            id: s.id,
+            name: s.name,
+            host: s.host,
+          }))}
+        />
       </Suspense>
 
       <p className="text-xs text-zinc-500">
         Anzeige: {range.from.toISOString()} — {range.to.toISOString()}
+        {serverLabel ? ` · Server ${serverLabel}` : ""}
         {range.module ? ` · Modul ${range.module}` : ""}
       </p>
 

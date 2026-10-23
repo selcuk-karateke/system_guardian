@@ -10,6 +10,7 @@ export async function GET(req: NextRequest) {
   const fromParam = req.nextUrl.searchParams.get("from");
   const toParam = req.nextUrl.searchParams.get("to");
   const module = req.nextUrl.searchParams.get("module") ?? undefined;
+  const serverId = req.nextUrl.searchParams.get("server") ?? undefined;
   const mode = req.nextUrl.searchParams.get("mode") ?? "range";
 
   const to = toParam ? new Date(toParam) : new Date();
@@ -21,10 +22,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Invalid from/to" }, { status: 400 });
   }
 
-  const filters = { from, to, module };
+  const filters = { from, to, module, serverId };
 
   if (mode === "point") {
-    const point = await getPointInTimeChecks(to);
+    const point = await getPointInTimeChecks(to, serverId);
     return NextResponse.json({ mode, at: to.toISOString(), checks: point });
   }
 
@@ -38,6 +39,7 @@ export async function GET(req: NextRequest) {
     from: from.toISOString(),
     to: to.toISOString(),
     module,
+    server: serverId,
     checks,
     changes,
     alerts,
