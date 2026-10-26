@@ -1,17 +1,35 @@
+import { Suspense } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ServerSelect } from "@/components/dashboard/server-select";
+import { SshTargetNote } from "@/components/dashboard/ssh-target-note";
 import { getLatestCheckByModule } from "@/lib/dashboard-data";
+import { resolveSelectedServer } from "@/lib/server-scope";
 
-export default async function DatabasesPage() {
+export default async function DatabasesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ server?: string }>;
+}) {
+  const sp = await searchParams;
+  const { serverRows, selectedServerId, selected } = await resolveSelectedServer(
+    sp.server,
+  );
+
   let check: Awaited<ReturnType<typeof getLatestCheckByModule>> | undefined;
   try {
-    check = await getLatestCheckByModule("database");
+    if (selectedServerId) {
+      check = await getLatestCheckByModule("database", selectedServerId);
+    }
   } catch {
     /* empty */
   }
 
   const dbs =
     (check?.data as {
-      databases?: Record<string, { ok: boolean; sizeBytes?: number; skipped?: boolean }>;
+      databases?: Record<
+        string,
+        { ok: boolean; sizeBytes?: number; skipped?: boolean }
+      >;
       checkMode?: string;
     })?.databases ?? {};
 
@@ -19,7 +37,25 @@ export default async function DatabasesPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Datenbanken</h1>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <h1 className="text-3xl font-bold">Datenbanken</h1>
+        {serverRows.length > 0 && (
+          <Suspense fallback={null}>
+            <ServerSelect
+              servers={serverRows.map((s) => ({
+                id: s.id,
+                name: s.name,
+                host: s.host,
+              }))}
+              selectedId={selectedServerId}
+            />
+          </Suspense>
+        )}
+      </div>
+
+      {selected && (
+        <SshTargetNote host={selected.host} ipv4={selected.ipv4} />
+      )}
 
       <Card className="border-zinc-800 bg-zinc-900/40">
         <CardContent className="pt-6 text-sm text-zinc-400 space-y-3">
@@ -78,7 +114,8 @@ export default async function DatabasesPage() {
                 </p>
                 {db?.sizeBytes ? (
                   <p className="text-sm text-zinc-500 mt-2">
-                    DB-Größe (Coolify): {Math.round(db.sizeBytes / 1024 / 1024)} MB
+                    DB-Größe (Coolify):{" "}
+                    {Math.round(db.sizeBytes / 1024 / 1024)} MB
                   </p>
                 ) : null}
               </CardContent>

@@ -5,6 +5,7 @@ import {
   createServer,
   deactivateServer,
   listActiveServers,
+  updateServerInventory,
 } from "@/lib/servers";
 import type { MonitorProfile } from "@/lib/monitor-profiles";
 
@@ -50,6 +51,34 @@ export async function createServerAction(formData: FormData): Promise<ServerActi
     return {
       ok: false,
       message: e instanceof Error ? e.message : "Anlegen fehlgeschlagen",
+    };
+  }
+}
+
+/** Align inventory host/IPv4 with global SSH_HOST (CHECK_MODE=ssh). */
+export async function alignServerWithSshHostAction(
+  serverId: string,
+): Promise<ServerActionResult> {
+  const sshHost = process.env.SSH_HOST?.trim();
+  if (!sshHost) {
+    return { ok: false, message: "SSH_HOST ist nicht gesetzt" };
+  }
+  try {
+    const row = await updateServerInventory(serverId, {
+      host: sshHost,
+      ipv4: sshHost,
+    });
+    if (!row) return { ok: false, message: "Server nicht gefunden" };
+    revalidateServerViews();
+    return {
+      ok: true,
+      message: `Host/IPv4 auf SSH_HOST (${sshHost}) gesetzt`,
+      id: row.id,
+    };
+  } catch (e) {
+    return {
+      ok: false,
+      message: e instanceof Error ? e.message : "Update fehlgeschlagen",
     };
   }
 }

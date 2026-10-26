@@ -13,7 +13,9 @@ export interface OpenIssue {
   message: string;
 }
 
-export async function getOpenControlIssues(): Promise<OpenIssue[]> {
+export async function getOpenControlIssues(
+  serverId?: string,
+): Promise<OpenIssue[]> {
   const issues: OpenIssue[] = [];
   const modules = [
     "security_posture",
@@ -25,7 +27,7 @@ export async function getOpenControlIssues(): Promise<OpenIssue[]> {
     "cron",
   ] as const;
 
-  const openAlerts = await getRecentAlerts(50);
+  const openAlerts = await getRecentAlerts(50, { serverId });
   const alertsByModule = new Map<string, typeof openAlerts>();
   for (const a of openAlerts) {
     const list = alertsByModule.get(a.module) ?? [];
@@ -34,7 +36,7 @@ export async function getOpenControlIssues(): Promise<OpenIssue[]> {
   }
 
   for (const mod of modules) {
-    const check = await getLatestCheckByModule(mod);
+    const check = await getLatestCheckByModule(mod, serverId);
     if (!check) continue;
     const effective = effectiveModuleStatus(
       check.status,
@@ -85,7 +87,7 @@ export async function getOpenControlIssues(): Promise<OpenIssue[]> {
     }
   }
 
-  const dockerCheck = await getLatestCheckByModule("docker");
+  const dockerCheck = await getLatestCheckByModule("docker", serverId);
   const coolifyLookup = buildCoolifyLookup(
     (dockerCheck?.data as { containers?: Parameters<typeof buildCoolifyLookup>[0] })
       ?.containers,

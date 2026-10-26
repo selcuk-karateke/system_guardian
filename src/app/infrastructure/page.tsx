@@ -7,7 +7,8 @@ import {
   getLatestCheckByModule,
   getServerOverview,
 } from "@/lib/dashboard-data";
-import { listActiveServers } from "@/lib/servers";
+import { SshTargetNote } from "@/components/dashboard/ssh-target-note";
+import { resolveSelectedServer } from "@/lib/server-scope";
 
 export default async function InfrastructurePage({
   searchParams,
@@ -15,11 +16,9 @@ export default async function InfrastructurePage({
   searchParams: Promise<{ server?: string }>;
 }) {
   const sp = await searchParams;
-  const serverRows = await listActiveServers().catch(() => []);
-  const selectedServerId =
-    serverRows.find((s) => s.id === sp.server)?.id ??
-    serverRows[0]?.id ??
-    "";
+  const { serverRows, selectedServerId, selected } = await resolveSelectedServer(
+    sp.server,
+  );
 
   let overview: Awaited<ReturnType<typeof getServerOverview>> | null = null;
   let raid: Awaited<ReturnType<typeof getLatestCheckByModule>> | undefined;
@@ -35,7 +34,6 @@ export default async function InfrastructurePage({
   }
 
   const m = overview?.metrics;
-  const selected = serverRows.find((s) => s.id === selectedServerId);
 
   return (
     <div className="space-y-6">
@@ -67,16 +65,19 @@ export default async function InfrastructurePage({
       </div>
 
       {selected && (
-        <p className="text-xs text-zinc-500 font-mono">
-          Aktiv: {selected.name} · {selected.ipv4 ?? selected.host}
-          {" · "}
-          <Link
-            href={`/servers/${selected.id}`}
-            className="sg-link hover:underline"
-          >
-            Detailseite →
-          </Link>
-        </p>
+        <div className="space-y-2">
+          <p className="text-xs text-zinc-500 font-mono">
+            Aktiv: {selected.name} · {selected.ipv4 ?? selected.host}
+            {" · "}
+            <Link
+              href={`/servers/${selected.id}`}
+              className="sg-link hover:underline"
+            >
+              Detailseite →
+            </Link>
+          </p>
+          <SshTargetNote host={selected.host} ipv4={selected.ipv4} />
+        </div>
       )}
 
       {error && <p className="text-amber-400">{error}</p>}

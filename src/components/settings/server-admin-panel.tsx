@@ -3,6 +3,7 @@
 import { useState, useTransition, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import {
+  alignServerWithSshHostAction,
   createServerAction,
   deactivateServerAction,
 } from "@/app/actions/servers";
@@ -19,11 +20,27 @@ export type ServerAdminRow = {
 const fieldClass =
   "w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-sky-600 focus:outline-none focus:ring-1 focus:ring-sky-600";
 
-export function ServerAdminPanel({ servers }: { servers: ServerAdminRow[] }) {
+export function ServerAdminPanel({
+  servers,
+  sshHost,
+  checkMode,
+}: {
+  servers: ServerAdminRow[];
+  sshHost?: string | null;
+  checkMode?: string;
+}) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
   const [isError, setIsError] = useState(false);
+
+  function mismatchesSsh(s: ServerAdminRow) {
+    if (checkMode !== "ssh" || !sshHost) return false;
+    const hosts = new Set(
+      [s.host, s.ipv4].filter(Boolean).map((h) => h!.toLowerCase()),
+    );
+    return !hosts.has(sshHost.toLowerCase());
+  }
 
   function onCreate(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -67,6 +84,27 @@ export function ServerAdminPanel({ servers }: { servers: ServerAdminRow[] }) {
                 {s.ipv4 ?? s.host} · Profil {s.monitorProfile}
               </p>
             </div>
+            {mismatchesSsh(s) && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="text-xs border-amber-800 text-amber-300"
+                disabled={pending}
+                title={`Inventar weicht von SSH_HOST=${sshHost} ab`}
+                onClick={() => {
+                  setMessage(null);
+                  startTransition(async () => {
+                    const result = await alignServerWithSshHostAction(s.id);
+                    setIsError(!result.ok);
+                    setMessage(result.message);
+                    if (result.ok) router.refresh();
+                  });
+                }}
+              >
+                Host → SSH_HOST
+              </Button>
+            )}
             <Button
               type="button"
               variant="outline"

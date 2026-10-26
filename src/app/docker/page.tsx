@@ -1,8 +1,12 @@
+import { Suspense } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DockerInventoryPanel } from "@/components/dashboard/docker-inventory-panel";
+import { ServerSelect } from "@/components/dashboard/server-select";
+import { SshTargetNote } from "@/components/dashboard/ssh-target-note";
 import { buildDockerInventoryGroups } from "@/lib/docker/inventory";
 import { getLatestCheckByModule } from "@/lib/dashboard-data";
+import { resolveSelectedServer } from "@/lib/server-scope";
 import { getTrivyScansByDigest } from "@/lib/trivy/store";
 import type { TrivyScanRecord } from "@/lib/trivy/types";
 
@@ -15,16 +19,27 @@ function indexScans(scans: Record<string, TrivyScanRecord>) {
   return byKey;
 }
 
-export default async function DockerPage() {
+export default async function DockerPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ server?: string }>;
+}) {
+  const sp = await searchParams;
+  const { serverRows, selectedServerId, selected } = await resolveSelectedServer(
+    sp.server,
+  );
+
   let docker: Awaited<ReturnType<typeof getLatestCheckByModule>> | undefined;
   let coolify: Awaited<ReturnType<typeof getLatestCheckByModule>> | undefined;
   let scansByKey: Record<string, TrivyScanRecord> = {};
 
   try {
-    [docker, coolify] = await Promise.all([
-      getLatestCheckByModule("docker"),
-      getLatestCheckByModule("coolify"),
-    ]);
+    if (selectedServerId) {
+      [docker, coolify] = await Promise.all([
+        getLatestCheckByModule("docker", selectedServerId),
+        getLatestCheckByModule("coolify", selectedServerId),
+      ]);
+    }
     scansByKey = indexScans(await getTrivyScansByDigest());
   } catch {
     /* empty */
@@ -65,12 +80,30 @@ export default async function DockerPage() {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
-        <h1 className="text-3xl font-bold">Docker</h1>
-        <p className="text-sm text-zinc-500">
-          Running: {(docker?.data as { running?: number })?.running ?? 0} /
-          Total: {(docker?.data as { total?: number })?.total ?? 0}
-        </p>
+        <div>
+          <h1 className="text-3xl font-bold">Docker</h1>
+          <p className="text-sm text-zinc-500 mt-1">
+            Running: {(docker?.data as { running?: number })?.running ?? 0} /
+            Total: {(docker?.data as { total?: number })?.total ?? 0}
+          </p>
+        </div>
+        {serverRows.length > 0 && (
+          <Suspense fallback={null}>
+            <ServerSelect
+              servers={serverRows.map((s) => ({
+                id: s.id,
+                name: s.name,
+                host: s.host,
+              }))}
+              selectedId={selectedServerId}
+            />
+          </Suspense>
+        )}
       </div>
+
+      {selected && (
+        <SshTargetNote host={selected.host} ipv4={selected.ipv4} />
+      )}
 
       {isMock && (
         <div className="rounded-lg border border-sky-900/50 bg-sky-950/30 px-4 py-3 text-sm text-sky-200">

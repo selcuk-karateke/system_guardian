@@ -19,6 +19,7 @@ export async function getDefaultServerId(): Promise<string> {
     .select()
     .from(servers)
     .where(eq(servers.isActive, true))
+    .orderBy(desc(servers.createdAt))
     .limit(1);
 
   if (rows[0]) return rows[0].id;
@@ -81,6 +82,28 @@ export async function deactivateServer(id: string) {
   const [row] = await db
     .update(servers)
     .set({ isActive: false })
+    .where(eq(servers.id, id))
+    .returning();
+  return row ?? null;
+}
+
+export async function updateServerInventory(
+  id: string,
+  patch: { name?: string; host?: string; ipv4?: string | null },
+) {
+  const values: {
+    name?: string;
+    host?: string;
+    ipv4?: string | null;
+  } = {};
+  if (patch.name != null) values.name = patch.name.trim();
+  if (patch.host != null) values.host = patch.host.trim();
+  if (patch.ipv4 !== undefined) {
+    values.ipv4 = patch.ipv4?.trim() || null;
+  }
+  const [row] = await db
+    .update(servers)
+    .set(values)
     .where(eq(servers.id, id))
     .returning();
   return row ?? null;

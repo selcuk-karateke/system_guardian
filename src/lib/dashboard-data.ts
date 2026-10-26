@@ -107,7 +107,14 @@ export async function getServerOverview(serverId?: string) {
           .where(eq(servers.id, serverId))
           .limit(1)
       )[0]
-    : (await db.select().from(servers).limit(1))[0];
+    : (
+        await db
+          .select()
+          .from(servers)
+          .where(eq(servers.isActive, true))
+          .orderBy(desc(servers.createdAt))
+          .limit(1)
+      )[0];
 
   const [metrics] = server
     ? await db

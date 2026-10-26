@@ -3,6 +3,7 @@ import { NotificationTestPanel } from "@/components/settings/notification-test-p
 import { ServerAdminPanel } from "@/components/settings/server-admin-panel";
 import { getDomains } from "@/lib/dashboard-data";
 import { getNotificationChannelStatus } from "@/lib/notifications/status";
+import { getCheckMode } from "@/lib/config";
 import { listActiveServers } from "@/lib/servers";
 
 export default async function SettingsPage() {
@@ -16,6 +17,8 @@ export default async function SettingsPage() {
   }
 
   const notificationStatus = getNotificationChannelStatus();
+  const checkMode = getCheckMode();
+  const sshHost = process.env.SSH_HOST ?? null;
 
   return (
     <div className="space-y-6">
@@ -34,6 +37,8 @@ export default async function SettingsPage() {
               ipv4: s.ipv4,
               monitorProfile: s.monitorProfile,
             }))}
+            sshHost={sshHost}
+            checkMode={checkMode}
           />
         </CardContent>
       </Card>

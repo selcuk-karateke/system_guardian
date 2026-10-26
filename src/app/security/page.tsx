@@ -1,5 +1,8 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ServerSelect } from "@/components/dashboard/server-select";
+import { SshTargetNote } from "@/components/dashboard/ssh-target-note";
 import {
   getChangeEvents,
   getLatestCheckByModule,
@@ -16,6 +19,7 @@ import { SECURITY_CONCEPTS } from "@/lib/security/concepts";
 import { getOpenControlIssues } from "@/lib/control-summary";
 import type { CoolifyMeta } from "@/lib/checks/coolify-meta";
 import { buildCoolifyLookup, enrichDockerChangeKey } from "@/lib/docker-display";
+import { resolveSelectedServer } from "@/lib/server-scope";
 
 const MODULES = [
   "fim",
@@ -32,19 +36,30 @@ const MODULES = [
   "services",
 ];
 
-export default async function SecurityPage() {
+export default async function SecurityPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ server?: string }>;
+}) {
+  const sp = await searchParams;
+  const { serverRows, selectedServerId, selected } = await resolveSelectedServer(
+    sp.server,
+  );
+
   const checks: Record<string, Awaited<ReturnType<typeof getLatestCheckByModule>>> = {};
   let changes: Awaited<ReturnType<typeof getChangeEvents>> = [];
   let openIssues: Awaited<ReturnType<typeof getOpenControlIssues>> = [];
   let coolifyLookup = new Map<string, CoolifyMeta | undefined>();
 
   try {
-    for (const mod of MODULES) {
-      const c = await getLatestCheckByModule(mod);
-      if (c) checks[mod] = c;
+    if (selectedServerId) {
+      for (const mod of MODULES) {
+        const c = await getLatestCheckByModule(mod, selectedServerId);
+        if (c) checks[mod] = c;
+      }
     }
     changes = await getChangeEvents(20);
-    openIssues = await getOpenControlIssues();
+    openIssues = await getOpenControlIssues(selectedServerId || undefined);
     coolifyLookup = buildCoolifyLookup(
       (checks.docker?.data as { containers?: Parameters<typeof buildCoolifyLookup>[0] })
         ?.containers,
@@ -55,18 +70,36 @@ export default async function SecurityPage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold">Sicherheit</h1>
-        <p className="text-zinc-400 mt-2 text-sm max-w-3xl">
-          System Guardian baut SIEM-Funktionen schrittweise ein – schlank per SSH,
-          ohne Wazuh/Kibana. Ausführlich:{" "}
-          <Link href="/docs/security" className="text-sky-400 underline">
-            Security-Doku
-          </Link>{" "}
-          oder{" "}
-          <code className="text-zinc-300">docs/SECURITY-FEATURES.md</code> im Repo.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold">Sicherheit</h1>
+          <p className="text-zinc-400 mt-2 text-sm max-w-3xl">
+            System Guardian baut SIEM-Funktionen schrittweise ein – schlank per SSH,
+            ohne Wazuh/Kibana. Ausführlich:{" "}
+            <Link href="/docs/security" className="text-sky-400 underline">
+              Security-Doku
+            </Link>{" "}
+            oder{" "}
+            <code className="text-zinc-300">docs/SECURITY-FEATURES.md</code> im Repo.
+          </p>
+        </div>
+        {serverRows.length > 0 && (
+          <Suspense fallback={null}>
+            <ServerSelect
+              servers={serverRows.map((s) => ({
+                id: s.id,
+                name: s.name,
+                host: s.host,
+              }))}
+              selectedId={selectedServerId}
+            />
+          </Suspense>
+        )}
       </div>
+
+      {selected && (
+        <SshTargetNote host={selected.host} ipv4={selected.ipv4} />
+      )}
 
       {openIssues.length > 0 && (
         <Card className="border-amber-900/50">
