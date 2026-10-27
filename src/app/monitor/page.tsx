@@ -94,21 +94,13 @@ export default async function MonitorPage({
     if (s in counts) counts[s]++;
   }
 
-  if (counts.critical > 0) globalStatus = "critical";
-  else if (counts.warning > 0) globalStatus = "warning";
-  else globalStatus = "healthy";
+  // globalStatus bleibt aus getGlobalStatus (offene Alerts) — nicht aus Kachel-Subset überschreiben
 
   const placeholders = new Set<string>(MONITOR_PLACEHOLDER_MODULES);
   const liveAlerts = alerts.filter((a) => {
-    if (!(MONITOR_MODULE_ORDER as readonly string[]).includes(a.module)) {
-      return false;
-    }
+    if (a.level !== "warning" && a.level !== "critical") return false;
     if (placeholders.has(a.module)) return false;
-    const s = statusMap[a.module];
-    return (
-      (s === "warning" || s === "critical") &&
-      (a.level === "warning" || a.level === "critical")
-    );
+    return true;
   });
 
   const levelRank = (level: string) =>

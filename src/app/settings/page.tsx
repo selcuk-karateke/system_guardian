@@ -1,9 +1,15 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { NotificationTestPanel } from "@/components/settings/notification-test-panel";
+import { ProtectPanel } from "@/components/settings/protect-panel";
 import { ServerAdminPanel } from "@/components/settings/server-admin-panel";
 import { getDomains } from "@/lib/dashboard-data";
 import { getNotificationChannelStatus } from "@/lib/notifications/status";
-import { getCheckMode } from "@/lib/config";
+import {
+  getBackupTriggerCommand,
+  getCheckMode,
+  isAutoBlockEnabled,
+  isBackupTriggerEnabled,
+} from "@/lib/config";
 import { listActiveServers } from "@/lib/servers";
 
 export default async function SettingsPage() {
@@ -19,10 +25,25 @@ export default async function SettingsPage() {
   const notificationStatus = getNotificationChannelStatus();
   const checkMode = getCheckMode();
   const sshHost = process.env.SSH_HOST ?? null;
+  const backupCmd = getBackupTriggerCommand();
 
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold">Einstellungen</h1>
+
+      <Card id="protect">
+        <CardHeader>
+          <CardTitle>Schutz</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ProtectPanel
+            autoBlockEnabled={isAutoBlockEnabled()}
+            backupTriggerEnabled={isBackupTriggerEnabled()}
+            backupTriggerCommand={backupCmd || null}
+            checkMode={checkMode}
+          />
+        </CardContent>
+      </Card>
 
       <Card id="servers">
         <CardHeader>

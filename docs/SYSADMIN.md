@@ -156,9 +156,12 @@ Alles in `.env` / Coolify Env (Vorlage: `.env.example`).
 | Schwellen | `THRESHOLD_CPU_*`, `THRESHOLD_RAM_*`, `THRESHOLD_DISK_*`, … |
 | Trust | `TRUSTED_LOGIN_IPS`, `TRUSTED_OUTBOUND_IPS` |
 | Ports / Docker | `KNOWN_PORTS`, `KNOWN_DOCKER_IMAGE_PREFIXES`, `EXPECTED_STOPPED_CONTAINERS` |
-| Backup | `BACKUP_PATHS`, `BACKUP_MAX_AGE_DAYS` |
+| Backup | `BACKUP_PATHS`, `BACKUP_MAX_AGE_DAYS`, optional `BACKUP_TRIGGER_COMMAND` |
 | FIM | `FIM_PATHS` |
 | IOC | `INCIDENT_IOC_DOMAINS`, `BLOCKED_REMOTE_IPS` |
+| Schutz | `AUTO_BLOCK_ENABLED` (nur Blocklist-IPs via fail2ban), `AUTO_BLOCK_JAIL` |
+
+**Schutz-Stufen:** Alerts mit Handlungsempfehlung → optional Auto-Block nur für bekannte IOC-IPs → optional Backup-Job anstoßen. **Restore nie automatisch** (nur Empfehlung/Checkliste). UI: Einstellungen → Schutz. Audit: `/history` category `protect`.
 
 **Ops-Tipp:** False Positives zuerst über Allowlists/Trust/Expected-* entschärfen – nicht den Check abschalten.
 

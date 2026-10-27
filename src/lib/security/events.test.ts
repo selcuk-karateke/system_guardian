@@ -243,10 +243,8 @@ describe("alertInputFromFail2banBanSpikeEvent", () => {
       alert.message,
       `fail2ban Ban-Spike: +${delta} Ereignisse in ${sinceLabel} (Total 50→200, 5 aktiv)`,
     );
-    assert.equal(
-      alert.recommendation,
-      "Review auth.log for coordinated SSH attack",
-    );
+    assert.match(alert.recommendation ?? "", /auth\.log/);
+    assert.match(alert.recommendation ?? "", /TRUSTED_LOGIN_IPS/);
   });
 });
 
@@ -298,10 +296,7 @@ describe("alertFromSecurityEvent", () => {
       alert.message,
       `fail2ban Ban-Spike: +${delta} Ereignisse in ${sinceLabel} (Total 50→200, 5 aktiv)`,
     );
-    assert.equal(
-      alert.recommendation,
-      "Review auth.log for coordinated SSH attack",
-    );
+    assert.match(alert.recommendation ?? "", /auth\.log/);
   });
 
   it("unbekannte ruleId → kein Alert", () => {

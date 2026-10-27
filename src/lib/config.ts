@@ -107,6 +107,31 @@ export function getBackupMinSizeWarningBytes(): number {
   return v ? parseInt(v, 10) : 10 * 1024 * 1024;
 }
 
+/**
+ * Optional absolute path on SSH host to start a backup job (Settings → Schutz).
+ * Empty = disabled. No shell metacharacters — see validateBackupTriggerCommand.
+ */
+export function getBackupTriggerCommand(): string {
+  return (process.env.BACKUP_TRIGGER_COMMAND ?? "").trim();
+}
+
+export function isBackupTriggerEnabled(): boolean {
+  return getBackupTriggerCommand().length > 0;
+}
+
+/**
+ * Opt-in: when true, network/security checks may ban IPs that are already on
+ * BLOCKED_REMOTE_IPS via fail2ban. Never bans unknown IPs.
+ */
+export function isAutoBlockEnabled(): boolean {
+  return process.env.AUTO_BLOCK_ENABLED === "true";
+}
+
+export function getAutoBlockJail(): string {
+  const jail = (process.env.AUTO_BLOCK_JAIL ?? "sshd").trim();
+  return /^[a-zA-Z0-9_-]+$/.test(jail) ? jail : "sshd";
+}
+
 /** TV monitor: night mode start hour (local browser time, 0–23). */
 export function getMonitorNightStartHour(): number {
   const v = process.env.MONITOR_NIGHT_START;
@@ -203,6 +228,9 @@ export function getTrustedShellProcessPatterns(): RegExp[] {
     /CORS_ORIGIN.*Coolify/i,
     /next-server/i,
     /node\s+.*\/node_modules/i,
+    /** Hermes WebUI / Agent Start auf Coolify */
+    /hermeswebui_init\.bash/i,
+    /hermes.*\.(bash|sh)\b/i,
   ];
   if (!raw.trim()) return defaults;
   return [

@@ -9,6 +9,11 @@ import {
   type ContainerProcessInfo,
 } from "@/lib/checks/container-process";
 import { formatSinceLastCheck } from "@/lib/checks/fail2ban-metrics";
+import { isAutoBlockEnabled } from "@/lib/config";
+import {
+  blockedIpRecommendation,
+  suspiciousOutboundRecommendation,
+} from "@/lib/protect/playbooks";
 
 export type SecuritySeverity = "critical" | "warning" | "info";
 
@@ -108,16 +113,20 @@ export function alertInputFromSsSecurityEvents(
   const hasContainer = events.some(
     (e) => e.metadata.containerId || e.metadata.containerName,
   );
+  const blockedIp = events.find((e) => e.ruleId === "ss.blocked_ip");
+  const blockedIpAddr =
+    blockedIp && typeof blockedIp.metadata.remoteIp === "string"
+      ? blockedIp.metadata.remoteIp
+      : null;
 
   return {
     level: anyCritical ? "critical" : "warning",
     message: `${label}: ${detail}`,
-    ...(hasContainer
-      ? {
-          recommendation:
-            "Prozess gehört zu einem Container (cgroup) — docker inspect / Logs prüfen; kein pkill -u Host-User (UID-Mapping).",
-        }
-      : {}),
+    recommendation: blockedIpAddr
+      ? blockedIpRecommendation(blockedIpAddr, {
+          autoBlockEnabled: isAutoBlockEnabled(),
+        })
+      : suspiciousOutboundRecommendation(hasContainer),
   };
 }
 
@@ -187,7 +196,8 @@ export function alertInputFromFail2banBanSpikeEvent(
   return {
     level: "warning",
     message: String(event.metadata.reason ?? event.raw),
-    recommendation: "Review auth.log for coordinated SSH attack",
+    recommendation:
+      "auth.log auf koordinierte SSH-Angriffe prüfen; Jail-Filter/Ban-Zeit kontrollieren; TRUSTED_LOGIN_IPS nur für bekannte Admins",
   };
 }
 

@@ -4,6 +4,7 @@ import {
   getKnownDockerImagePrefixes,
 } from "@/lib/config";
 import { getActiveObservationWindow } from "@/lib/observation-window";
+import { iocAlertRecommendation } from "@/lib/protect/playbooks";
 import { getSshClient } from "@/lib/ssh";
 import { detectAppRole, isBenignShellProcessLine, LOG_IOC_PATTERNS } from "./container-audit";
 import { fetchCoolifyMetadata, getCoolifyMeta } from "./coolify-meta";
@@ -193,7 +194,10 @@ export async function runSecurityPostureCheck(
   const shellHits = [...shellProcs, ...procSuspicious].slice(0, 5);
   items.push({
     id: "shells",
-    label: "Keine Shell-Aufrufe (verdächtig)",
+    label:
+      shellHits.length === 0
+        ? "Shell-Prozesse unauffällig"
+        : "Verdächtige Shell-Prozesse",
     status: shellHits.length === 0 ? "pass" : "fail",
     detail:
       shellHits.length === 0
@@ -436,6 +440,7 @@ export async function runSecurityPostureCheck(
       alerts.push({
         level: item.status === "fail" ? "critical" : "warning",
         message: `${item.label}: ${item.detail}`,
+        recommendation: iocAlertRecommendation(item.label),
       });
     }
   }

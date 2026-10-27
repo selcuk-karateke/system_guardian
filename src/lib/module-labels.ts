@@ -41,8 +41,12 @@ export const MONITOR_MODULE_ORDER = [
   "ssh_keys",
   "users",
   "logins",
+  "web_presence",
   "cron",
+  "processes",
   "network",
   "scanner",
+  "services",
+  "security_posture",
   "reserved",
 ] as const;

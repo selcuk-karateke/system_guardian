@@ -1,6 +1,15 @@
-import { isTrustedOutboundKey } from "@/lib/config";
+import {
+  getBlockedRemoteIps,
+  isAutoBlockEnabled,
+  isTrustedOutboundKey,
+} from "@/lib/config";
 import { diffStringSets } from "@/lib/history/diff";
 import { diffAndStore } from "@/lib/history/persist";
+import { enforceBlocklistBans } from "@/lib/protect/auto-block";
+import {
+  blockedIpRecommendation,
+  suspiciousOutboundRecommendation,
+} from "@/lib/protect/playbooks";
 import { getSshClient } from "@/lib/ssh";
 import {
   formatEstablishedConn,
@@ -71,6 +80,9 @@ export async function runNetworkCheck(serverId: string): Promise<CheckResult> {
       .filter((p): p is number => p != null),
   );
 
+  const blockedSet = getBlockedRemoteIps();
+  const blockedSeen: string[] = [];
+
   for (const { line, conn, hit } of hitRows) {
     const pid = parsePidFromSsProcess(conn.process);
     const container = pid != null ? containerByPid.get(pid) : undefined;
@@ -78,13 +90,27 @@ export async function runNetworkCheck(serverId: string): Promise<CheckResult> {
     suspiciousConns.push(`${reason} · ${line.slice(0, 160)}`);
     if (hit.severity === "critical") status = "critical";
     else if (status === "healthy") status = "warning";
+
+    const isBlockedIp = blockedSet.has(conn.remoteIp);
+    if (isBlockedIp) blockedSeen.push(conn.remoteIp);
+
     alerts.push({
       level: hit.severity,
       message: `Suspicious connection: ${reason}`,
-      recommendation: container?.containerId
-        ? "Prozess in Container (cgroup) — docker inspect / Logs; kein pkill -u Host-User."
-        : "ss -tunap + docker ps; block IP (ufw), stop container, check image digest",
+      recommendation: isBlockedIp
+        ? blockedIpRecommendation(conn.remoteIp, {
+            autoBlockEnabled: isAutoBlockEnabled(),
+          })
+        : suspiciousOutboundRecommendation(Boolean(container?.containerId)),
     });
+  }
+
+  if (blockedSeen.length > 0) {
+    const blockResult = await enforceBlocklistBans(serverId, blockedSeen);
+    alerts.push(...blockResult.alerts);
+    if (blockResult.banned.length > 0 || blockResult.alerts.some((a) => a.level === "critical")) {
+      status = "critical";
+    }
   }
 
   const outboundKeys = outboundEstablished.map((s) => s.slice(0, 120));

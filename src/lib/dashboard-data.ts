@@ -8,11 +8,7 @@ import {
   monitoredDomains,
   servers,
 } from "@/db/schema";
-import { getCheckMode, worstStatus } from "@/lib/config";
-import {
-  MONITOR_MODULE_ORDER,
-  MONITOR_PLACEHOLDER_MODULES,
-} from "@/lib/module-labels";
+import { getCheckMode } from "@/lib/config";
 import type { CheckStatus } from "@/lib/checks/types";
 
 export type GlobalStatus = "healthy" | "warning" | "critical";
@@ -32,18 +28,29 @@ function statusFromOpenAlerts(
 }
 
 /**
- * Check-Run-Status + offene Alerts zusammenführen.
- * Entschärfte Alerts senken den angezeigten Status — sonst bleibt WARNING hängen.
+ * Gesamtstatus = schlimmste offene Warnung/Critical.
+ * Eine Quelle für Dashboard-Badge, Server-Karte und Monitor — kein Modul-Subset.
+ */
+export function overallStatusFromAlertLevels(
+  levels: Iterable<string>,
+): GlobalStatus {
+  let worst: GlobalStatus = "healthy";
+  for (const level of levels) {
+    if (level === "critical") return "critical";
+    if (level === "warning") worst = "warning";
+  }
+  return worst;
+}
+
+/**
+ * Modul-Kachel: offene Alerts dieses Moduls.
+ * Ohne offene Alerts → healthy (entschärft), auch wenn der letzte Check noch critical war.
  */
 export function effectiveModuleStatus(
-  checkStatus: string,
+  _checkStatus: string,
   openAlerts: { level: string }[],
 ): CheckStatus {
-  const fromAlerts = statusFromOpenAlerts(openAlerts);
-  if (fromAlerts) return fromAlerts;
-  if (checkStatus === "warning" || checkStatus === "critical") return "healthy";
-  if (checkStatus === "healthy") return "healthy";
-  return "healthy";
+  return statusFromOpenAlerts(openAlerts) ?? "healthy";
 }
 
 async function getOpenAlertsGroupedByModule(
@@ -81,21 +88,20 @@ function applyEffectiveStatuses(
   }));
 }
 
-/** TV-Banner: nur Monitor-Kacheln (ohne Platzhalter), nicht z. B. security_posture allein */
+/** Gesamtstatus aus offenen Alerts (identisch Dashboard / Server / Monitor / API). */
 export async function getGlobalStatus(serverId?: string): Promise<GlobalStatus> {
-  const [modules, openByModule] = await Promise.all([
-    getAllModuleStatuses(serverId),
-    getOpenAlertsGroupedByModule(serverId),
-  ]);
-  const effective = applyEffectiveStatuses(modules, openByModule);
-  const placeholders = new Set<string>(MONITOR_PLACEHOLDER_MODULES);
-  const statuses: CheckStatus[] = [];
-  for (const mod of MONITOR_MODULE_ORDER) {
-    if (placeholders.has(mod)) continue;
-    const row = effective.find((m) => m.module === mod);
-    if (row?.status) statuses.push(row.status as CheckStatus);
-  }
-  return worstStatus(statuses.length ? statuses : ["healthy"]);
+  const conditions = [
+    isNull(alerts.resolvedAt),
+    ne(alerts.level, "info"),
+  ];
+  if (serverId) conditions.push(eq(alerts.serverId, serverId));
+
+  const open = await db
+    .select({ level: alerts.level })
+    .from(alerts)
+    .where(and(...conditions));
+
+  return overallStatusFromAlertLevels(open.map((a) => a.level));
 }
 
 export async function getServerOverview(serverId?: string) {
@@ -129,7 +135,7 @@ export async function getServerOverview(serverId?: string) {
     ? eq(checkRuns.serverId, server.id)
     : undefined;
 
-  const [recentModules, openByModule] = await Promise.all([
+  const [recentModules, openByModule, status] = await Promise.all([
     server
       ? db
           .select()
@@ -139,6 +145,7 @@ export async function getServerOverview(serverId?: string) {
           .limit(40)
       : db.select().from(checkRuns).orderBy(desc(checkRuns.createdAt)).limit(20),
     getOpenAlertsGroupedByModule(server?.id),
+    getGlobalStatus(server?.id),
   ]);
 
   const moduleStatus: Record<string, string> = {};
@@ -150,9 +157,6 @@ export async function getServerOverview(serverId?: string) {
       );
     }
   }
-
-  const statuses = Object.values(moduleStatus) as CheckStatus[];
-  const status = worstStatus(statuses.length ? statuses : ["healthy"]);
 
   return {
     server,

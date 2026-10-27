@@ -206,6 +206,15 @@ function matchFixture(command: string): string {
       ],
     });
   }
+  if (command.includes("fail2ban-client set") && command.includes("banip")) {
+    return "1\n";
+  }
+  if (
+    command.startsWith("/usr/local/bin/") ||
+    command.includes("run-backup")
+  ) {
+    return "backup started\n";
+  }
   for (const [key, value] of Object.entries(FIXTURES)) {
     if (command.includes(key) || command === key) return value;
   }

@@ -3,6 +3,12 @@ import {
   getBackupMinSizeWarningBytes,
   getBackupPaths,
 } from "@/lib/config";
+import {
+  backupEmptyRecommendation,
+  backupMissingRecommendation,
+  backupSmallRecommendation,
+  backupStaleRecommendation,
+} from "@/lib/protect/playbooks";
 import { getSshClient } from "@/lib/ssh";
 import type { AlertInput, CheckResult } from "./types";
 
@@ -228,7 +234,7 @@ export async function runBackupsCheck(serverId: string): Promise<CheckResult> {
     alerts.push({
       level: "critical",
       message: "No backups found in any configured path",
-      recommendation: `Check BACKUP_PATHS (${paths.join(", ")}) and backup jobs`,
+      recommendation: backupMissingRecommendation(paths),
     });
     return {
       module: "backups",
@@ -272,6 +278,7 @@ export async function runBackupsCheck(serverId: string): Promise<CheckResult> {
     alerts.push({
       level: "critical",
       message: `Latest backup is empty (0 bytes): ${best.path}`,
+      recommendation: backupEmptyRecommendation(best.path),
     });
   } else if (best.ageDays > maxAgeDays) {
     status = "critical";
@@ -280,13 +287,14 @@ export async function runBackupsCheck(serverId: string): Promise<CheckResult> {
     alerts.push({
       level: "critical",
       message: `Newest ${kindLabel} is ${Math.round(best.ageDays)} days old (limit ${maxAgeDays}d): ${best.path}`,
+      recommendation: backupStaleRecommendation(best.path, maxAgeDays),
     });
   } else if (best.sizeBytes < minWarningBytes) {
     status = "warning";
     alerts.push({
       level: "warning",
       message: `Latest backup unusually small (${formatBytes(best.sizeBytes)}): ${best.path}`,
-      recommendation: "Verify backup job completed successfully",
+      recommendation: backupSmallRecommendation(),
     });
   }
 

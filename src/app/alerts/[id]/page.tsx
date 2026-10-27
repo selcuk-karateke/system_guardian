@@ -8,6 +8,7 @@ import { parseFimPathFromAlert } from "@/lib/alerts/fim-paths";
 import { buildAlertReport } from "@/lib/alerts/report";
 import { APP_TIMEZONE, formatAppDateTime } from "@/lib/datetime";
 import { getModulePageForAlert } from "@/lib/alert-routes";
+import { isBackupTriggerEnabled } from "@/lib/config";
 import {
   getAlertById,
   getLatestCheckByModule,
@@ -103,6 +104,10 @@ export default async function AlertDetailPage({
         alertId={alert.id}
         resolved={resolved}
         reportText={reportText}
+        showBackupTrigger={
+          alert.module === "backups" && isBackupTriggerEnabled()
+        }
+        serverId={alert.serverId ?? undefined}
       />
 
       {resolved && (
