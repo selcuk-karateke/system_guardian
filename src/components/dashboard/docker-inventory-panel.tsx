@@ -11,6 +11,7 @@ type Props = {
   groups: DockerInventoryGroup[];
   checkMode: string;
   scansByImage: Record<string, TrivyScanRecord>;
+  serverId?: string;
 };
 
 function shortDigest(image: string): string {
@@ -23,6 +24,7 @@ export function DockerInventoryPanel({
   groups,
   checkMode,
   scansByImage: initialScans,
+  serverId,
 }: Props) {
   const [scansByImage, setScansByImage] = useState(initialScans);
   const [activeScan, setActiveScan] = useState<string | null>(null);
@@ -34,7 +36,12 @@ export function DockerInventoryPanel({
     setActiveScan(containerName);
     setMessages((m) => ({ ...m, [containerName]: "" }));
     startTransition(async () => {
-      const result = await runContainerTrivyScan(containerName, imageRef, force);
+      const result = await runContainerTrivyScan(
+        containerName,
+        imageRef,
+        force,
+        serverId,
+      );
       setActiveScan(null);
       if (!result.ok) {
         setMessages((m) => ({ ...m, [containerName]: result.message }));
@@ -47,9 +54,13 @@ export function DockerInventoryPanel({
       }));
       setExpanded(containerName);
       const prefix = result.cached ? "Cache" : "Scan ok";
+      const alertNote =
+        result.record.criticalCount > 0 || result.record.highCount > 0
+          ? " · Warnung erzeugt"
+          : "";
       setMessages((m) => ({
         ...m,
-        [containerName]: `${prefix} · ${result.record.durationMs}ms · HIGH ${result.record.highCount} · CRIT ${result.record.criticalCount}`,
+        [containerName]: `${prefix} · ${result.record.durationMs}ms · HIGH ${result.record.highCount} · CRIT ${result.record.criticalCount}${alertNote}`,
       }));
     });
   }
@@ -61,8 +72,8 @@ export function DockerInventoryPanel({
       <div className="rounded-lg border border-zinc-800 bg-zinc-950/40 px-4 py-3 text-sm text-zinc-400">
         <p>
           <strong className="text-zinc-200">{totalRows}</strong> Container in{" "}
-          {groups.length} Gruppen. Trivy on-demand: nur HIGH/CRITICAL, Ergebnis
-          pro Image-Digest gecacht.
+          {groups.length} Gruppen. Trivy HIGH/CRITICAL → Dashboard-Warnungen.
+          Zusätzlich Security-Cron (wenige Images/Stunde). Cache pro Digest.
         </p>
         <p className="mt-2 text-xs">
           Extern bei Verdacht:{" "}

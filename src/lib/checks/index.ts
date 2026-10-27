@@ -26,6 +26,7 @@ import { runSslCheck } from "./ssl";
 import { runSshKeysCheck } from "./ssh-keys";
 import { runUsersCheck } from "./users";
 import { runWebPresenceCheck } from "./web-presence";
+import { runTrivyCheck } from "./trivy";
 import { runWebsiteCheck } from "./website";
 
 export type NamedCheck = { module: string; run: CheckRunner };
@@ -55,6 +56,7 @@ export const SECURITY_CHECKS = [
   { module: "scanner", run: runScannerCheck },
   { module: "services", run: runServicesCheck },
   { module: "security_posture", run: runSecurityPostureCheck },
+  { module: "trivy", run: runTrivyCheck },
 ] as const;
 
 async function resolveProfile(serverId: string): Promise<MonitorProfile> {

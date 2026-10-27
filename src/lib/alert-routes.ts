@@ -7,6 +7,7 @@ const MODULE_PAGE: Record<string, string> = {
   website: "/infrastructure",
   docker: "/docker",
   coolify: "/docker",
+  trivy: "/docker",
   database: "/databases",
 };
 

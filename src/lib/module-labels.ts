@@ -20,6 +20,7 @@ export const MODULE_LABELS: Record<string, string> = {
   scanner: "Scanner",
   services: "Dienste",
   security_posture: "Security Posture",
+  trivy: "Trivy / CVEs",
   reserved: "Reserve",
 };
 
@@ -48,5 +49,6 @@ export const MONITOR_MODULE_ORDER = [
   "scanner",
   "services",
   "security_posture",
+  "trivy",
   "reserved",
 ] as const;

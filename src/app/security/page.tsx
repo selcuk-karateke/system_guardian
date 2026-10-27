@@ -33,6 +33,7 @@ const MODULES = [
   "scanner",
   "docker",
   "security_posture",
+  "trivy",
   "services",
 ];
 

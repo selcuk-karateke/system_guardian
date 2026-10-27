@@ -45,6 +45,11 @@ export const MODULE_CATALOG: readonly ModuleCatalogEntry[] = [
     batch: "security",
     summary: "IOC-light / Blocklist / verdächtige Connections",
   },
+  {
+    id: "trivy",
+    batch: "security",
+    summary: "Image-CVEs (HIGH/CRITICAL) → Alerts; Batch-Scan per Cron",
+  },
 ] as const;
 
 export function modulesForBatch(batch: CheckBatch): ModuleCatalogEntry[] {

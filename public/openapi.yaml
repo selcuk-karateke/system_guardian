@@ -107,7 +107,7 @@ paths:
       tags: [Cron]
       summary: Security-Check-Batch starten
       description: |
-        FIM, SSH-Keys, Users, Logins, Web Presence, Cron, Processes, Network, Scanner, Services, security_posture.
+        FIM, SSH-Keys, Users, Logins, Web Presence, Cron, Processes, Network, Scanner, Services, security_posture, Trivy.
         Typisch alle **60 Minuten**.
       operationId: cronSecurity
       security:

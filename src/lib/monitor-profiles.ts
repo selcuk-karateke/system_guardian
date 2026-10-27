@@ -29,6 +29,7 @@ export const CONTAINER_PROFILE_MODULES = new Set([
   "network",
   "web_presence",
   "security_posture",
+  "trivy",
 ]);
 
 /** Module die nur auf Host/Full Sinn ergeben. */

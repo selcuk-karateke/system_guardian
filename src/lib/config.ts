@@ -132,6 +132,24 @@ export function getAutoBlockJail(): string {
   return /^[a-zA-Z0-9_-]+$/.test(jail) ? jail : "sshd";
 }
 
+/** Security-Cron: Trivy-Batch für ungecachte/alte Images (default an). */
+export function isTrivyCronEnabled(): boolean {
+  return process.env.TRIVY_CRON_ENABLED !== "false";
+}
+
+/** Max container scans per trivy check run (default 3 — Trivy ist langsam). */
+export function getTrivyScanLimit(): number {
+  const v = process.env.TRIVY_SCAN_LIMIT;
+  const n = v ? parseInt(v, 10) : 3;
+  return Number.isFinite(n) && n > 0 ? Math.min(n, 20) : 3;
+}
+
+/** Rescan if cached result older than N days (default 7). */
+export function getTrivyMaxAgeDays(): number {
+  const v = process.env.TRIVY_MAX_AGE_DAYS;
+  return v ? parseInt(v, 10) : 7;
+}
+
 /** TV monitor: night mode start hour (local browser time, 0–23). */
 export function getMonitorNightStartHour(): number {
   const v = process.env.MONITOR_NIGHT_START;

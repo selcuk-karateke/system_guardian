@@ -149,6 +149,7 @@ export default async function DockerPage({
         groups={groups}
         checkMode={checkMode}
         scansByImage={scansByKey}
+        serverId={selectedServerId || undefined}
       />
 
       <Card>
