@@ -137,11 +137,11 @@ export function isTrivyCronEnabled(): boolean {
   return process.env.TRIVY_CRON_ENABLED !== "false";
 }
 
-/** Max container scans per trivy check run (default 3 — Trivy ist langsam). */
+/** Max container scans per trivy check run (default 8 — Trivy ist langsam). */
 export function getTrivyScanLimit(): number {
   const v = process.env.TRIVY_SCAN_LIMIT;
-  const n = v ? parseInt(v, 10) : 3;
-  return Number.isFinite(n) && n > 0 ? Math.min(n, 20) : 3;
+  const n = v ? parseInt(v, 10) : 8;
+  return Number.isFinite(n) && n > 0 ? Math.min(n, 20) : 8;
 }
 
 /** Rescan if cached result older than N days (default 7). */

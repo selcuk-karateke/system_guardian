@@ -168,31 +168,41 @@ export function DockerInventoryPanel({
                             {row.state}
                           </Badge>
                         </td>
-                        <td className="px-3 py-2 text-xs text-zinc-400">
+                        <td className="px-3 py-2 text-xs">
                           {scan ? (
-                            <span>
-                              {scan.criticalCount > 0 && (
-                                <span className="text-red-400">
-                                  {scan.criticalCount} crit{" "}
-                                </span>
-                              )}
-                              {scan.highCount > 0 && (
-                                <span className="text-amber-400">
+                            <button
+                              type="button"
+                              className="text-left"
+                              onClick={() =>
+                                setExpanded((e) =>
+                                  e === row.name ? null : row.name,
+                                )
+                              }
+                            >
+                              {scan.criticalCount > 0 ? (
+                                <Badge variant="critical">
+                                  {scan.criticalCount} crit
+                                  {scan.highCount > 0
+                                    ? ` / ${scan.highCount} high`
+                                    : ""}
+                                </Badge>
+                              ) : scan.highCount > 0 ? (
+                                <Badge variant="warning">
                                   {scan.highCount} high
-                                </span>
+                                </Badge>
+                              ) : (
+                                <Badge variant="healthy">clean</Badge>
                               )}
-                              {scan.criticalCount === 0 &&
-                                scan.highCount === 0 && (
-                                  <span className="text-emerald-400">clean</span>
-                                )}
-                              <span className="block text-zinc-600">
+                              <span className="block text-zinc-600 mt-1">
                                 {new Date(scan.scannedAt).toLocaleString(
                                   "de-DE",
                                 )}
                               </span>
-                            </span>
+                            </button>
+                          ) : canScan ? (
+                            <Badge variant="warning">nicht gescannt</Badge>
                           ) : (
-                            "—"
+                            <span className="text-zinc-600">—</span>
                           )}
                         </td>
                         <td className="px-3 py-2">
@@ -232,8 +242,10 @@ export function DockerInventoryPanel({
                             )}
                             {scan && scan.findings.length > 0 ? (
                               <ul className="space-y-1 text-zinc-300">
-                                {scan.findings.map((f) => (
-                                  <li key={`${f.vulnerabilityId}-${f.pkgName}`}>
+                                {scan.findings.map((f, i) => (
+                                  <li
+                                    key={`${f.vulnerabilityId}-${f.pkgName ?? "pkg"}-${i}`}
+                                  >
                                     <span
                                       className={
                                         f.severity === "CRITICAL"

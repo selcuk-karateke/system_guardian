@@ -11,6 +11,8 @@ import {
 } from "@/lib/dashboard-data";
 import { getCheckMode } from "@/lib/config";
 import { MockDataBanner } from "@/components/dashboard/mock-data-banner";
+import { getDefaultServerId } from "@/lib/servers";
+import { syncTrivyAlertsFromStore } from "@/lib/trivy/alerts";
 
 export default async function DashboardPage() {
   let globalStatus: "healthy" | "warning" | "critical" = "healthy";
@@ -20,6 +22,10 @@ export default async function DashboardPage() {
   const checkMode = getCheckMode();
 
   try {
+    // Bekannte Trivy-Funde sofort in Warnungen (ohne Docker-Klick)
+    const sid = await getDefaultServerId().catch(() => null);
+    if (sid) await syncTrivyAlertsFromStore(sid).catch(() => null);
+
     globalStatus = await getGlobalStatus();
     serverList = await getServersWithStatus();
     recentAlerts = await getRecentAlerts(10);

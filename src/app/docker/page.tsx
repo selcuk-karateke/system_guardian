@@ -2,11 +2,13 @@ import { Suspense } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DockerInventoryPanel } from "@/components/dashboard/docker-inventory-panel";
+import { TrivyBatchBar } from "@/components/dashboard/trivy-batch-bar";
 import { ServerSelect } from "@/components/dashboard/server-select";
 import { SshTargetNote } from "@/components/dashboard/ssh-target-note";
 import { buildDockerInventoryGroups } from "@/lib/docker/inventory";
 import { getLatestCheckByModule } from "@/lib/dashboard-data";
 import { resolveSelectedServer } from "@/lib/server-scope";
+import { syncTrivyAlertsFromStore } from "@/lib/trivy/alerts";
 import { getTrivyScansByDigest } from "@/lib/trivy/store";
 import type { TrivyScanRecord } from "@/lib/trivy/types";
 
@@ -41,6 +43,10 @@ export default async function DockerPage({
       ]);
     }
     scansByKey = indexScans(await getTrivyScansByDigest());
+    // Bekannte Scans sofort als Dashboard-Warnungen (ohne erneut klicken)
+    if (selectedServerId) {
+      await syncTrivyAlertsFromStore(selectedServerId).catch(() => null);
+    }
   } catch {
     /* empty */
   }
@@ -76,6 +82,23 @@ export default async function DockerPage({
   const checkMode = (docker?.data as { checkMode?: string })?.checkMode ?? "mock";
   const isMock = checkMode === "mock";
   const groups = buildDockerInventoryGroups(containers);
+
+  const scanList = Object.values(
+    Object.fromEntries(
+      Object.values(scansByKey).map((s) => [s.imageDigest, s]),
+    ),
+  );
+  const imagesWithFindings = scanList.filter(
+    (s) => s.criticalCount > 0 || s.highCount > 0,
+  ).length;
+  const scannedNames = new Set(scanList.map((s) => s.containerName));
+  const scannedRefs = new Set(scanList.map((s) => s.imageRef));
+  const unscannedRunning = containers.filter(
+    (c) =>
+      c.State === "running" &&
+      !scannedNames.has(c.Names) &&
+      !(c.Image && scannedRefs.has(c.Image)),
+  ).length;
 
   return (
     <div className="space-y-6">
@@ -144,6 +167,13 @@ export default async function DockerPage({
           </CardContent>
         </Card>
       )}
+
+      <TrivyBatchBar
+        serverId={selectedServerId || undefined}
+        imagesWithFindings={imagesWithFindings}
+        unscannedRunning={unscannedRunning}
+        checkMode={checkMode}
+      />
 
       <DockerInventoryPanel
         groups={groups}
