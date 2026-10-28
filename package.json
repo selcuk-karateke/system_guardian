@@ -16,7 +16,7 @@
     "test:ssh": "tsx scripts/test-ssh.ts",
     "setup:ssh-key": "tsx scripts/setup-ssh-key.ts",
     "docs:check": "tsx scripts/docs-check.ts",
-    "test": "tsx --test src/lib/security/events.test.ts src/lib/checks/session-presence.test.ts src/lib/checks/web-presence.test.ts src/lib/alerts/pipeline.test.ts src/lib/checks/container-process.test.ts src/lib/checks/docker-health.test.ts src/lib/monitor-profiles.test.ts src/lib/protect/backup-trigger.test.ts src/lib/dashboard-data.status.test.ts src/lib/trivy/alerts.test.ts src/lib/trivy/resolve-container.test.ts src/lib/checks/website.test.ts"
+    "test": "tsx --test src/lib/security/events.test.ts src/lib/checks/session-presence.test.ts src/lib/checks/web-presence.test.ts src/lib/alerts/pipeline.test.ts src/lib/checks/container-process.test.ts src/lib/checks/docker-health.test.ts src/lib/monitor-profiles.test.ts src/lib/protect/backup-trigger.test.ts src/lib/dashboard-data.status.test.ts src/lib/trivy/alerts.test.ts src/lib/trivy/resolve-container.test.ts src/lib/checks/website.test.ts src/lib/checks/coolify.test.ts"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",

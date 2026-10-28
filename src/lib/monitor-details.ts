@@ -386,9 +386,15 @@ function formatModuleDetailLinesFromData(
     case "coolify": {
       const services = data.services as Record<string, string> | undefined;
       if (!services || !Object.keys(services).length) return ["no services"];
+      const required = ["coolify", "coolify-db", "coolify-redis", "coolify-proxy"];
+      const reqRunning = required.filter((k) => services[k] === "running").length;
       const keys = Object.keys(services);
       const running = keys.filter((k) => services[k] === "running").length;
-      return [`${running}/${keys.length} running`];
+      const lines = [`${reqRunning}/${required.length} core`];
+      if (keys.length > reqRunning) {
+        lines.push(`${running}/${keys.length} seen`);
+      }
+      return lines;
     }
     case "website": {
       const sites = data.sites as

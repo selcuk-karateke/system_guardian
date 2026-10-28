@@ -103,7 +103,7 @@ Zwei Batches, zwei Cron-Jobs.
 | `server_health` | Host | CPU, RAM, Disk, Load |
 | `raid` | Storage | `/proc/mdstat` (abschaltbar: `RAID_CHECK_ENABLED`) |
 | `docker` | Container | Status, Restarts, unerwartete Images |
-| `coolify` | Platform | Coolify-Dienste / Meta |
+| `coolify` | Platform | Coolify-Core (Realtime/Sentinel optional) |
 | `database` | DB | Erreichbarkeit der konfigurierten DBs |
 | `ssl` | Zertifikate | Ablauf (Warning typisch &lt;30d) |
 | `website` | HTTP(S) | Erreichbarkeit, HTTP→HTTPS-Redirect, HSTS (≥15552000) |
