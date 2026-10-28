@@ -17,7 +17,7 @@ export async function runRaidCheck(serverId: string): Promise<CheckResult> {
     };
   }
 
-  const ssh = getSshClient();
+  const ssh = await getSshClient(serverId);
   const { stdout } = await ssh.exec("cat /proc/mdstat 2>/dev/null || echo ''");
   const alerts: AlertInput[] = [];
   let status: CheckResult["status"] = "healthy";

@@ -11,7 +11,7 @@ function truncateLine(line: string, max = MAX_ALERT_LINE): string {
 
 export async function runLogsCheck(serverId: string): Promise<CheckResult> {
   void serverId;
-  const ssh = getSshClient();
+  const ssh = await getSshClient(serverId);
   const [journal, dmesg] = await Promise.all([
     ssh.exec("journalctl -p err -n 80 --no-pager 2>/dev/null || echo ''"),
     ssh.exec("dmesg 2>/dev/null | tail -80 || echo ''"),

@@ -1,16 +1,22 @@
 import { Suspense } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DockerInventoryPanel } from "@/components/dashboard/docker-inventory-panel";
-import { TrivyBatchBar } from "@/components/dashboard/trivy-batch-bar";
+import { DockerToolbar } from "@/components/dashboard/docker-toolbar";
 import { ServerSelect } from "@/components/dashboard/server-select";
 import { SshTargetNote } from "@/components/dashboard/ssh-target-note";
 import { buildDockerInventoryGroups } from "@/lib/docker/inventory";
+import {
+  isDockerCheckStale,
+  refreshDockerInventory,
+} from "@/lib/docker/refresh";
+import { isCoolifyRedeployConfigured } from "@/lib/config";
 import { getLatestCheckByModule } from "@/lib/dashboard-data";
 import { resolveSelectedServer } from "@/lib/server-scope";
 import { syncTrivyAlertsFromStore } from "@/lib/trivy/alerts";
 import { getTrivyScansByDigest } from "@/lib/trivy/store";
 import type { TrivyScanRecord } from "@/lib/trivy/types";
+
+export const dynamic = "force-dynamic";
 
 function indexScans(scans: Record<string, TrivyScanRecord>) {
   const byKey: Record<string, TrivyScanRecord> = {};
@@ -34,16 +40,21 @@ export default async function DockerPage({
   let docker: Awaited<ReturnType<typeof getLatestCheckByModule>> | undefined;
   let coolify: Awaited<ReturnType<typeof getLatestCheckByModule>> | undefined;
   let scansByKey: Record<string, TrivyScanRecord> = {};
+  let autoRefreshed = false;
 
   try {
     if (selectedServerId) {
+      docker = await getLatestCheckByModule("docker", selectedServerId);
+      if (isDockerCheckStale(docker?.createdAt ?? null)) {
+        await refreshDockerInventory(selectedServerId).catch(() => null);
+        autoRefreshed = true;
+      }
       [docker, coolify] = await Promise.all([
         getLatestCheckByModule("docker", selectedServerId),
         getLatestCheckByModule("coolify", selectedServerId),
       ]);
     }
     scansByKey = indexScans(await getTrivyScansByDigest());
-    // Bekannte Scans sofort als Dashboard-Warnungen (ohne erneut klicken)
     if (selectedServerId) {
       await syncTrivyAlertsFromStore(selectedServerId).catch(() => null);
     }
@@ -73,8 +84,6 @@ export default async function DockerPage({
       inventory?: {
         onlyCoolifyStack?: boolean;
         foreignRunning?: { name: string; image: string }[];
-        wordpressRunning?: string[];
-        monitoringRunning?: { name: string; image: string }[];
       };
     }
   )?.inventory;
@@ -100,15 +109,23 @@ export default async function DockerPage({
       !(c.Image && scannedRefs.has(c.Image)),
   ).length;
 
+  const checkedAt = docker?.createdAt
+    ? new Date(docker.createdAt).toISOString()
+    : null;
+
+  const coolifyServices =
+    (coolify?.data as { services?: Record<string, string> })?.services ?? {};
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Docker</h1>
-          <p className="text-sm text-zinc-500 mt-1">
-            Running: {(docker?.data as { running?: number })?.running ?? 0} /
-            Total: {(docker?.data as { total?: number })?.total ?? 0}
-          </p>
+          <h1 className="text-2xl font-bold tracking-tight">Docker</h1>
+          {selected && (
+            <div className="mt-1">
+              <SshTargetNote host={selected.host} ipv4={selected.ipv4} />
+            </div>
+          )}
         </div>
         {serverRows.length > 0 && (
           <Suspense fallback={null}>
@@ -124,55 +141,33 @@ export default async function DockerPage({
         )}
       </div>
 
-      {selected && (
-        <SshTargetNote host={selected.host} ipv4={selected.ipv4} />
-      )}
-
       {isMock && (
-        <div className="rounded-lg border border-sky-900/50 bg-sky-950/30 px-4 py-3 text-sm text-sky-200">
-          <strong>CHECK_MODE=mock</strong> – Testdaten. Trivy-Button speichert
-          Mock-Ergebnisse. Für echte Scans:{" "}
-          <code className="text-sky-100">CHECK_MODE=ssh</code> + Trivy auf dem
-          Host.
+        <div className="rounded-lg border border-sky-900/50 bg-sky-950/30 px-3 py-2 text-xs text-sky-200">
+          CHECK_MODE=mock — Trivy-Scans sind simuliert.
         </div>
       )}
 
-      {(docker?.data as { dockerAvailable?: boolean })?.dockerAvailable === false && (
-        <div className="rounded-lg border border-red-900/50 bg-red-950/30 px-4 py-3 text-sm text-red-200">
-          Docker auf dem überwachten Host ist nicht erreichbar (
-          {(docker?.data as { error?: string })?.error ?? "unbekannter Fehler"}).
+      {(docker?.data as { dockerAvailable?: boolean })?.dockerAvailable ===
+        false && (
+        <div className="rounded-lg border border-red-900/50 bg-red-950/30 px-3 py-2 text-xs text-red-200">
+          Docker auf dem Host nicht erreichbar
+          {(docker?.data as { error?: string })?.error
+            ? `: ${(docker?.data as { error?: string }).error}`
+            : ""}
         </div>
       )}
 
-      {inventory && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Kurzüberblick</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm space-y-2 text-zinc-300">
-            <p>
-              Nur Coolify-Stack:{" "}
-              <Badge variant={inventory.onlyCoolifyStack ? "healthy" : "warning"}>
-                {inventory.onlyCoolifyStack ? "ja" : "nein"}
-              </Badge>
-            </p>
-            {inventory.foreignRunning && inventory.foreignRunning.length > 0 && (
-              <p className="text-red-300">
-                Fremde Images (running):{" "}
-                {inventory.foreignRunning
-                  .map((f) => `${f.name} → ${f.image}`)
-                  .join("; ")}
-              </p>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      <TrivyBatchBar
+      <DockerToolbar
         serverId={selectedServerId || undefined}
+        checkedAt={checkedAt}
+        autoRefreshed={autoRefreshed}
+        running={(docker?.data as { running?: number })?.running ?? 0}
+        total={(docker?.data as { total?: number })?.total ?? 0}
         imagesWithFindings={imagesWithFindings}
         unscannedRunning={unscannedRunning}
         checkMode={checkMode}
+        onlyCoolifyStack={inventory?.onlyCoolifyStack}
+        foreignCount={inventory?.foreignRunning?.length ?? 0}
       />
 
       <DockerInventoryPanel
@@ -180,26 +175,49 @@ export default async function DockerPage({
         checkMode={checkMode}
         scansByImage={scansByKey}
         serverId={selectedServerId || undefined}
+        coolifyRedeployReady={isCoolifyRedeployConfigured()}
       />
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Coolify-Dienste</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-3">
-          {Object.entries(
-            (coolify?.data as { services?: Record<string, string> })?.services ??
-              {},
-          ).map(([name, state]) => (
-            <div key={name} className="flex justify-between gap-2">
-              <span className="text-zinc-300">{name}</span>
-              <Badge variant={state === "running" ? "healthy" : "critical"}>
-                {state}
-              </Badge>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
+      {Object.keys(coolifyServices).length > 0 && (
+        <section>
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500 mb-2">
+            Coolify-Stack
+          </h2>
+          <div className="grid gap-1.5 text-sm sm:grid-cols-2 lg:grid-cols-3">
+            {Object.entries(coolifyServices).map(([name, state]) => (
+              <div
+                key={name}
+                className="flex items-center justify-between gap-2 rounded border border-zinc-800/80 px-2.5 py-1.5"
+              >
+                <span className="text-zinc-300 truncate">{name}</span>
+                <Badge variant={state === "running" ? "healthy" : "critical"}>
+                  {state}
+                </Badge>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <p className="text-[11px] text-zinc-600">
+        <a
+          className="underline hover:text-zinc-400"
+          href="https://www.bsi.bund.de/DE/Themen/Unternehmen-und-Organisationen/Cyber-Sicherheitslage/Reaktion/CERT-Bund-Abteilung/cert-bund_node.html"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          CERT-Bund
+        </a>
+        {" · "}
+        <a
+          className="underline hover:text-zinc-400"
+          href="https://status.hetzner.com/"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Hetzner Status
+        </a>
+      </p>
     </div>
   );
 }

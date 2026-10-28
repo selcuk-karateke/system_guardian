@@ -36,6 +36,11 @@ export const servers = pgTable("servers", {
   monitorProfile: varchar("monitor_profile", { length: 32 })
     .default("host")
     .notNull(),
+  /** Per-server SSH (Slice 1). Secrets encrypted at rest. */
+  sshUser: varchar("ssh_user", { length: 64 }),
+  sshPort: integer("ssh_port"),
+  sshPrivateKeyEnc: text("ssh_private_key_enc"),
+  sshPasswordEnc: text("ssh_password_enc"),
   isActive: boolean("is_active").default(true).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

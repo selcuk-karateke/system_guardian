@@ -52,7 +52,7 @@ export async function runBackupTrigger(
     return { ok: false, message: invalid };
   }
 
-  const ssh = getSshClient();
+  const ssh = await getSshClient(serverId);
   const result = await ssh.exec(cmd);
   const ok = result.code === 0;
   const snippet = (result.stdout || result.stderr || "").slice(0, 500);

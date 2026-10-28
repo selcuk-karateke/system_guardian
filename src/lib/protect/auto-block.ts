@@ -97,7 +97,7 @@ export async function enforceBlocklistBans(
   const candidates = unique.filter(isBanCandidate);
   if (candidates.length === 0) return result;
 
-  const ssh = getSshClient();
+  const ssh = await getSshClient(serverId);
 
   for (const ip of candidates) {
     result.attempted.push(ip);

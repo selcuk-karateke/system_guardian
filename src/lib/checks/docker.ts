@@ -76,7 +76,7 @@ function parseDockerLines(stdout: string): DockerRow[] {
 
 export async function runDockerCheck(serverId: string): Promise<CheckResult> {
   const checkMode = process.env.CHECK_MODE ?? "mock";
-  const ssh = getSshClient();
+  const ssh = await getSshClient(serverId);
   const { stdout, stderr, code } = await ssh.exec(
     "docker ps -a --format '{{json .}}' 2>&1",
   );

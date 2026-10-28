@@ -15,6 +15,7 @@ import {
   getLastCheckTime,
   getRecentAlerts,
   getServerOverview,
+  rollupRelatedModuleStatuses,
 } from "@/lib/dashboard-data";
 import { fimPathsFromAlerts } from "@/lib/alerts/fim-paths";
 import {
@@ -61,8 +62,8 @@ export default async function MonitorPage({
     /* empty */
   }
 
-  const statusMap = Object.fromEntries(
-    modules.map((m) => [m.module, m.status]),
+  const statusMap = rollupRelatedModuleStatuses(
+    Object.fromEntries(modules.map((m) => [m.module, m.status])),
   );
 
   const fimAlertPaths = fimPathsFromAlerts(alerts);

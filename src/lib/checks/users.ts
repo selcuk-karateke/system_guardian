@@ -41,7 +41,7 @@ function countPasswdUsers(users: Record<string, { uid: number; shell: string }>)
 }
 
 export async function runUsersCheck(serverId: string): Promise<CheckResult> {
-  const ssh = getSshClient();
+  const ssh = await getSshClient(serverId);
   const { stdout } = await ssh.exec("cat /etc/passwd");
   const users = parsePasswd(stdout);
   const { humanCount, systemCount, userCount } = countPasswdUsers(users);

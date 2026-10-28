@@ -11,7 +11,7 @@ const COOLIFY_PATTERNS = [
 
 export async function runCoolifyCheck(serverId: string): Promise<CheckResult> {
   void serverId;
-  const ssh = getSshClient();
+  const ssh = await getSshClient(serverId);
   const { stdout } = await ssh.exec("docker ps -a --format '{{json .}}'");
   const alerts: AlertInput[] = [];
   let status: CheckResult["status"] = "healthy";

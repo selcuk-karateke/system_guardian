@@ -46,7 +46,7 @@ function parseUptimeSeconds(uptimeOut: string): number {
 export async function runServerHealthCheck(
   serverId: string,
 ): Promise<CheckResult> {
-  const ssh = getSshClient();
+  const ssh = await getSshClient(serverId);
   const alerts: AlertInput[] = [];
 
   const [uptime, loadavg, free, df, sensors, nprocOut] = await Promise.all([

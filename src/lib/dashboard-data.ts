@@ -75,16 +75,46 @@ async function getOpenAlertsGroupedByModule(
   return byModule;
 }
 
+function worseStatus(a: string, b: string): CheckStatus {
+  const rank = (s: string) =>
+    s === "critical" ? 3 : s === "warning" ? 2 : s === "healthy" ? 1 : 0;
+  return (rank(a) >= rank(b) ? a : b) as CheckStatus;
+}
+
+/**
+ * CVE-Funde (Modul trivy) gehören zur Docker-Lage — sonst ist Docker „ok“
+ * während oben Critical steht.
+ */
+export function rollupRelatedModuleStatuses(
+  statusByModule: Record<string, string>,
+): Record<string, string> {
+  const out = { ...statusByModule };
+  const trivy = out.trivy;
+  if (trivy === "critical" || trivy === "warning") {
+    out.docker = worseStatus(out.docker ?? "unknown", trivy);
+  }
+  return out;
+}
+
 function applyEffectiveStatuses(
   rows: ModuleStatusRow[],
   openByModule: Map<string, { level: string }[]>,
 ): ModuleStatusRow[] {
-  return rows.map((row) => ({
+  const effective = rows.map((row) => ({
     ...row,
     status: effectiveModuleStatus(
       row.status,
       openByModule.get(row.module) ?? [],
     ),
+  }));
+
+  const asMap = Object.fromEntries(
+    effective.map((r) => [r.module, r.status]),
+  );
+  const rolled = rollupRelatedModuleStatuses(asMap);
+  return effective.map((row) => ({
+    ...row,
+    status: rolled[row.module] ?? row.status,
   }));
 }
 
@@ -157,17 +187,18 @@ export async function getServerOverview(serverId?: string) {
       );
     }
   }
+  const rolled = rollupRelatedModuleStatuses(moduleStatus);
 
   return {
     server,
     metrics,
     status,
     checkMode: getCheckMode(),
-    moduleStatus,
-    docker: moduleStatus.docker ?? "unknown",
-    coolify: moduleStatus.coolify ?? "unknown",
-    backups: moduleStatus.backups ?? "unknown",
-    ssl: moduleStatus.ssl ?? "unknown",
+    moduleStatus: rolled,
+    docker: rolled.docker ?? "unknown",
+    coolify: rolled.coolify ?? "unknown",
+    backups: rolled.backups ?? "unknown",
+    ssl: rolled.ssl ?? "unknown",
   };
 }
 

@@ -17,5 +17,11 @@ export type TrivyScanRecord = {
 };
 
 export type TrivyScanResult =
-  | { ok: true; record: TrivyScanRecord; cached: boolean }
+  | {
+      ok: true;
+      record: TrivyScanRecord;
+      cached: boolean;
+      /** Stale Coolify name after Dockerfile rebuild was remapped to live container. */
+      remappedFrom?: string;
+    }
   | { ok: false; message: string };

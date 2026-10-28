@@ -1,19 +1,47 @@
+import { getCheckMode } from "@/lib/config";
+import { getServerById } from "@/lib/servers";
+import { ensurePrimaryServerSshFromEnv } from "@/lib/servers-ssh";
+import {
+  getCachedSshClient,
+  resetSshClient,
+  setCachedSshClient,
+} from "./cache";
 import { RealSshClient } from "./client";
 import { MockSshClient } from "./mock";
+import { resolveSshTarget } from "./target";
 import type { SshClient } from "./types";
 
-let instance: SshClient | null = null;
+export { resetSshClient };
 
-export function getSshClient(): SshClient {
-  if (!instance) {
-    const mode = process.env.CHECK_MODE ?? "mock";
-    instance = mode === "ssh" ? new RealSshClient() : new MockSshClient();
+/**
+ * SSH client for a monitored server.
+ * Mock mode: shared mock. SSH mode: credentials from server row (env fallback).
+ */
+export async function getSshClient(serverId: string): Promise<SshClient> {
+  if (getCheckMode() !== "ssh") {
+    const key = "mock";
+    let mock = getCachedSshClient(key);
+    if (!mock) {
+      mock = new MockSshClient();
+      setCachedSshClient(key, mock);
+    }
+    return mock;
   }
-  return instance;
-}
 
-export function resetSshClient(): void {
-  instance = null;
+  const cached = getCachedSshClient(serverId);
+  if (cached) return cached;
+
+  await ensurePrimaryServerSshFromEnv().catch(() => null);
+
+  const server = await getServerById(serverId);
+  if (!server || !server.isActive) {
+    throw new Error(`Server ${serverId} nicht gefunden oder inaktiv`);
+  }
+
+  const client = new RealSshClient(resolveSshTarget(server));
+  setCachedSshClient(serverId, client);
+  return client;
 }
 
 export type { SshClient, SshExecResult } from "./types";
+export type { SshTarget } from "./target";

@@ -29,6 +29,13 @@
       "when": 1780476000000,
       "tag": "0003_monitor_profile",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1780477000000,
+      "tag": "0004_server_ssh",
+      "breakpoints": true
     }
   ]
 }

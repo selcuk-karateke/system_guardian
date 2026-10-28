@@ -45,7 +45,7 @@ export async function runNetworkCheck(serverId: string): Promise<CheckResult> {
     });
   }
 
-  const ssh = getSshClient();
+  const ssh = await getSshClient(serverId);
   const { stdout } = await ssh.exec(
     "ss -tunap 2>/dev/null | head -500 || ss -tunap 2>/dev/null | head -500",
   );

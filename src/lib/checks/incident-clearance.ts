@@ -95,7 +95,7 @@ function journalRange(since: string, until: string): string {
 export async function runSecurityPostureCheck(
   serverId: string,
 ): Promise<CheckResult> {
-  const ssh = getSshClient();
+  const ssh = await getSshClient(serverId);
   const observation = getActiveObservationWindow();
   const domains = getIncidentIocDomains();
   const blockedIps = [...getBlockedRemoteIps()];

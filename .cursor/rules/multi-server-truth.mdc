@@ -1,0 +1,30 @@
+---
+description: Truth about multi-server vs global .env — do not lie or half-migrate
+alwaysApply: true
+---
+
+# Multi-server vs ENV (current truth)
+
+## Fact (Slice 1 done)
+
+- Per-server SSH: `servers.ssh_*` + encrypted key/password; `await getSshClient(serverId)`.
+- Global `SSH_*` = fallback + one-time seed into oldest active server (`ensurePrimaryServerSshFromEnv`).
+- Still **global env** (not Slice 1): Coolify API, backup trigger paths, most thresholds, Telegram, etc.
+- Do not claim Coolify/backup are per-server until a later slice.
+
+## Do not
+
+- Add more global env knobs that belong on a server row (Coolify URL/token, backup cmd per host).
+- Half-migrate (UI without wiring `getSshClient(serverId)`).
+- Mass-edit unrelated docs/markdown while touching this.
+- Call `getSshClient()` without `serverId`.
+
+## Later slices (only when user asks)
+
+1. Coolify API URL/token per server (or per app).
+2. Backup paths / trigger per server.
+3. Deprecate global `SSH_*` once all rows have secrets.
+
+## Default when unsure
+
+Stop and ask. Prefer one vertical slice over a repo-wide rewrite.

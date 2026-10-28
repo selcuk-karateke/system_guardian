@@ -5,6 +5,7 @@ import {
 import { formatContainerDisplay } from "@/lib/checks/coolify-meta";
 import { getKnownDockerImagePrefixes } from "@/lib/config";
 import type { CoolifyMeta } from "@/lib/checks/coolify-meta";
+import { coolifyUuidFromMeta } from "@/lib/trivy/remediation";
 
 export const INVENTORY_CATEGORY_ORDER: ContainerCategory[] = [
   "app",
@@ -35,6 +36,8 @@ export type DockerInventoryRow = {
   fqdn?: string;
   environmentName?: string;
   coolifyType?: string;
+  /** Coolify resource UUID (coolify.name label) for API deploy. */
+  coolifyUuid?: string;
 };
 
 export type DockerInventoryGroup = {
@@ -75,6 +78,7 @@ export function buildDockerInventoryGroups(
       fqdn: c.coolify?.fqdn,
       environmentName: c.coolify?.environmentName,
       coolifyType: c.coolify?.type,
+      coolifyUuid: coolifyUuidFromMeta(c.coolify) ?? undefined,
     };
   });
 

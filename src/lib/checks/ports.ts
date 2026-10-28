@@ -16,7 +16,7 @@ function parseListeningPorts(stdout: string): string[] {
 }
 
 export async function runPortsCheck(serverId: string): Promise<CheckResult> {
-  const ssh = getSshClient();
+  const ssh = await getSshClient(serverId);
   const { stdout } = await ssh.exec("ss -tulpn 2>/dev/null || netstat -tulpn");
   const ports = parseListeningPorts(stdout);
   const alerts: AlertInput[] = [];

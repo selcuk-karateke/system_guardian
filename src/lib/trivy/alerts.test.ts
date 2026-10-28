@@ -29,7 +29,7 @@ describe("trivy alerts", () => {
     assert.ok(alert);
     assert.equal(alert.level, "warning");
     assert.match(alert.message, /2 high/);
-    assert.match(alert.recommendation ?? "", /Coolify/);
+    assert.match(alert.recommendation ?? "", /Scan Neu|Coolify|Deps|Fix/i);
   });
 
   it("builds critical when crit > 0", () => {

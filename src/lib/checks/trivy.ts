@@ -11,8 +11,10 @@ import type { AlertInput, CheckResult } from "./types";
 
 type ListedContainer = { name: string; image: string };
 
-async function listRunningContainers(): Promise<ListedContainer[]> {
-  const ssh = getSshClient();
+async function listRunningContainers(
+  serverId: string,
+): Promise<ListedContainer[]> {
+  const ssh = await getSshClient(serverId);
   const { stdout } = await ssh.exec(
     "docker ps --format '{{.Names}}\\t{{.Image}}' 2>/dev/null | head -120",
   );
@@ -55,7 +57,7 @@ export async function runTrivyCheck(serverId: string): Promise<CheckResult> {
 
   if (cronScan) {
     try {
-      const containers = await listRunningContainers();
+      const containers = await listRunningContainers(serverId);
       const cache = await getTrivyScansByDigest();
       const byRef = new Map(
         Object.values(cache).map((r) => [r.imageRef, r] as const),
@@ -73,7 +75,10 @@ export async function runTrivyCheck(serverId: string): Promise<CheckResult> {
       });
 
       for (const c of candidates.slice(0, limit)) {
-        const result = await scanContainerImage(c.name, { force: false });
+        const result = await scanContainerImage(c.name, {
+          force: false,
+          serverId,
+        });
         scanned++;
         if (!result.ok) {
           scanErrors.push(`${c.name}: ${result.message}`);

@@ -3,6 +3,7 @@
  */
 import { config } from "dotenv";
 import { resolve } from "path";
+import { getDefaultServerId } from "../src/lib/servers";
 import { getSshClient, resetSshClient } from "../src/lib/ssh";
 
 config({ path: resolve(process.cwd(), ".env.local") });
@@ -14,7 +15,8 @@ async function main() {
   console.log("SSH_USER:", process.env.SSH_USER);
   console.log("SSH_PRIVATE_KEY_PATH:", process.env.SSH_PRIVATE_KEY_PATH ?? "(inline)");
   resetSshClient();
-  const ssh = getSshClient();
+  const serverId = await getDefaultServerId();
+  const ssh = await getSshClient(serverId);
   const uptime = await ssh.exec("uptime");
   console.log("OK – uptime:", uptime.stdout.trim());
   process.exit(0);

@@ -22,10 +22,11 @@ export const MODULE_LABELS: Record<string, string> = {
   security_posture: "Security Posture",
   trivy: "Trivy / CVEs",
   reserved: "Reserve",
+  reserved_b: "Reserve",
 };
 
 /** Monitor-Platzhalter ohne Check — für späteres Modul */
-export const MONITOR_PLACEHOLDER_MODULES = ["reserved"] as const;
+export const MONITOR_PLACEHOLDER_MODULES = ["reserved", "reserved_b"] as const;
 
 export const MONITOR_MODULE_ORDER = [
   "server_health",
@@ -51,4 +52,5 @@ export const MONITOR_MODULE_ORDER = [
   "security_posture",
   "trivy",
   "reserved",
+  "reserved_b",
 ] as const;

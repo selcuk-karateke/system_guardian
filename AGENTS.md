@@ -1,5 +1,9 @@
 # System Guardian – Agent Guide
 
+## Multi-server truth (read this)
+
+Slice 1: per-server SSH via `await getSshClient(serverId)` + encrypted DB secrets. Global `SSH_*` is fallback/seed only. Coolify/backup knobs still global. Details: `.cursor/rules/multi-server-truth.mdc`.
+
 ## Start here
 
 1. Read `.env.example` and copy to `.env.local`

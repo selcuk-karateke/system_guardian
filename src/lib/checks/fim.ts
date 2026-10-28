@@ -10,7 +10,7 @@ function hashContent(content: string): string {
 }
 
 export async function runFimCheck(serverId: string): Promise<CheckResult> {
-  const ssh = getSshClient();
+  const ssh = await getSshClient(serverId);
   const paths = getFimPaths();
   const hashes: Record<string, string> = {};
   const missing: string[] = [];

@@ -8,6 +8,8 @@ type Props = {
   autoBlockEnabled: boolean;
   backupTriggerEnabled: boolean;
   backupTriggerCommand: string | null;
+  coolifyRedeployConfigured: boolean;
+  coolifyApiUrl: string | null;
   checkMode: string;
 };
 
@@ -15,6 +17,8 @@ export function ProtectPanel({
   autoBlockEnabled,
   backupTriggerEnabled,
   backupTriggerCommand,
+  coolifyRedeployConfigured,
+  coolifyApiUrl,
   checkMode,
 }: Props) {
   const [pending, startTransition] = useTransition();
@@ -55,9 +59,29 @@ export function ProtectPanel({
             absoluter Pfad auf dem SSH-Host. Restore führt Guardian nie aus.
           </p>
         </li>
+        <li>
+          <span className="text-zinc-200 font-medium">Coolify Force-Rebuild:</span>{" "}
+          {coolifyRedeployConfigured ? (
+            <span className="text-emerald-400">API bereit</span>
+          ) : (
+            <span className="text-zinc-500">nicht gesetzt</span>
+          )}
+          {coolifyApiUrl && (
+            <p className="text-xs text-zinc-500 mt-1 font-mono break-all">
+              {coolifyApiUrl}
+            </p>
+          )}
+          <p className="text-xs text-zinc-500 mt-1">
+            <code className="text-zinc-400">COOLIFY_API_URL</code> +{" "}
+            <code className="text-zinc-400">COOLIFY_API_TOKEN</code> (Deploy-Recht).
+            Button <strong className="text-zinc-400">Rebuild</strong> auf /docker.
+            App-CVEs (next, auth, …): erst Lockfile committen, dann Rebuild — sonst
+            ändert sich nichts.
+          </p>
+        </li>
         <li className="text-xs text-zinc-500">
           Check-Modus: <code className="text-zinc-400">{checkMode}</code>
-          {checkMode !== "ssh" && " — Schutz-Aktionen brauchen ssh"}
+          {checkMode !== "ssh" && " — SSH-Schutz-Aktionen brauchen ssh"}
         </li>
       </ul>
 

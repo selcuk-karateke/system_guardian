@@ -191,8 +191,7 @@ function resolveProxyAndLogsScript(): string {
 }
 
 export async function runWebPresenceCheck(serverId: string): Promise<CheckResult> {
-  void serverId;
-  const ssh = getSshClient();
+  const ssh = await getSshClient(serverId);
   const { stdout } = await ssh.exec(resolveProxyAndLogsScript());
 
   const alerts: AlertInput[] = [];

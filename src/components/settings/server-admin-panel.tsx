@@ -6,6 +6,7 @@ import {
   alignServerWithSshHostAction,
   createServerAction,
   deactivateServerAction,
+  updateServerSshAction,
 } from "@/app/actions/servers";
 import { Button } from "@/components/ui/button";
 
@@ -15,6 +16,10 @@ export type ServerAdminRow = {
   host: string;
   ipv4: string | null;
   monitorProfile: string;
+  sshUser: string | null;
+  sshPort: number | null;
+  hasKey: boolean;
+  hasPassword: boolean;
 };
 
 const fieldClass =
@@ -33,13 +38,14 @@ export function ServerAdminPanel({
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
   const [isError, setIsError] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
 
   function mismatchesSsh(s: ServerAdminRow) {
     if (checkMode !== "ssh" || !sshHost) return false;
     const hosts = new Set(
       [s.host, s.ipv4].filter(Boolean).map((h) => h!.toLowerCase()),
     );
-    return !hosts.has(sshHost.toLowerCase());
+    return !hosts.has(sshHost.toLowerCase()) && !s.hasKey;
   }
 
   function onCreate(e: FormEvent<HTMLFormElement>) {
@@ -59,6 +65,21 @@ export function ServerAdminPanel({
     });
   }
 
+  function onSaveSsh(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    setMessage(null);
+    startTransition(async () => {
+      const result = await updateServerSshAction(formData);
+      setIsError(!result.ok);
+      setMessage(result.message);
+      if (result.ok) {
+        setEditId(null);
+        router.refresh();
+      }
+    });
+  }
+
   function onDeactivate(id: string, name: string) {
     if (!confirm(`Server „${name}“ wirklich deaktivieren?`)) return;
     setMessage(null);
@@ -72,49 +93,145 @@ export function ServerAdminPanel({
 
   return (
     <div className="space-y-6">
-      <ul className="space-y-2 text-sm">
+      <ul className="space-y-3 text-sm">
         {servers.map((s) => (
           <li
             key={s.id}
-            className="flex flex-wrap items-center gap-3 rounded-lg border border-zinc-800 bg-zinc-950/40 px-3 py-2"
+            className="rounded-lg border border-zinc-800 bg-zinc-950/40 px-3 py-3 space-y-3"
           >
-            <div className="min-w-0 flex-1">
-              <p className="font-medium text-zinc-100 truncate">{s.name}</p>
-              <p className="text-xs text-zinc-500 font-mono truncate">
-                {s.ipv4 ?? s.host} · Profil {s.monitorProfile}
-              </p>
-            </div>
-            {mismatchesSsh(s) && (
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="min-w-0 flex-1">
+                <p className="font-medium text-zinc-100 truncate">{s.name}</p>
+                <p className="text-xs text-zinc-500 font-mono truncate">
+                  {s.ipv4 ?? s.host} · {s.sshUser ?? "root"}:
+                  {s.sshPort ?? 22} · Profil {s.monitorProfile}
+                </p>
+                <p className="text-xs mt-1">
+                  SSH:{" "}
+                  {s.hasKey || s.hasPassword ? (
+                    <span className="text-emerald-400">
+                      {s.hasKey ? "Key" : ""}
+                      {s.hasKey && s.hasPassword ? "+" : ""}
+                      {s.hasPassword ? "Passwort" : ""} in DB
+                    </span>
+                  ) : (
+                    <span className="text-amber-400">
+                      kein Secret — Env-Fallback möglich
+                    </span>
+                  )}
+                </p>
+              </div>
+              {mismatchesSsh(s) && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="text-xs border-amber-800 text-amber-300"
+                  disabled={pending}
+                  onClick={() => {
+                    setMessage(null);
+                    startTransition(async () => {
+                      const result = await alignServerWithSshHostAction(s.id);
+                      setIsError(!result.ok);
+                      setMessage(result.message);
+                      if (result.ok) router.refresh();
+                    });
+                  }}
+                >
+                  Host → SSH_HOST
+                </Button>
+              )}
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                className="text-xs border-amber-800 text-amber-300"
+                className="text-xs"
                 disabled={pending}
-                title={`Inventar weicht von SSH_HOST=${sshHost} ab`}
-                onClick={() => {
-                  setMessage(null);
-                  startTransition(async () => {
-                    const result = await alignServerWithSshHostAction(s.id);
-                    setIsError(!result.ok);
-                    setMessage(result.message);
-                    if (result.ok) router.refresh();
-                  });
-                }}
+                onClick={() => setEditId(editId === s.id ? null : s.id)}
               >
-                Host → SSH_HOST
+                {editId === s.id ? "Schließen" : "SSH"}
               </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="text-xs"
+                disabled={pending || servers.length <= 1}
+                onClick={() => onDeactivate(s.id, s.name)}
+              >
+                Deaktivieren
+              </Button>
+            </div>
+
+            {editId === s.id && (
+              <form onSubmit={onSaveSsh} className="grid gap-3 sm:grid-cols-2 border-t border-zinc-800 pt-3">
+                <input type="hidden" name="serverId" value={s.id} />
+                <label className="space-y-1 text-xs text-zinc-400">
+                  Host
+                  <input
+                    name="host"
+                    defaultValue={s.host}
+                    className={fieldClass}
+                  />
+                </label>
+                <label className="space-y-1 text-xs text-zinc-400">
+                  IPv4
+                  <input
+                    name="ipv4"
+                    defaultValue={s.ipv4 ?? ""}
+                    className={fieldClass}
+                  />
+                </label>
+                <label className="space-y-1 text-xs text-zinc-400">
+                  SSH User
+                  <input
+                    name="sshUser"
+                    defaultValue={s.sshUser ?? "root"}
+                    className={fieldClass}
+                  />
+                </label>
+                <label className="space-y-1 text-xs text-zinc-400">
+                  SSH Port
+                  <input
+                    name="sshPort"
+                    type="number"
+                    defaultValue={s.sshPort ?? 22}
+                    className={fieldClass}
+                  />
+                </label>
+                <label className="space-y-1 text-xs text-zinc-400 sm:col-span-2">
+                  Private Key (leer = unverändert)
+                  <textarea
+                    name="privateKey"
+                    rows={3}
+                    placeholder={s.hasKey ? "•••• gespeichert" : "-----BEGIN …"}
+                    className={fieldClass + " font-mono text-xs"}
+                  />
+                </label>
+                <label className="space-y-1 text-xs text-zinc-400 sm:col-span-2">
+                  Passwort (optional, leer = unverändert)
+                  <input
+                    name="password"
+                    type="password"
+                    autoComplete="new-password"
+                    className={fieldClass}
+                  />
+                </label>
+                <label className="flex items-center gap-2 text-xs text-zinc-400">
+                  <input type="checkbox" name="clearPrivateKey" />
+                  Key löschen
+                </label>
+                <label className="flex items-center gap-2 text-xs text-zinc-400">
+                  <input type="checkbox" name="clearPassword" />
+                  Passwort löschen
+                </label>
+                <div className="sm:col-span-2">
+                  <Button type="submit" size="sm" disabled={pending}>
+                    {pending ? "…" : "SSH speichern"}
+                  </Button>
+                </div>
+              </form>
             )}
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="text-xs"
-              disabled={pending || servers.length <= 1}
-              onClick={() => onDeactivate(s.id, s.name)}
-            >
-              Deaktivieren
-            </Button>
           </li>
         ))}
         {servers.length === 0 && (
@@ -135,7 +252,7 @@ export function ServerAdminPanel({
             />
           </label>
           <label className="space-y-1 text-xs text-zinc-400">
-            Host
+            Host / IP (SSH-Ziel)
             <input
               name="host"
               required
@@ -155,12 +272,29 @@ export function ServerAdminPanel({
               <option value="full">full — alles</option>
             </select>
           </label>
+          <label className="space-y-1 text-xs text-zinc-400">
+            SSH User
+            <input name="sshUser" defaultValue="root" className={fieldClass} />
+          </label>
+          <label className="space-y-1 text-xs text-zinc-400">
+            SSH Port
+            <input name="sshPort" type="number" defaultValue={22} className={fieldClass} />
+          </label>
+          <label className="space-y-1 text-xs text-zinc-400 sm:col-span-2">
+            Private Key
+            <textarea
+              name="privateKey"
+              rows={3}
+              placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"
+              className={fieldClass + " font-mono text-xs"}
+            />
+          </label>
         </div>
         <p className="text-xs text-zinc-500">
-          Hinweis: SSH-Checks nutzen aktuell die globalen{" "}
-          <code className="text-zinc-400">SSH_*</code>-Env-Vars (ein Zielhost).
-          Der Server-Eintrag steuert Inventar, Profil und Dashboard-Karten; echte
-          Multi-Host-SSH-Keys folgen später.
+          SSH-Secrets werden verschlüsselt in der DB gespeichert (
+          <code className="text-zinc-400">AUTH_SECRET</code>). Globale{" "}
+          <code className="text-zinc-400">SSH_*</code> bleiben Fallback / Seed für
+          den ersten Server.
         </p>
         <Button type="submit" size="sm" disabled={pending}>
           {pending ? "Speichern…" : "Server anlegen"}

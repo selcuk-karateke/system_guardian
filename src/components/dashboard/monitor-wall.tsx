@@ -15,13 +15,33 @@ const COLUMNS = [
       "ports",
       "logs",
       "network",
+      "processes",
+      "services",
     ],
   },
   {
-    modules: ["docker", "coolify", "database", "ssl", "website", "cron"],
+    modules: [
+      "docker",
+      "trivy",
+      "coolify",
+      "database",
+      "ssl",
+      "website",
+      "cron",
+      "web_presence",
+    ],
   },
   {
-    modules: ["fim", "ssh_keys", "users", "logins", "scanner", "reserved"],
+    modules: [
+      "fim",
+      "ssh_keys",
+      "users",
+      "logins",
+      "scanner",
+      "security_posture",
+      "reserved",
+      "reserved_b",
+    ],
   },
 ] as const;
 

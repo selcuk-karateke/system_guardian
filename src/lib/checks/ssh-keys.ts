@@ -62,7 +62,7 @@ export function parseSshKeysCollectOutput(stdout: string): {
 }
 
 export async function runSshKeysCheck(serverId: string): Promise<CheckResult> {
-  const ssh = getSshClient();
+  const ssh = await getSshClient(serverId);
   const { stdout } = await ssh.exec(COLLECT_SSH_KEYS_SCRIPT);
   const { keys: keyMap, rootKeyCount, homeKeyCount, homeUserCount } =
     parseSshKeysCollectOutput(stdout);

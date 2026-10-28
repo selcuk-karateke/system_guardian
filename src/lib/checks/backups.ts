@@ -70,8 +70,11 @@ function infoFromMtime(
   };
 }
 
-async function expandBackupPaths(patterns: string[]): Promise<string[]> {
-  const ssh = getSshClient();
+async function expandBackupPaths(
+  serverId: string,
+  patterns: string[],
+): Promise<string[]> {
+  const ssh = await getSshClient(serverId);
   const resolved: string[] = [];
 
   for (const pattern of patterns) {
@@ -94,9 +97,10 @@ async function expandBackupPaths(patterns: string[]): Promise<string[]> {
 
 /** rsync daily folders — use directory mtime (file mtimes inside are preserved by rsync). */
 async function scanDailySnapshotRoot(
+  serverId: string,
   basePath: string,
 ): Promise<{ path: string; latest: BackupFileInfo | null; fileCount: number }> {
-  const ssh = getSshClient();
+  const ssh = await getSshClient(serverId);
   const q = shellQuote(basePath);
   const { stdout: listOut } = await ssh.exec(
     `if [ ! -d ${q} ]; then echo ''; exit 0; fi; ` +
@@ -127,13 +131,14 @@ async function scanDailySnapshotRoot(
 }
 
 async function scanBackupPath(
+  serverId: string,
   basePath: string,
 ): Promise<{ path: string; latest: BackupFileInfo | null; fileCount: number }> {
   if (isDailySnapshotRoot(basePath)) {
-    return scanDailySnapshotRoot(basePath);
+    return scanDailySnapshotRoot(serverId, basePath);
   }
 
-  const ssh = getSshClient();
+  const ssh = await getSshClient(serverId);
   const q = shellQuote(basePath);
   const filePatterns =
     isMonthlyArchiveRoot(basePath)
@@ -171,9 +176,8 @@ function formatBytes(n: number): string {
 }
 
 export async function runBackupsCheck(serverId: string): Promise<CheckResult> {
-  void serverId;
   const configuredPaths = getBackupPaths();
-  const paths = await expandBackupPaths(configuredPaths);
+  const paths = await expandBackupPaths(serverId, configuredPaths);
   const maxAgeDays = getBackupMaxAgeDays();
   const minWarningBytes = getBackupMinSizeWarningBytes();
   const alerts: AlertInput[] = [];
@@ -194,7 +198,9 @@ export async function runBackupsCheck(serverId: string): Promise<CheckResult> {
     };
   }
 
-  const scans = await Promise.all(paths.map(scanBackupPath));
+  const scans = await Promise.all(
+    paths.map((p) => scanBackupPath(serverId, p)),
+  );
   const allLatest = scans.map((s) => s.latest).filter((f): f is BackupFileInfo => f != null);
 
   for (const scan of scans) {

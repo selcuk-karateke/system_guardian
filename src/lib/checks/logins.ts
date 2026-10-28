@@ -23,7 +23,7 @@ import type { AlertInput, CheckResult } from "./types";
 const FAILED_AUTH_WARN_THRESHOLD = 10;
 
 export async function runLoginsCheck(serverId: string): Promise<CheckResult> {
-  const ssh = getSshClient();
+  const ssh = await getSshClient(serverId);
   const [last, auth, f2b, f2bSvc, who, wOut, ss22] = await Promise.all([
     ssh.exec("last -n 30 2>/dev/null"),
     ssh.exec(

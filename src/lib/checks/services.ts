@@ -81,7 +81,7 @@ function resolveRequiredState(
 
 export async function runServicesCheck(serverId: string): Promise<CheckResult> {
   void serverId;
-  const ssh = getSshClient();
+  const ssh = await getSshClient(serverId);
   const alerts: AlertInput[] = [];
   let status: CheckResult["status"] = "healthy";
 

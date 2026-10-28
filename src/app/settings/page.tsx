@@ -7,17 +7,19 @@ import { getNotificationChannelStatus } from "@/lib/notifications/status";
 import {
   getBackupTriggerCommand,
   getCheckMode,
+  getCoolifyApiUrl,
   isAutoBlockEnabled,
   isBackupTriggerEnabled,
+  isCoolifyRedeployConfigured,
 } from "@/lib/config";
-import { listActiveServers } from "@/lib/servers";
+import { listServersSshStatus } from "@/lib/servers-ssh";
 
 export default async function SettingsPage() {
   let domains: Awaited<ReturnType<typeof getDomains>> = [];
-  let serverRows: Awaited<ReturnType<typeof listActiveServers>> = [];
+  let serverRows: Awaited<ReturnType<typeof listServersSshStatus>> = [];
   try {
     domains = await getDomains();
-    serverRows = await listActiveServers();
+    serverRows = await listServersSshStatus();
   } catch {
     /* empty */
   }
@@ -40,6 +42,8 @@ export default async function SettingsPage() {
             autoBlockEnabled={isAutoBlockEnabled()}
             backupTriggerEnabled={isBackupTriggerEnabled()}
             backupTriggerCommand={backupCmd || null}
+            coolifyRedeployConfigured={isCoolifyRedeployConfigured()}
+            coolifyApiUrl={getCoolifyApiUrl()}
             checkMode={checkMode}
           />
         </CardContent>
@@ -51,13 +55,7 @@ export default async function SettingsPage() {
         </CardHeader>
         <CardContent>
           <ServerAdminPanel
-            servers={serverRows.map((s) => ({
-              id: s.id,
-              name: s.name,
-              host: s.host,
-              ipv4: s.ipv4,
-              monitorProfile: s.monitorProfile,
-            }))}
+            servers={serverRows}
             sshHost={sshHost}
             checkMode={checkMode}
           />

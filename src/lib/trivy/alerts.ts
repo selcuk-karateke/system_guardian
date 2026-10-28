@@ -2,7 +2,11 @@ import {
   processAlerts,
   reconcileOpenAlerts,
 } from "@/lib/alerts/pipeline";
+import type { CoolifyMeta } from "@/lib/checks/coolify-meta";
+import { normalizeContainerName } from "@/lib/checks/coolify-meta";
 import type { AlertInput } from "@/lib/checks/types";
+import { getCoolifyMetaMap } from "./coolify-context";
+import { buildTrivyRecommendation, formatCoolifyTarget } from "./remediation";
 import type { TrivyScanRecord } from "./types";
 import { getTrivyScansByDigest } from "./store";
 
@@ -18,22 +22,17 @@ export function trivyAlertMessage(record: TrivyScanRecord): string {
 
 export function alertInputFromTrivyRecord(
   record: TrivyScanRecord,
+  meta?: CoolifyMeta,
 ): AlertInput | null {
   if (record.criticalCount <= 0 && record.highCount <= 0) return null;
-  const top = record.findings
-    .slice(0, 3)
-    .map((f) => f.vulnerabilityId)
-    .join(", ");
+  const target = formatCoolifyTarget(meta);
+  const msg = target
+    ? `${trivyAlertMessage(record)} · ${target}`
+    : trivyAlertMessage(record);
   return {
     level: record.criticalCount > 0 ? "critical" : "warning",
-    message: trivyAlertMessage(record),
-    recommendation: [
-      "In Coolify Image neu bauen / Base aktualisieren und redeployen",
-      "Docker → Scan Neu nach Deploy",
-      top ? `Top-CVEs: ${top}` : null,
-    ]
-      .filter(Boolean)
-      .join(" — "),
+    message: msg,
+    recommendation: buildTrivyRecommendation(record, meta),
   };
 }
 
@@ -42,8 +41,14 @@ export async function syncTrivyAlertsFromStore(
   serverId: string,
 ): Promise<AlertInput[]> {
   const map = await getTrivyScansByDigest();
+  const coolify = await getCoolifyMetaMap(serverId).catch(
+    () => new Map<string, CoolifyMeta>(),
+  );
   const alerts = Object.values(map)
-    .map(alertInputFromTrivyRecord)
+    .map((record) => {
+      const meta = coolify.get(normalizeContainerName(record.containerName));
+      return alertInputFromTrivyRecord(record, meta);
+    })
     .filter((a): a is AlertInput => a != null);
 
   await processAlerts(serverId, "trivy", alerts);

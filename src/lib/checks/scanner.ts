@@ -5,7 +5,7 @@ const SCANNER_TOOLS = ["nmap", "masscan", "zmap", "rustscan"] as const;
 
 export async function runScannerCheck(serverId: string): Promise<CheckResult> {
   void serverId;
-  const ssh = getSshClient();
+  const ssh = await getSshClient(serverId);
   const found: { tool: string; path: string }[] = [];
 
   await Promise.all(

@@ -3,7 +3,7 @@ import type { AlertInput, CheckResult } from "./types";
 
 export async function runDatabaseCheck(serverId: string): Promise<CheckResult> {
   void serverId;
-  const ssh = getSshClient();
+  const ssh = await getSshClient(serverId);
   const alerts: AlertInput[] = [];
   let status: CheckResult["status"] = "healthy";
   const databases: Record<string, unknown> = {};

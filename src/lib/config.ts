@@ -132,6 +132,30 @@ export function getAutoBlockJail(): string {
   return /^[a-zA-Z0-9_-]+$/.test(jail) ? jail : "sshd";
 }
 
+/** Coolify panel URL, e.g. https://coolify.example.com (no trailing path). */
+export function getCoolifyApiUrl(): string | null {
+  const raw = (process.env.COOLIFY_API_URL ?? "").trim().replace(/\/$/, "");
+  if (!raw) return null;
+  try {
+    const u = new URL(raw);
+    if (u.protocol !== "http:" && u.protocol !== "https:") return null;
+    return raw;
+  } catch {
+    return null;
+  }
+}
+
+/** API token with deploy permission (Keys & Tokens in Coolify). */
+export function getCoolifyApiToken(): string | null {
+  const t = (process.env.COOLIFY_API_TOKEN ?? "").trim();
+  return t || null;
+}
+
+/** Force-Rebuild-Button / API — braucht URL + Token. */
+export function isCoolifyRedeployConfigured(): boolean {
+  return Boolean(getCoolifyApiUrl() && getCoolifyApiToken());
+}
+
 /** Security-Cron: Trivy-Batch für ungecachte/alte Images (default an). */
 export function isTrivyCronEnabled(): boolean {
   return process.env.TRIVY_CRON_ENABLED !== "false";

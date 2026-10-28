@@ -800,9 +800,11 @@
 .monitor-metrics {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: clamp(10px, 1.2vmin, 20px);
-  padding: clamp(10px, 1.2vh, 20px) clamp(24px, 3vw, 64px);
-  min-height: clamp(140px, 20vh, 280px);
+  gap: clamp(8px, 1vmin, 16px);
+  padding: clamp(6px, 0.8vh, 14px) clamp(24px, 3vw, 64px);
+  min-height: 0;
+  /* Platz an Modul-Grid abgeben (8 Kacheln/Spalte) */
+  max-height: min(18vh, 200px);
 }
 
 .monitor-stat {
@@ -958,14 +960,17 @@
   min-height: 0;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: clamp(8px, 1vmin, 16px);
-  padding: 0 clamp(24px, 3vw, 64px) clamp(8px, 1vh, 12px);
+  gap: clamp(6px, 0.7vmin, 12px);
+  padding: 0 clamp(24px, 3vw, 64px) clamp(6px, 0.8vh, 10px);
+  align-content: stretch;
 }
 
 .monitor-col {
   min-height: 0;
+  height: 100%;
   display: grid;
-  gap: clamp(6px, 0.7vmin, 12px);
+  gap: clamp(4px, 0.45vmin, 8px);
+  align-content: stretch;
 }
 
 .monitor-col--5 {
@@ -976,39 +981,60 @@
   grid-template-rows: repeat(6, minmax(0, 1fr));
 }
 
+.monitor-col--7 {
+  grid-template-rows: repeat(7, minmax(0, 1fr));
+}
+
+.monitor-col--8 {
+  grid-template-rows: repeat(8, minmax(0, 1fr));
+}
+
 .monitor-cell {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: clamp(8px, 1vmin, 16px);
-  min-height: clamp(56px, 6.5vh, 100px);
-  padding: clamp(10px, 1.2vh, 16px) clamp(12px, 1.6vmin, 28px);
-  border-radius: clamp(10px, 1.1vmin, 16px);
+  gap: clamp(6px, 0.8vmin, 12px);
+  /* Muss schrumpfen — sonst überlagern sich 7–8 Zeilen */
+  min-height: 0;
+  height: 100%;
+  max-height: 100%;
+  overflow: hidden;
+  padding: clamp(4px, 0.55vh, 10px) clamp(8px, 1.2vmin, 16px);
+  border-radius: clamp(8px, 0.9vmin, 14px);
 }
 
 .monitor-cell-main {
   min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: clamp(2px, 0.35vmin, 6px);
+  gap: clamp(1px, 0.2vmin, 4px);
   overflow: hidden;
 }
 
 .monitor-cell-name {
   font-family: var(--monitor-sans);
-  font-size: clamp(18px, 2.2vmin, 44px);
+  font-size: clamp(12px, 1.55vmin, 28px);
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   line-height: 1.1;
+  flex-shrink: 0;
 }
 
 .monitor-cell-details {
   display: flex;
   flex-direction: column;
-  gap: clamp(1px, 0.15vmin, 3px);
+  gap: 0;
   min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Bei dichter Spalte nur die erste Detailzeile — Rest per title/hover */
+.monitor-cell-details .monitor-cell-detail:nth-child(n + 2) {
+  display: none;
 }
 
 .monitor-cell-details--many {
@@ -1016,16 +1042,19 @@
 }
 
 .monitor-cell-details--many .monitor-cell-detail {
-  font-size: clamp(9px, 1.05vmin, 18px);
-  line-height: 1.15;
+  font-size: clamp(9px, 1vmin, 16px);
+  line-height: 1.1;
 }
 
 .monitor-cell-detail {
   font-family: var(--monitor-mono);
-  font-size: clamp(11px, 1.35vmin, 24px);
+  font-size: clamp(10px, 1.15vmin, 18px);
   color: rgba(255, 255, 255, 0.72);
-  line-height: 1.2;
+  line-height: 1.15;
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .monitor-cell--warning .monitor-cell-detail {
@@ -1039,9 +1068,9 @@
 .monitor-cell-status {
   flex-shrink: 0;
   font-family: var(--monitor-mono);
-  font-size: clamp(11px, 1.4vmin, 28px);
+  font-size: clamp(9px, 1.1vmin, 18px);
   font-weight: 700;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.08em;
   line-height: 1;
   text-align: center;
 }
@@ -1050,8 +1079,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: clamp(44px, 5vmin, 72px);
-  height: clamp(44px, 5vmin, 72px);
+  width: clamp(28px, 3.2vmin, 48px);
+  height: clamp(28px, 3.2vmin, 48px);
+  flex-shrink: 0;
   border-radius: 50%;
   border: 2px solid currentColor;
   box-shadow:

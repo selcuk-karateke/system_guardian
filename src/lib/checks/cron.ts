@@ -64,7 +64,7 @@ export function parseCronCollectOutput(stdout: string): Record<string, string> {
 }
 
 export async function runCronCheck(serverId: string): Promise<CheckResult> {
-  const ssh = getSshClient();
+  const ssh = await getSshClient(serverId);
   const { stdout } = await ssh.exec(COLLECT_CRON_SCRIPT);
   const jobs = parseCronCollectOutput(stdout);
   const { systemJobs, humanJobs, systemCount, humanCount } =

@@ -1,5 +1,7 @@
 import { getCheckMode } from "@/lib/config";
+import { getDefaultServerId } from "@/lib/servers";
 import { getSshClient } from "@/lib/ssh";
+import { resolveLiveContainerName } from "./resolve-container";
 import { getTrivyScanForDigest, saveTrivyScan } from "./store";
 import type { TrivyFinding, TrivyScanRecord, TrivyScanResult } from "./types";
 
@@ -46,7 +48,7 @@ function parseTrivyJson(stdout: string): TrivyFinding[] {
 
 export async function scanContainerImage(
   containerName: string,
-  options?: { force?: boolean },
+  options?: { force?: boolean; serverId?: string; coolifyUuid?: string | null },
 ): Promise<TrivyScanResult> {
   if (getCheckMode() !== "ssh") {
     return {
@@ -55,9 +57,20 @@ export async function scanContainerImage(
     };
   }
 
-  const ssh = getSshClient();
-  const quoted = shellQuote(containerName);
+  const serverId = options?.serverId || (await getDefaultServerId());
+  const ssh = await getSshClient(serverId);
   const started = Date.now();
+
+  const resolved = await resolveLiveContainerName(
+    ssh,
+    containerName,
+    options?.coolifyUuid,
+  );
+  if (!resolved.name) {
+    return { ok: false, message: resolved.message };
+  }
+  const liveName = resolved.name;
+  const quoted = shellQuote(liveName);
 
   const imageRefRes = await ssh.exec(
     `docker inspect --format '{{.Config.Image}}' ${quoted} 2>&1`,
@@ -67,7 +80,8 @@ export async function scanContainerImage(
   if (!imageRef || imageRefRes.code !== 0) {
     return {
       ok: false,
-      message: imageRefRes.stderr.trim() || `Container ${containerName} nicht gefunden`,
+      message:
+        imageRefRes.stderr.trim() || `Container ${liveName} nicht gefunden`,
     };
   }
 
@@ -85,8 +99,9 @@ export async function scanContainerImage(
     if (cached) {
       return {
         ok: true,
-        record: { ...cached, containerName },
+        record: { ...cached, containerName: liveName },
         cached: true,
+        remappedFrom: resolved.remapped ? containerName : undefined,
       };
     }
   }
@@ -117,7 +132,7 @@ export async function scanContainerImage(
   const record: TrivyScanRecord = {
     imageRef,
     imageDigest,
-    containerName,
+    containerName: liveName,
     scannedAt: new Date().toISOString(),
     highCount: findings.filter((f) => f.severity === "HIGH").length,
     criticalCount: findings.filter((f) => f.severity === "CRITICAL").length,
@@ -126,7 +141,12 @@ export async function scanContainerImage(
   };
 
   await saveTrivyScan(record);
-  return { ok: true, record, cached: false };
+  return {
+    ok: true,
+    record,
+    cached: false,
+    remappedFrom: resolved.remapped ? containerName : undefined,
+  };
 }
 
 /** Mock scan for CHECK_MODE=mock UI testing */

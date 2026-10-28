@@ -7,6 +7,7 @@ import {
 } from "@/lib/config";
 import { runTrivyCheck } from "@/lib/checks/trivy";
 import { runCheckWithPersist } from "@/lib/alerts/pipeline";
+import { refreshDockerInventory } from "@/lib/docker/refresh";
 import { getDefaultServerId } from "@/lib/servers";
 import { syncTrivyAlertsFromStore } from "@/lib/trivy/alerts";
 import { mockScanContainerImage, scanContainerImage } from "@/lib/trivy/scan";
@@ -25,15 +26,30 @@ export async function runContainerTrivyScan(
   imageRef: string,
   force = false,
   serverId?: string,
+  coolifyUuid?: string | null,
 ): Promise<TrivyScanResult> {
+  const id = serverId || (await getDefaultServerId());
+
+  // After Coolify Dockerfile rebuild the container name suffix changes —
+  // pull fresh docker ps so remap + page refresh see the live name.
+  if (getCheckMode() === "ssh") {
+    await refreshDockerInventory(id).catch(() => null);
+  }
+
   const result =
     getCheckMode() === "mock"
       ? await mockScanContainerImage(containerName, imageRef)
-      : await scanContainerImage(containerName, { force });
+      : await scanContainerImage(containerName, {
+          force,
+          serverId: id,
+          coolifyUuid,
+        });
 
   if (result.ok) {
-    const id = serverId || (await getDefaultServerId());
     await syncTrivyAlertsFromStore(id);
+    revalidateTrivyViews();
+  } else if (getCheckMode() === "ssh") {
+    // Still refresh list when name was stale so UI drops ghost rows.
     revalidateTrivyViews();
   }
 

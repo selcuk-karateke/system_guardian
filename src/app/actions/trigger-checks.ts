@@ -1,10 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { runCheckWithPersist } from "@/lib/alerts/pipeline";
 import {
   runSecurityCheckBatch,
   runServerCheckBatch,
 } from "@/lib/checks";
+import { runCoolifyCheck } from "@/lib/checks/coolify";
+import { runDockerCheck } from "@/lib/checks/docker";
 import { getDefaultServerId, listActiveServers } from "@/lib/servers";
 
 function revalidateDashboards() {
@@ -86,4 +89,35 @@ export async function triggerAllChecks(): Promise<TriggerResult> {
     message: "Alle Checks abgeschlossen (Server + Security)",
     modules: [...(server.modules ?? []), ...(security.modules ?? [])],
   };
+}
+
+/** Nur Docker + Coolify — schnell genug für die /docker-Seite nach Stop/Start. */
+export async function triggerDockerRefresh(
+  serverId?: string,
+): Promise<TriggerResult> {
+  try {
+    const ids = serverId
+      ? [serverId]
+      : await activeServerIds();
+    const modules: { module: string; status: string }[] = [];
+    for (const id of ids) {
+      const docker = await runCheckWithPersist(id, runDockerCheck);
+      const coolify = await runCheckWithPersist(id, runCoolifyCheck);
+      modules.push(
+        { module: docker.module, status: docker.status },
+        { module: coolify.module, status: coolify.status },
+      );
+    }
+    revalidateDashboards();
+    return {
+      ok: true,
+      message: `Docker-Inventar aktualisiert (${ids.length} Server)`,
+      modules,
+    };
+  } catch (e) {
+    return {
+      ok: false,
+      message: e instanceof Error ? e.message : "Docker-Refresh fehlgeschlagen",
+    };
+  }
 }

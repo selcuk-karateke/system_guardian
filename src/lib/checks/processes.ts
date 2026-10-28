@@ -15,7 +15,7 @@ function parseCpuPercent(line: string): number | null {
 
 export async function runProcessesCheck(serverId: string): Promise<CheckResult> {
   void serverId;
-  const ssh = getSshClient();
+  const ssh = await getSshClient(serverId);
   const { stdout } = await ssh.exec(
     "ps auxww 2>/dev/null | head -250 || ps aux 2>/dev/null | head -250",
   );
