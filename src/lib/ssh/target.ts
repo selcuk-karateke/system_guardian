@@ -27,7 +27,7 @@ function normalizeKey(raw: string): string {
 function envPrivateKey(): string | undefined {
   const keyPath = process.env.SSH_PRIVATE_KEY_PATH;
   if (keyPath) {
-    const full = resolve(process.cwd(), keyPath);
+    const full = resolve(/* turbopackIgnore: true */ process.cwd(), keyPath);
     if (existsSync(full)) return normalizeKey(readFileSync(full, "utf8"));
   }
   const inline = process.env.SSH_PRIVATE_KEY?.trim();

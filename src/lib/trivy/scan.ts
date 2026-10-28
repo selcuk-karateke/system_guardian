@@ -66,7 +66,7 @@ export async function scanContainerImage(
     containerName,
     options?.coolifyUuid,
   );
-  if (!resolved.name) {
+  if (resolved.name == null) {
     return { ok: false, message: resolved.message };
   }
   const liveName = resolved.name;
