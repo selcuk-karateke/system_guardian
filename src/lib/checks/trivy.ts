@@ -4,9 +4,11 @@ import {
   isTrivyCronEnabled,
 } from "@/lib/config";
 import { getSshClient } from "@/lib/ssh";
-import { alertInputFromTrivyRecord } from "@/lib/trivy/alerts";
+import { buildTrivyAlerts } from "@/lib/trivy/alerts";
+import { getCoolifyMetaMap } from "@/lib/trivy/coolify-context";
 import { getTrivyScansByDigest } from "@/lib/trivy/store";
 import { scanContainerImage } from "@/lib/trivy/scan";
+import type { CoolifyMeta } from "@/lib/checks/coolify-meta";
 import type { AlertInput, CheckResult } from "./types";
 
 type ListedContainer = { name: string; image: string };
@@ -90,10 +92,10 @@ export async function runTrivyCheck(serverId: string): Promise<CheckResult> {
   }
 
   const cache = await getTrivyScansByDigest();
-  for (const record of Object.values(cache)) {
-    const alert = alertInputFromTrivyRecord(record);
-    if (alert) alerts.push(alert);
-  }
+  const coolify = await getCoolifyMetaMap(serverId).catch(
+    () => new Map<string, CoolifyMeta>(),
+  );
+  alerts.push(...buildTrivyAlerts(Object.values(cache), coolify));
 
   if (alerts.some((a) => a.level === "critical")) status = "critical";
   else if (alerts.some((a) => a.level === "warning")) status = "warning";

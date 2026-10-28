@@ -391,10 +391,42 @@ function formatModuleDetailLinesFromData(
       return [`${running}/${keys.length} running`];
     }
     case "website": {
-      const sites = data.sites as { url?: string; statusCode?: number }[] | undefined;
-      if (!sites?.length) return null;
-      const ok = sites.filter((s) => s.statusCode && s.statusCode < 400).length;
-      return [`${ok}/${sites.length} reachable`];
+      const sites = data.sites as
+        | Record<
+            string,
+            {
+              http?: { redirectsToHttps?: boolean; statusCode?: number };
+              https?: {
+                ok?: boolean;
+                hstsPresent?: boolean;
+                hstsMaxAge?: number | null;
+                statusCode?: number;
+              };
+            }
+          >
+        | undefined;
+      if (!sites || typeof sites !== "object") return null;
+      const domains = Object.keys(sites);
+      if (!domains.length) return null;
+      let httpsOk = 0;
+      let hstsOk = 0;
+      let redirectOk = 0;
+      let httpChecked = 0;
+      for (const name of domains) {
+        const s = sites[name];
+        if (s.https?.ok) httpsOk += 1;
+        if (s.https?.hstsPresent) hstsOk += 1;
+        if (s.http) {
+          httpChecked += 1;
+          if (s.http.redirectsToHttps) redirectOk += 1;
+        }
+      }
+      const lines = [`${httpsOk}/${domains.length} HTTPS ok`];
+      if (httpChecked) {
+        lines.push(`${redirectOk}/${httpChecked} →HTTPS`);
+      }
+      lines.push(`${hstsOk}/${domains.length} HSTS`);
+      return lines;
     }
     case "services": {
       const lines: string[] = [];

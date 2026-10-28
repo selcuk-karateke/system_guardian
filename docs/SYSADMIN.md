@@ -106,7 +106,7 @@ Zwei Batches, zwei Cron-Jobs.
 | `coolify` | Platform | Coolify-Dienste / Meta |
 | `database` | DB | Erreichbarkeit der konfigurierten DBs |
 | `ssl` | Zertifikate | Ablauf (Warning typisch &lt;30d) |
-| `website` | HTTP(S) | Erreichbarkeit konfigurierter Domains |
+| `website` | HTTP(S) | Erreichbarkeit, HTTP→HTTPS-Redirect, HSTS (≥15552000) |
 | `ports` | Listening | Neue/unbekannte Ports vs. Baseline + `KNOWN_PORTS` |
 | `backups` | Backup | Alter/Größe unter `BACKUP_PATHS` |
 | `logs` | Journal | ERROR/FATAL/OOM-Muster in Logs |

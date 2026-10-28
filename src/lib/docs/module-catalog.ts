@@ -18,7 +18,11 @@ export const MODULE_CATALOG: readonly ModuleCatalogEntry[] = [
   { id: "coolify", batch: "server", summary: "Coolify-Dienste / Meta" },
   { id: "database", batch: "server", summary: "DB-Erreichbarkeit" },
   { id: "ssl", batch: "server", summary: "Zertifikat-Ablauf" },
-  { id: "website", batch: "server", summary: "HTTP(S)-Erreichbarkeit" },
+  {
+    id: "website",
+    batch: "server",
+    summary: "HTTP(S)-Erreichbarkeit, Redirect zu HTTPS, HSTS",
+  },
   { id: "ports", batch: "server", summary: "Listening vs. Baseline + KNOWN_PORTS" },
   { id: "backups", batch: "server", summary: "Alter/Größe unter BACKUP_PATHS" },
   { id: "logs", batch: "server", summary: "journal ERROR/FATAL/OOM" },
