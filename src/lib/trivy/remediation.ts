@@ -4,17 +4,17 @@ import type { TrivyFinding, TrivyScanRecord } from "./types";
 export type RemediationKind = "app_deps" | "os_packages" | "mixed" | "unknown";
 
 const APP_PKG =
-  /^(next|next-auth|@auth\/|zod|react|react-dom|express|fastify|axios|lodash|tar|node-tar|@nestjs\/|brace-expansion|minimatch|semver|cross-spawn|glob)/i;
+  /^(next|next-auth|@auth\/|zod|react|react-dom|express|fastify|axios|lodash|node-tar|@nestjs\/|brace-expansion|minimatch|semver|cross-spawn|glob|PyJWT|anyio|pip|setuptools|wheel)/i;
 
 const OS_PKG =
-  /^(lib|linux-|zlib|openssl|ca-certificates|libc6|perl|python3|curl|wget|bash|coreutils|ncurses|tesseract|bsdutils|util-linux|login|mount|gpg|gpgv|gnupg|dirmngr|sudo|git)/i;
+  /^(lib|linux-|zlib|openssl|ca-certificates|libc6|perl|libperl|python3|curl|wget|bash|coreutils|ncurses|tesseract|bsdutils|util-linux|login|mount|gpg|gpgv|gnupg|dirmngr|sudo|git|tar$|openssh|docker-cli|docker-ce|mesa|libgbm|libgl|libmbed|glib|mariadb|mysql|sqlite|brotli|pcre)/i;
 
 /**
  * Distro/base or intentional feature deps (OCR, PHP-cURL) that Force-Rebuild
  * without a newer Debian release / removing the feature will not clear.
  */
 const RESIDUAL_OS =
-  /^(libxml2|libncurses|ncurses-|libtinfo|libcurl|curl$|libsystemd|libudev|libtiff|libacl|libtesseract|tesseract|bsdutils|util-linux|libblkid|libmount|libsmartcols|libuuid|liblastlog|login$|mount$|python3-libxml|sudo$|git$|git-man|gpgv)/i;
+  /^(libxml2|libncurses|ncurses-|libtinfo|libcurl|curl$|libsystemd|libudev|libtiff|libacl|libtesseract|tesseract|bsdutils|util-linux|libblkid|libmount|libsmartcols|libuuid|liblastlog|login$|mount$|python3-libxml|sudo$|git$|git-man|gpgv|tar$|openssh|docker-cli|mesa|libgbm|libgl|libmbed|libglib|libperl|perl$)/i;
 
 export type RemediationPlan = {
   kind: RemediationKind;
@@ -30,13 +30,20 @@ function uniq(values: string[]): string[] {
 
 function classifyPkg(name: string | undefined): "app" | "os" | "unknown" {
   if (!name) return "unknown";
+  // Debian/OS first — bare names like tar/openssh-client must not fall through as npm.
+  if (
+    OS_PKG.test(name) ||
+    name.includes("1g") ||
+    /-(dev|common|bin|base|utils|libs|dbg)$/i.test(name)
+  ) {
+    return "os";
+  }
   if (APP_PKG.test(name) || name.startsWith("@") || name.includes("/")) {
     return "app";
   }
-  if (OS_PKG.test(name) || name.includes("1g") || /-dev$/.test(name)) {
-    return "os";
-  }
-  // npm-style bare names vs debian packages with digits (libfoo1, sudo)
+  // Go stdlib from binary scans — treat as residual image/runtime, not npm lockfile.
+  if (/^stdlib$/i.test(name)) return "os";
+  // npm-style bare names (no digits) vs debian packages with version digits
   if (/^[a-z][a-z0-9-]*$/.test(name) && !/\d/.test(name)) {
     return "app";
   }

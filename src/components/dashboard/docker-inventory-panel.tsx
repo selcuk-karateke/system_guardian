@@ -4,6 +4,7 @@ import { Fragment, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { runContainerTrivyScan } from "@/app/actions/docker-trivy";
 import { triggerCoolifyRedeployAction } from "@/app/actions/protect";
+import { CollapsibleSection } from "@/components/dashboard/collapsible-section";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { DockerInventoryGroup } from "@/lib/docker/inventory";
@@ -32,6 +33,12 @@ function shortDigest(image: string): string {
   if (image.startsWith("sha256:")) return image.slice(7, 19);
   const tag = image.split(":").pop() ?? image;
   return tag.length > 16 ? `${tag.slice(0, 16)}…` : tag;
+}
+
+function shortContainerName(name: string): string {
+  const m = name.match(/^([a-z0-9]{10,})-\d{8,}/i);
+  if (m) return `${m[1].slice(0, 12)}…`;
+  return name.length > 18 ? `${name.slice(0, 16)}…` : name;
 }
 
 function bucketLabel(bucket: FindingBucket): string {
@@ -148,21 +155,21 @@ export function DockerInventoryPanel({
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       {groups.map((group) => (
-        <section key={group.category} className="space-y-2">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
-            {group.label}
-            <span className="ml-2 font-normal normal-case text-zinc-600">
-              {group.rows.length}
-            </span>
-          </h2>
+        <CollapsibleSection
+          key={group.category}
+          id={group.category}
+          title={group.label}
+          count={group.rows.length}
+          defaultOpen={group.category === "app" || group.rows.length <= 8}
+        >
           <div className="overflow-x-auto rounded-lg border border-zinc-800">
             <table className="w-full text-sm">
               <thead className="bg-zinc-900/80 text-zinc-500 text-left">
                 <tr>
                   <th className="px-3 py-2 font-medium">App</th>
-                  <th className="px-3 py-2 font-medium hidden md:table-cell">
+                  <th className="px-3 py-2 font-medium hidden lg:table-cell">
                     Container
                   </th>
                   <th className="px-3 py-2 font-medium">State</th>
@@ -199,6 +206,9 @@ export function DockerInventoryPanel({
                   const appN = grouped.filter((g) => g.bucket === "app").length;
                   const isOpen = expanded === row.name;
                   const status = statusByRow[row.name];
+                  const fqdnShown =
+                    row.fqdn &&
+                    !row.displayName.toLowerCase().includes(row.fqdn.toLowerCase());
 
                   return (
                     <Fragment key={row.name}>
@@ -207,17 +217,20 @@ export function DockerInventoryPanel({
                           isOpen ? "bg-zinc-900/40" : ""
                         }`}
                       >
-                        <td className="px-3 py-2 text-zinc-100 align-top">
+                        <td className="px-3 py-2 text-zinc-100 align-middle">
                           <button
                             type="button"
-                            className="text-left hover:text-white disabled:opacity-60"
+                            className="text-left font-medium hover:text-white disabled:opacity-60"
                             disabled={!scan && !status}
                             onClick={() => toggleExpand(row.name)}
                           >
                             {row.displayName}
                           </button>
-                          {row.fqdn && (
-                            <span className="block text-xs text-zinc-500 truncate max-w-[220px]">
+                          {fqdnShown && (
+                            <span
+                              className="mt-0.5 block max-w-[240px] truncate text-xs text-zinc-500"
+                              title={row.fqdn}
+                            >
                               {row.fqdn}
                             </span>
                           )}
@@ -228,12 +241,12 @@ export function DockerInventoryPanel({
                           )}
                         </td>
                         <td
-                          className="px-3 py-2 font-mono text-xs text-zinc-500 max-w-[120px] truncate hidden md:table-cell align-top"
+                          className="hidden max-w-[100px] truncate px-3 py-2 align-middle font-mono text-xs text-zinc-500 lg:table-cell"
                           title={row.name}
                         >
-                          {row.name}
+                          {shortContainerName(row.name)}
                         </td>
-                        <td className="px-3 py-2 align-top">
+                        <td className="px-3 py-2 align-middle">
                           <Badge
                             variant={
                               row.state === "running"
@@ -242,21 +255,16 @@ export function DockerInventoryPanel({
                                   ? "warning"
                                   : "critical"
                             }
+                            title={row.image}
                           >
                             {row.state}
                           </Badge>
-                          <span
-                            className="block text-[10px] text-zinc-600 mt-1 font-mono"
-                            title={row.image}
-                          >
-                            {shortDigest(row.image)}
-                          </span>
                         </td>
-                        <td className="px-3 py-2 align-top">
+                        <td className="px-3 py-2 align-middle">
                           {scan ? (
                             <button
                               type="button"
-                              className="text-left space-y-1"
+                              className="space-y-0.5 text-left"
                               onClick={() => toggleExpand(row.name)}
                               aria-expanded={isOpen}
                             >
@@ -274,27 +282,18 @@ export function DockerInventoryPanel({
                               ) : (
                                 <Badge variant="healthy">clean</Badge>
                               )}
-                              <span className="flex flex-wrap gap-1">
-                                {appN > 0 && (
-                                  <span className="text-[10px] text-amber-400">
-                                    {appN} App
-                                  </span>
-                                )}
-                                {residualN > 0 && (
-                                  <span className="text-[10px] text-zinc-500">
-                                    {residualN} Residual
-                                  </span>
-                                )}
-                                {isOpen ? (
-                                  <span className="text-[10px] text-zinc-400">
-                                    zuklappen
-                                  </span>
-                                ) : (
-                                  <span className="text-[10px] text-zinc-600">
-                                    Details
-                                  </span>
-                                )}
-                              </span>
+                              {(appN > 0 || residualN > 0) && (
+                                <span className="flex flex-wrap gap-1.5 text-[10px] text-zinc-500">
+                                  {appN > 0 && (
+                                    <span className="text-amber-400/90">
+                                      {appN} App
+                                    </span>
+                                  )}
+                                  {residualN > 0 && (
+                                    <span>{residualN} Residual</span>
+                                  )}
+                                </span>
+                              )}
                             </button>
                           ) : canScan ? (
                             <Badge variant="warning">offen</Badge>
@@ -302,8 +301,8 @@ export function DockerInventoryPanel({
                             <span className="text-zinc-600">—</span>
                           )}
                         </td>
-                        <td className="px-3 py-2 align-top">
-                          <div className="flex flex-wrap gap-1 justify-end">
+                        <td className="px-3 py-2 align-middle">
+                          <div className="flex flex-wrap justify-end gap-1">
                             <Button
                               type="button"
                               size="sm"
@@ -401,16 +400,17 @@ export function DockerInventoryPanel({
                                     {primaryActionLabel(plan)}
                                   </p>
                                 )}
-                                {scan && (
-                                  <p className="text-[10px] text-zinc-600">
-                                    Scan{" "}
-                                    {new Date(scan.scannedAt).toLocaleString(
-                                      "de-DE",
-                                    )}
-                                    {" · "}
-                                    {shortDigest(scan.imageDigest)}
-                                  </p>
-                                )}
+                                <p
+                                  className="truncate text-[10px] text-zinc-600"
+                                  title={row.image}
+                                >
+                                  {row.name}
+                                  {" · "}
+                                  {shortDigest(row.image)}
+                                  {scan
+                                    ? ` · Scan ${new Date(scan.scannedAt).toLocaleString("de-DE")}`
+                                    : ""}
+                                </p>
                               </div>
                               <Button
                                 type="button"
@@ -497,7 +497,7 @@ export function DockerInventoryPanel({
               </tbody>
             </table>
           </div>
-        </section>
+        </CollapsibleSection>
       ))}
     </div>
   );

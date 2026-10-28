@@ -109,6 +109,62 @@ describe("trivy remediation", () => {
     assert.equal(coolifyUuidFromMeta({ coolifyName: "15" }), null);
   });
 
+  it("does not call docker-cli/tar/openssh npm lockfile fixes", () => {
+    const findings = [
+      {
+        vulnerabilityId: "CVE-1",
+        severity: "CRITICAL",
+        title: "cli",
+        pkgName: "docker-cli",
+      },
+      {
+        vulnerabilityId: "CVE-2",
+        severity: "CRITICAL",
+        title: "tar",
+        pkgName: "tar",
+      },
+      {
+        vulnerabilityId: "CVE-3",
+        severity: "CRITICAL",
+        title: "ssh",
+        pkgName: "openssh-client",
+      },
+      {
+        vulnerabilityId: "CVE-4",
+        severity: "CRITICAL",
+        title: "go",
+        pkgName: "stdlib",
+      },
+    ];
+    const plan = buildRemediationPlan(findings);
+    assert.equal(plan.kind, "os_packages");
+    assert.ok(!plan.steps.some((s) => /Lockfile|App-Deps/i.test(s)));
+    const grouped = groupFindingsByCve(findings);
+    assert.ok(grouped.every((g) => g.bucket === "os" || g.bucket === "residual"));
+  });
+
+  it("treats mariadb-common as OS not npm lockfile", () => {
+    const findings = [
+      {
+        vulnerabilityId: "CVE-2026-44172",
+        severity: "CRITICAL",
+        title: "mdb",
+        pkgName: "mariadb-common",
+      },
+      {
+        vulnerabilityId: "CVE-2026-49261",
+        severity: "CRITICAL",
+        title: "mdb2",
+        pkgName: "libmariadb3",
+      },
+    ];
+    const plan = buildRemediationPlan(findings);
+    assert.equal(plan.kind, "os_packages");
+    assert.ok(!plan.steps.some((s) => /Lockfile|App-Deps/i.test(s)));
+    const grouped = groupFindingsByCve(findings);
+    assert.ok(grouped.every((g) => g.bucket === "os" || g.bucket === "residual"));
+  });
+
   it("groups util-linux package spam into one CVE row", () => {
     const grouped = groupFindingsByCve([
       {

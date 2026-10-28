@@ -91,12 +91,18 @@ export function parseCoolifyLabels(
   return meta;
 }
 
-/** Menschenlesbarer Name für UI und Alerts */
+/** Menschenlesbarer Name für UI und Alerts (ohne FQDN — das bleibt eigene Zeile). */
 export function formatContainerDisplay(
   containerName: string,
   meta?: CoolifyMeta,
 ): string {
-  if (!meta || (!meta.projectName && !meta.fqdn && !meta.coolifyName && !meta.resourceName)) {
+  if (
+    !meta ||
+    (!meta.projectName &&
+      !meta.fqdn &&
+      !meta.coolifyName &&
+      !meta.resourceName)
+  ) {
     return containerName;
   }
 
@@ -108,26 +114,33 @@ export function formatContainerDisplay(
         : meta.databaseSubType?.includes("redis")
           ? "Redis"
           : "DB";
-    const parts = [meta.projectName ?? "Coolify", dbKind];
+    const parts = [meta.projectName ?? "DB", dbKind];
     if (meta.environmentName) parts.push(`(${meta.environmentName})`);
     return parts.join(" · ");
   }
 
-  const parts: string[] = [];
-  if (meta.projectName) parts.push(meta.projectName);
-  if (meta.fqdn) parts.push(meta.fqdn);
-  else if (meta.coolifyName && meta.coolifyName !== containerName) {
-    parts.push(meta.coolifyName);
-  } else if (meta.resourceName) {
-    parts.push(meta.resourceName.replace(/^postgresql-database-/, "pg "));
-  }
+  let label =
+    meta.projectName ||
+    (meta.coolifyName && meta.coolifyName !== containerName
+      ? meta.coolifyName
+      : null) ||
+    (meta.resourceName
+      ? meta.resourceName.replace(/^postgresql-database-/, "pg ")
+      : null) ||
+    "";
 
-  let label = parts.join(" · ");
-  if (meta.environmentName && meta.type !== "database") {
+  if (meta.environmentName) {
     label += ` (${meta.environmentName})`;
   }
-  if (meta.branch && meta.branch !== "main" && meta.branch !== "master") {
-    label += ` [${meta.branch}]`;
+  const branch = meta.branch?.trim();
+  const env = meta.environmentName?.trim();
+  if (
+    branch &&
+    branch !== "main" &&
+    branch !== "master" &&
+    branch.toLowerCase() !== env?.toLowerCase()
+  ) {
+    label += ` [${branch}]`;
   }
   return label || containerName;
 }

@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { Badge } from "@/components/ui/badge";
+import { CollapsibleSection } from "@/components/dashboard/collapsible-section";
 import { DockerInventoryPanel } from "@/components/dashboard/docker-inventory-panel";
 import { DockerToolbar } from "@/components/dashboard/docker-toolbar";
 import { ServerSelect } from "@/components/dashboard/server-select";
@@ -179,24 +180,26 @@ export default async function DockerPage({
       />
 
       {Object.keys(coolifyServices).length > 0 && (
-        <section>
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500 mb-2">
-            Coolify-Stack
-          </h2>
+        <CollapsibleSection
+          id="coolify-stack"
+          title="Coolify-Stack"
+          count={Object.keys(coolifyServices).length}
+          defaultOpen={false}
+        >
           <div className="grid gap-1.5 text-sm sm:grid-cols-2 lg:grid-cols-3">
             {Object.entries(coolifyServices).map(([name, state]) => (
               <div
                 key={name}
                 className="flex items-center justify-between gap-2 rounded border border-zinc-800/80 px-2.5 py-1.5"
               >
-                <span className="text-zinc-300 truncate">{name}</span>
+                <span className="truncate text-zinc-300">{name}</span>
                 <Badge variant={state === "running" ? "healthy" : "critical"}>
                   {state}
                 </Badge>
               </div>
             ))}
           </div>
-        </section>
+        </CollapsibleSection>
       )}
 
       <p className="text-[11px] text-zinc-600">

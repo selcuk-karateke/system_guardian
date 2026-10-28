@@ -20,7 +20,8 @@ export const INVENTORY_CATEGORY_LABELS: Record<ContainerCategory, string> = {
   app: "Apps",
   wordpress: "WordPress",
   database: "Datenbanken",
-  coolify: "Coolify / Proxy",
+  /** Platform control-plane / reverse proxy — Coolify, Traefik, etc. */
+  coolify: "Plattform / Proxy",
   monitoring: "Monitoring",
   other: "Sonstige",
 };
@@ -68,8 +69,8 @@ export function buildDockerInventoryGroups(
     );
     return {
       name: c.Names,
-      displayName:
-        c.displayName ?? formatContainerDisplay(c.Names, c.coolify),
+      // Always derive from meta so UI label rules apply without a fresh check.
+      displayName: formatContainerDisplay(c.Names, c.coolify),
       image: c.Image ?? "—",
       state: c.State,
       status: c.Status,
