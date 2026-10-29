@@ -40,3 +40,28 @@ export async function saveTrivyScan(record: TrivyScanRecord): Promise<void> {
       set: { value: map, updatedAt: new Date() },
     });
 }
+
+/**
+ * Drop cached scans whose container is not currently running.
+ * Keeps the digest store aligned with live docker ps (no ghost alerts).
+ */
+export async function pruneTrivyScansNotLive(
+  liveNames: ReadonlySet<string>,
+): Promise<number> {
+  const map = await readMap();
+  let removed = 0;
+  for (const [digest, rec] of Object.entries(map)) {
+    if (liveNames.has(rec.containerName)) continue;
+    delete map[digest];
+    removed += 1;
+  }
+  if (removed === 0) return 0;
+  await db
+    .insert(settings)
+    .values({ key: SETTINGS_KEY, value: map })
+    .onConflictDoUpdate({
+      target: settings.key,
+      set: { value: map, updatedAt: new Date() },
+    });
+  return removed;
+}

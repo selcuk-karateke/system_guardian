@@ -14,7 +14,11 @@ import {
   buildTrivyRecommendation,
 } from "./remediation";
 import type { TrivyFinding, TrivyScanRecord } from "./types";
-import { getTrivyScansByDigest } from "./store";
+import { listLiveContainerNames } from "./live-containers";
+import {
+  getTrivyScansByDigest,
+  pruneTrivyScansNotLive,
+} from "./store";
 
 const NON_PROD_ENV =
   /^(staging|development|dev|test|preview|local)$/i;
@@ -48,9 +52,29 @@ function trivyKind(meta?: CoolifyMeta): string {
   if (svc && SIDECAR_NAME.test(svc)) {
     return `sidecar:${svc.toLowerCase()}`;
   }
-  // All app/web containers of the same project+env share one alert
-  // (incl. PR previews / multiple digests).
+  // All app/web containers of the same project+env share one alert.
   return "app";
+}
+
+/** Coolify PR/preview containers (e.g. `uuid-pr-2`) — never drive prod CRITICAL. */
+export function isCoolifyPreviewContainer(name: string): boolean {
+  return /(?:^|-)pr-\d+$/i.test(normalizeContainerName(name));
+}
+
+/**
+ * Alert input only from live containers.
+ * - `liveNames` set → must be running now
+ * - `liveNames` undefined → SSH/list failed; keep cache but still drop previews
+ */
+export function filterLiveTrivyRecords(
+  records: TrivyScanRecord[],
+  liveNames: ReadonlySet<string> | undefined,
+): TrivyScanRecord[] {
+  return records.filter((r) => {
+    if (isCoolifyPreviewContainer(r.containerName)) return false;
+    if (liveNames === undefined) return true;
+    return liveNames.has(r.containerName);
+  });
 }
 
 export function trivyGroupKey(
@@ -225,15 +249,24 @@ export function buildTrivyAlerts(
   return alerts;
 }
 
-/** Open alerts from all cached scans with HIGH/CRITICAL; reconcile stale. */
+/** Open alerts from live cached scans with HIGH/CRITICAL; reconcile stale. */
 export async function syncTrivyAlertsFromStore(
   serverId: string,
 ): Promise<AlertInput[]> {
+  let liveNames: Set<string> | undefined;
+  try {
+    liveNames = await listLiveContainerNames(serverId);
+    await pruneTrivyScansNotLive(liveNames);
+  } catch {
+    liveNames = undefined;
+  }
+
   const map = await getTrivyScansByDigest();
   const coolify = await getCoolifyMetaMap(serverId).catch(
     () => new Map<string, CoolifyMeta>(),
   );
-  const alerts = buildTrivyAlerts(Object.values(map), coolify);
+  const records = filterLiveTrivyRecords(Object.values(map), liveNames);
+  const alerts = buildTrivyAlerts(records, coolify);
 
   await processAlerts(serverId, "trivy", alerts);
   await reconcileOpenAlerts(serverId, "trivy", alerts);

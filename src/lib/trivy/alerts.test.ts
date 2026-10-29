@@ -6,7 +6,9 @@ import {
   alertInputFromTrivyRecord,
   appCriticalCount,
   buildTrivyAlerts,
+  filterLiveTrivyRecords,
   formatTrivyAlertLabel,
+  isCoolifyPreviewContainer,
   stripCoolifyContainerSuffix,
   trivyAlertLevel,
   trivyAlertMessage,
@@ -207,5 +209,79 @@ describe("trivy alerts", () => {
       trivyAlertMessage("website (production)", 3, 18),
       "Trivy website (production): 3 crit / 18 high",
     );
+  });
+
+  it("detects Coolify preview container names", () => {
+    assert.equal(
+      isCoolifyPreviewContainer("a0o4oo8kco000sg8wckoscss-pr-2"),
+      true,
+    );
+    assert.equal(
+      isCoolifyPreviewContainer("a0o4oo8kco000sg8wckoscss-20261029T001949"),
+      false,
+    );
+  });
+
+  it("ignores stopped digests and preview containers for alerts", () => {
+    const meta: CoolifyMeta = {
+      projectName: "website",
+      environmentName: "production",
+    };
+    const live: TrivyScanRecord = {
+      ...base,
+      containerName: "a0o4oo8kco000sg8wckoscss-20261029T001949",
+      criticalCount: 0,
+      highCount: 2,
+      findings: [
+        {
+          vulnerabilityId: "CVE-H",
+          severity: "HIGH",
+          title: "x",
+          pkgName: "stdlib",
+        },
+      ],
+    };
+    const dead: TrivyScanRecord = {
+      ...base,
+      containerName: "a0o4oo8kco000sg8wckoscss-old",
+      imageDigest: "sha256:deaddeaddeaddead",
+      criticalCount: 5,
+      highCount: 20,
+      findings: [
+        {
+          vulnerabilityId: "CVE-OLD",
+          severity: "CRITICAL",
+          title: "x",
+          pkgName: "next",
+        },
+      ],
+    };
+    const preview: TrivyScanRecord = {
+      ...base,
+      containerName: "a0o4oo8kco000sg8wckoscss-pr-2",
+      imageDigest: "sha256:prevprevprevprev",
+      criticalCount: 5,
+      highCount: 20,
+      findings: [
+        {
+          vulnerabilityId: "CVE-PR",
+          severity: "CRITICAL",
+          title: "x",
+          pkgName: "next",
+        },
+      ],
+    };
+    const coolify = new Map<string, CoolifyMeta>([
+      [normalizeContainerName(live.containerName), meta],
+      [normalizeContainerName(dead.containerName), meta],
+      [normalizeContainerName(preview.containerName), meta],
+    ]);
+    const filtered = filterLiveTrivyRecords([live, dead, preview], new Set([live.containerName]));
+    assert.equal(filtered.length, 1);
+    const alerts = buildTrivyAlerts(filtered, coolify);
+    assert.equal(alerts.length, 1);
+    assert.equal(alerts[0]!.level, "warning");
+    assert.match(alerts[0]!.message, /0 crit \/ 2 high/);
+    assert.doesNotMatch(alerts[0]!.message, /5 crit/);
   });
 });

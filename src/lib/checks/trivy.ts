@@ -4,9 +4,16 @@ import {
   isTrivyCronEnabled,
 } from "@/lib/config";
 import { getSshClient } from "@/lib/ssh";
-import { buildTrivyAlerts } from "@/lib/trivy/alerts";
+import {
+  buildTrivyAlerts,
+  filterLiveTrivyRecords,
+} from "@/lib/trivy/alerts";
 import { getCoolifyMetaMap } from "@/lib/trivy/coolify-context";
-import { getTrivyScansByDigest } from "@/lib/trivy/store";
+import { listLiveContainerNames } from "@/lib/trivy/live-containers";
+import {
+  getTrivyScansByDigest,
+  pruneTrivyScansNotLive,
+} from "@/lib/trivy/store";
 import { scanContainerImage } from "@/lib/trivy/scan";
 import type { CoolifyMeta } from "@/lib/checks/coolify-meta";
 import type { AlertInput, CheckResult } from "./types";
@@ -91,11 +98,24 @@ export async function runTrivyCheck(serverId: string): Promise<CheckResult> {
     }
   }
 
+  let liveNames: Set<string> | undefined;
+  let pruned = 0;
+  try {
+    liveNames = await listLiveContainerNames(serverId);
+    pruned = await pruneTrivyScansNotLive(liveNames);
+  } catch (e) {
+    scanErrors.push(
+      e instanceof Error ? `live list: ${e.message}` : "live list failed",
+    );
+    liveNames = undefined;
+  }
+
   const cache = await getTrivyScansByDigest();
   const coolify = await getCoolifyMetaMap(serverId).catch(
     () => new Map<string, CoolifyMeta>(),
   );
-  alerts.push(...buildTrivyAlerts(Object.values(cache), coolify));
+  const liveRecords = filterLiveTrivyRecords(Object.values(cache), liveNames);
+  alerts.push(...buildTrivyAlerts(liveRecords, coolify));
 
   if (alerts.some((a) => a.level === "critical")) status = "critical";
   else if (alerts.some((a) => a.level === "warning")) status = "warning";
@@ -109,7 +129,7 @@ export async function runTrivyCheck(serverId: string): Promise<CheckResult> {
     });
   }
 
-  const withFindings = Object.values(cache).filter(
+  const withFindings = liveRecords.filter(
     (r) => r.criticalCount > 0 || r.highCount > 0,
   );
 
@@ -120,6 +140,8 @@ export async function runTrivyCheck(serverId: string): Promise<CheckResult> {
       cronScanEnabled: cronScan,
       scannedThisRun: scanned,
       cachedImages: Object.keys(cache).length,
+      liveImages: liveRecords.length,
+      prunedStaleDigests: pruned,
       imagesWithFindings: withFindings.length,
       scanErrors: scanErrors.slice(0, 5),
     },

@@ -125,7 +125,7 @@ Zwei Batches, zwei Cron-Jobs.
 | `scanner` | Tools | nmap/masscan o.ä. |
 | `services` | systemd | failed units (`EXPECTED_FAILED_UNITS`) |
 | `security_posture` | IOC-light | Blocklist, verdächtige Connections/Prozesse |
-| `trivy` | Image-CVEs | HIGH/CRITICAL aus Trivy → Alerts; Batch `TRIVY_SCAN_LIMIT` |
+| `trivy` | Image-CVEs | HIGH/CRITICAL nur für **laufende** Container; Preview (`-pr-N`) ignoriert; Batch `TRIVY_SCAN_LIMIT` |
 
 **Baseline-Regel:** Erster Scan speichert nur Snapshot → **keine Diff-Spam-Alerts**. Ab Scan 2: echte Änderungen.
 
