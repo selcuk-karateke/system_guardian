@@ -65,7 +65,7 @@ describe("trivy alerts", () => {
     assert.doesNotMatch(alert?.message ?? "", /digest/);
   });
 
-  it("demotes residual/stdlib CRITICAL to warning", () => {
+  it("skips residual/stdlib-only (no dashboard alert)", () => {
     const alert = alertInputFromTrivyRecord(
       {
         ...base,
@@ -88,8 +88,8 @@ describe("trivy alerts", () => {
       },
       { projectName: "zomboid", environmentName: "production" },
     );
-    assert.equal(alert?.level, "warning");
-    assert.equal(appCriticalCount(alert ? base.findings : []), 0);
+    assert.equal(alert, null);
+    assert.equal(appCriticalCount(base.findings), 0);
   });
 
   it("demotes staging/dev CRITICAL to warning", () => {
@@ -109,7 +109,7 @@ describe("trivy alerts", () => {
     assert.equal(level, "warning");
   });
 
-  it("demotes managed database CRITICAL to warning", () => {
+  it("skips managed database alerts entirely", () => {
     const alert = alertInputFromTrivyRecord(
       {
         ...base,
@@ -138,8 +138,7 @@ describe("trivy alerts", () => {
         databaseSubType: "mysql",
       },
     );
-    assert.equal(alert?.level, "warning");
-    assert.match(alert?.recommendation ?? "", /Managed DB|WARNING/i);
+    assert.equal(alert, null);
   });
 
   it("returns null when clean", () => {
@@ -270,7 +269,7 @@ describe("trivy alerts", () => {
           vulnerabilityId: "CVE-H",
           severity: "HIGH",
           title: "x",
-          pkgName: "stdlib",
+          pkgName: "next",
         },
       ],
     };

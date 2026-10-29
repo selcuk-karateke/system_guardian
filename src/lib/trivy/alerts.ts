@@ -10,9 +10,11 @@ import {
 import type { AlertInput, AlertLevel } from "@/lib/checks/types";
 import { getCoolifyMetaMap } from "./coolify-context";
 import {
+  appFindingCounts,
   bucketFinding,
   buildTrivyRecommendation,
 } from "./remediation";
+import { isTrivyBatchTarget } from "./scan-targets";
 import type { TrivyFinding, TrivyScanRecord } from "./types";
 import { listLiveContainerNames } from "./live-containers";
 import {
@@ -143,12 +145,34 @@ export function isManagedDatabaseTarget(meta?: CoolifyMeta): boolean {
   return false;
 }
 
+/** App HIGH/CRITICAL only — OS/Residual/DB/Coolify infra stay silent. */
+export function hasActionableAppFindings(findings: TrivyFinding[]): boolean {
+  const c = appFindingCounts(findings);
+  return c.critical > 0 || c.high > 0;
+}
+
 /**
- * Dashboard level rules:
+ * Noise we keep in the scan UI ("nur OS") but do not open dashboard alerts for.
+ * - Coolify proxy/db/redis/sentinel
+ * - managed DB images
+ * - OS / residual / stdlib only (no App-Dep HIGH/CRITICAL)
+ */
+export function shouldSkipTrivyAlert(
+  records: TrivyScanRecord[],
+  findings: TrivyFinding[],
+  meta?: CoolifyMeta,
+): boolean {
+  if (isManagedDatabaseTarget(meta)) return true;
+  if (records.every((r) => !isTrivyBatchTarget(r.containerName))) return true;
+  if (!hasActionableAppFindings(findings)) return true;
+  return false;
+}
+
+/**
+ * Dashboard level rules (only after shouldSkipTrivyAlert === false):
  * - staging/dev → warning (never critical)
- * - managed DB / sidecars → warning (upstream image)
  * - CRITICAL only from App-bucket → critical on production
- * - residual / OS / stdlib CRITICAL → warning
+ * - App HIGH → warning
  */
 export function trivyAlertLevel(
   findings: TrivyFinding[],
@@ -158,9 +182,7 @@ export function trivyAlertLevel(
 ): AlertLevel {
   if (criticalCount <= 0 && highCount <= 0) return "info";
   if (isNonProdEnvironment(meta)) return "warning";
-  if (isManagedDatabaseTarget(meta)) return "warning";
   if (appCriticalCount(findings) > 0) return "critical";
-  if (criticalCount > 0) return "warning";
   return "warning";
 }
 
@@ -230,6 +252,8 @@ export function buildTrivyAlerts(
 
     const worst = pickWorst(g.records);
     const mergedFindings = g.records.flatMap((r) => r.findings);
+    if (shouldSkipTrivyAlert(g.records, mergedFindings, g.meta)) continue;
+
     const level = trivyAlertLevel(
       mergedFindings,
       criticalCount,
@@ -243,15 +267,6 @@ export function buildTrivyAlerts(
     }
     if (isNonProdEnvironment(g.meta)) {
       recommendation += " — Non-Prod: Dashboard nur WARNING";
-    } else if (isManagedDatabaseTarget(g.meta)) {
-      recommendation +=
-        " — Managed DB/Sidecar: Upstream-Image, Dashboard nur WARNING";
-    } else if (
-      criticalCount > 0 &&
-      appCriticalCount(mergedFindings) === 0
-    ) {
-      recommendation +=
-        " — Crit nur OS/Residual/stdlib (kein App-Dep) → WARNING";
     }
 
     alerts.push({
