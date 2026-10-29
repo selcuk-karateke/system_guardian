@@ -6,7 +6,8 @@ import type { SshClient } from "@/lib/ssh/types";
  */
 export function coolifyUuidFromContainerName(name: string): string | null {
   const base = name.split(",")[0]?.trim().replace(/^\//, "") ?? name;
-  const m = base.match(/^([a-z0-9]{10,40})-\d+$/i);
+  // Coolify: `{uuid}-{digits}` or `{uuid}-{YYYYMMDDThhmmss}`
+  const m = base.match(/^([a-z0-9]{10,40})-(\d+|\d{8}T\d+)$/i);
   return m?.[1] ?? null;
 }
 

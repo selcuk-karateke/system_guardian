@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useState, useTransition } from "react";
+import { Fragment, useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { runContainerTrivyScan } from "@/app/actions/docker-trivy";
 import { triggerCoolifyRedeployAction } from "@/app/actions/protect";
@@ -9,6 +9,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { DockerInventoryGroup } from "@/lib/docker/inventory";
 import {
+  findScanForContainer,
+  uniqueScanRecords,
+} from "@/lib/trivy/match-scan";
+import {
+  appFindingCounts,
   buildRemediationPlan,
   groupFindingsByCve,
   primaryActionLabel,
@@ -71,6 +76,13 @@ export function DockerInventoryPanel({
     {},
   );
   const [pending, startTransition] = useTransition();
+
+  // Batch-Scan / Reset → router.refresh() liefert neue Props — State muss mit.
+  useEffect(() => {
+    setScansByImage(initialScans);
+  }, [initialScans]);
+
+  const scanList = uniqueScanRecords(scansByImage);
 
   function setStatus(key: string, status: RowStatus | null) {
     setStatusByRow((prev) => {
@@ -179,11 +191,11 @@ export function DockerInventoryPanel({
               </thead>
               <tbody>
                 {group.rows.map((row) => {
-                  const scan =
-                    scansByImage[row.image] ??
-                    Object.values(scansByImage).find(
-                      (s) => s.containerName === row.name,
-                    );
+                  const scan = findScanForContainer(scanList, {
+                    name: row.name,
+                    image: row.image,
+                    coolifyUuid: row.coolifyUuid,
+                  });
                   const isScanning = pending && activeScan === row.name;
                   const isRedeploying =
                     pending && activeRedeploy === row.name;
@@ -201,9 +213,12 @@ export function DockerInventoryPanel({
                     ? groupFindingsByCve(scan.findings)
                     : [];
                   const residualN = grouped.filter(
-                    (g) => g.bucket === "residual",
+                    (g) => g.bucket === "residual" || g.bucket === "os",
                   ).length;
                   const appN = grouped.filter((g) => g.bucket === "app").length;
+                  const appCounts = scan
+                    ? appFindingCounts(scan.findings)
+                    : { critical: 0, high: 0 };
                   const isOpen = expanded === row.name;
                   const status = statusByRow[row.name];
                   const fqdnShown =
@@ -268,16 +283,28 @@ export function DockerInventoryPanel({
                               onClick={() => toggleExpand(row.name)}
                               aria-expanded={isOpen}
                             >
-                              {scan.criticalCount > 0 ? (
+                              {appCounts.critical > 0 ? (
                                 <Badge variant="critical">
-                                  {scan.criticalCount} crit
-                                  {scan.highCount > 0
-                                    ? ` / ${scan.highCount} high`
+                                  {appCounts.critical} App-crit
+                                  {appCounts.high > 0
+                                    ? ` / ${appCounts.high} high`
                                     : ""}
                                 </Badge>
-                              ) : scan.highCount > 0 ? (
+                              ) : appCounts.high > 0 ? (
                                 <Badge variant="warning">
-                                  {scan.highCount} high
+                                  {appCounts.high} App-high
+                                </Badge>
+                              ) : scan.criticalCount > 0 ||
+                                scan.highCount > 0 ? (
+                                <Badge
+                                  variant="healthy"
+                                  title="Nur OS/Residual — kein App-Dep"
+                                  className="border-zinc-700 bg-zinc-900/80 text-zinc-400"
+                                >
+                                  nur OS
+                                  {scan.criticalCount + scan.highCount > 0
+                                    ? ` (${scan.criticalCount + scan.highCount})`
+                                    : ""}
                                 </Badge>
                               ) : (
                                 <Badge variant="healthy">clean</Badge>
@@ -286,17 +313,19 @@ export function DockerInventoryPanel({
                                 <span className="flex flex-wrap gap-1.5 text-[10px] text-zinc-500">
                                   {appN > 0 && (
                                     <span className="text-amber-400/90">
-                                      {appN} App
+                                      {appN} App-CVE
                                     </span>
                                   )}
                                   {residualN > 0 && (
-                                    <span>{residualN} Residual</span>
+                                    <span className="text-zinc-600">
+                                      {residualN} OS/Residual
+                                    </span>
                                   )}
                                 </span>
                               )}
                             </button>
                           ) : canScan ? (
-                            <Badge variant="warning">offen</Badge>
+                            <Badge variant="warning">nicht gescannt</Badge>
                           ) : (
                             <span className="text-zinc-600">—</span>
                           )}

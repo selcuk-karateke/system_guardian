@@ -14,7 +14,9 @@ import {
   getTrivyScansByDigest,
   pruneTrivyScansNotLive,
 } from "@/lib/trivy/store";
+import { findScanForContainer } from "@/lib/trivy/match-scan";
 import { scanContainerImage } from "@/lib/trivy/scan";
+import { isTrivyBatchTarget } from "@/lib/trivy/scan-targets";
 import type { CoolifyMeta } from "@/lib/checks/coolify-meta";
 import type { AlertInput, CheckResult } from "./types";
 
@@ -31,11 +33,9 @@ async function listRunningContainers(
   for (const line of stdout.split("\n")) {
     const [name, image] = line.split("\t");
     if (!name?.trim() || !image?.trim()) continue;
-    // Skip obvious infra noise for cron budget; apps first.
-    if (/coolify-proxy|coolify-db|coolify-realtime|traefik/i.test(name)) {
-      continue;
-    }
-    out.push({ name: name.trim(), image: image.trim() });
+    const n = name.trim();
+    if (!isTrivyBatchTarget(n)) continue;
+    out.push({ name: n, image: image.trim() });
   }
   return out;
 }
@@ -50,42 +50,57 @@ function needsRescan(
   return ageMs > maxAgeDays * 24 * 60 * 60 * 1000;
 }
 
+export type TrivyCheckOptions = {
+  /** Manual UI button: scan even if TRIVY_CRON_ENABLED=false */
+  forceScan?: boolean;
+  /** Override TRIVY_SCAN_LIMIT (capped at 20) */
+  scanLimit?: number;
+};
+
 /**
  * Surfaces cached Trivy HIGH/CRITICAL as real alerts.
- * Optionally scans a small batch of running containers (cron budget).
+ * Optionally scans a small batch of running containers (cron / manual budget).
  */
-export async function runTrivyCheck(serverId: string): Promise<CheckResult> {
+export async function runTrivyCheck(
+  serverId: string,
+  options?: TrivyCheckOptions,
+): Promise<CheckResult> {
   const alerts: AlertInput[] = [];
   let status: CheckResult["status"] = "healthy";
-  const limit = getTrivyScanLimit();
+  const limit = Math.min(
+    20,
+    Math.max(1, options?.scanLimit ?? getTrivyScanLimit()),
+  );
   const maxAgeDays = getTrivyMaxAgeDays();
   const cronScan = isTrivyCronEnabled();
+  const doScan = Boolean(options?.forceScan) || cronScan;
 
   let scanned = 0;
   let scanErrors: string[] = [];
+  let pendingCandidates = 0;
 
-  if (cronScan) {
+  if (doScan) {
     try {
       const containers = await listRunningContainers(serverId);
       const cache = await getTrivyScansByDigest();
-      const byRef = new Map(
-        Object.values(cache).map((r) => [r.imageRef, r] as const),
-      );
+      const cacheList = Object.values(cache);
 
       const candidates = containers.filter((c) => {
-        const hit =
-          byRef.get(c.image) ??
-          Object.values(cache).find((r) => r.containerName === c.name);
+        const hit = findScanForContainer(cacheList, {
+          name: c.name,
+          image: c.image,
+        });
         return needsRescan(
           hit?.imageDigest ?? null,
           hit?.scannedAt ?? null,
           maxAgeDays,
         );
       });
+      pendingCandidates = candidates.length;
 
       for (const c of candidates.slice(0, limit)) {
         const result = await scanContainerImage(c.name, {
-          force: false,
+          force: Boolean(options?.forceScan),
           serverId,
         });
         scanned++;
@@ -139,6 +154,9 @@ export async function runTrivyCheck(serverId: string): Promise<CheckResult> {
     data: {
       cronScanEnabled: cronScan,
       scannedThisRun: scanned,
+      scanLimit: limit,
+      pendingBeforeScan: pendingCandidates,
+      stillPending: Math.max(0, pendingCandidates - scanned),
       cachedImages: Object.keys(cache).length,
       liveImages: liveRecords.length,
       prunedStaleDigests: pruned,

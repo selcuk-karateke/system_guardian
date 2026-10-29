@@ -59,6 +59,21 @@ export function isResidualOsPackage(pkg: string): boolean {
   return RESIDUAL_OS.test(pkg) || /linux-libc-dev|-dev$/i.test(pkg);
 }
 
+/** App-bucket only — UI should not treat OS/Residual like actionable Crit. */
+export function appFindingCounts(findings: TrivyFinding[]): {
+  critical: number;
+  high: number;
+} {
+  let critical = 0;
+  let high = 0;
+  for (const f of findings) {
+    if (bucketFinding(f) !== "app") continue;
+    if (f.severity === "CRITICAL") critical += 1;
+    else if (f.severity === "HIGH") high += 1;
+  }
+  return { critical, high };
+}
+
 export function bucketFinding(finding: TrivyFinding): FindingBucket {
   const pkg = finding.pkgName ?? "";
   const kind = classifyPkg(pkg);

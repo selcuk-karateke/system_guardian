@@ -1,16 +1,20 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import {
-  getCheckMode,
-  getTrivyScanLimit,
-} from "@/lib/config";
+import { getCheckMode } from "@/lib/config";
 import { runTrivyCheck } from "@/lib/checks/trivy";
-import { runCheckWithPersist } from "@/lib/alerts/pipeline";
+import {
+  runCheckWithPersist,
+  serverIdCondition,
+} from "@/lib/alerts/pipeline";
+import { db } from "@/db";
+import { alerts } from "@/db/schema";
+import { and, eq, isNull } from "drizzle-orm";
 import { refreshDockerInventory } from "@/lib/docker/refresh";
 import { getDefaultServerId } from "@/lib/servers";
 import { syncTrivyAlertsFromStore } from "@/lib/trivy/alerts";
 import { mockScanContainerImage, scanContainerImage } from "@/lib/trivy/scan";
+import { clearAllTrivyScans } from "@/lib/trivy/store";
 import type { TrivyScanResult } from "@/lib/trivy/types";
 
 function revalidateTrivyViews() {
@@ -79,7 +83,7 @@ export async function syncTrivyAlertsAction(
 }
 
 /**
- * Scannt eine Charge ungecachter Images und schreibt Alerts.
+ * Scannt eine Charge ungecachter/alter Images und schreibt Alerts.
  * Gleicher Budget-Pfad wie Security-Cron (TRIVY_SCAN_LIMIT).
  */
 export async function runTrivyBatchNowAction(
@@ -87,23 +91,80 @@ export async function runTrivyBatchNowAction(
 ): Promise<{ ok: boolean; message: string }> {
   try {
     const id = serverId || (await getDefaultServerId());
-    const limit = getTrivyScanLimit();
-    const result = await runCheckWithPersist(id, runTrivyCheck);
+    // Manual click: always scan, full budget (20) — cron stays at TRIVY_SCAN_LIMIT.
+    const result = await runCheckWithPersist(id, (sid) =>
+      runTrivyCheck(sid, { forceScan: true, scanLimit: 20 }),
+    );
     revalidateTrivyViews();
-    const findings = Number(
-      (result.data as { imagesWithFindings?: number })?.imagesWithFindings ?? 0,
-    );
-    const scanned = Number(
-      (result.data as { scannedThisRun?: number })?.scannedThisRun ?? 0,
-    );
+    const data = result.data as {
+      imagesWithFindings?: number;
+      scannedThisRun?: number;
+      stillPending?: number;
+      cachedImages?: number;
+      scanErrors?: string[];
+    };
+    const scanned = Number(data.scannedThisRun ?? 0);
+    const pending = Number(data.stillPending ?? 0);
+    const errs = data.scanErrors?.length ?? 0;
+    let message =
+      pending > 0
+        ? `${scanned} neu gescannt · noch ${pending} offen → Scannen nochmal`
+        : scanned > 0
+          ? `${scanned} neu gescannt · alles drin`
+          : "Nichts Neues — alles schon gescannt";
+    if (errs > 0) message += ` · ${errs} Fehler`;
+    return { ok: true, message };
+  } catch (e) {
+    return {
+      ok: false,
+      message: e instanceof Error ? e.message : "Scan fehlgeschlagen",
+    };
+  }
+}
+
+/**
+ * Scan-Cache komplett leeren + alle offenen Trivy-Alerts schließen.
+ * Die Docker-Liste zeigt danach „nicht gescannt“ — erst „2 · Scannen“ füllt neu.
+ */
+export async function resetTrivyStateAction(
+  serverId?: string,
+): Promise<{ ok: boolean; message: string }> {
+  try {
+    const id = serverId || (await getDefaultServerId());
+    const cleared = await clearAllTrivyScans();
+
+    const open = await db
+      .select({ id: alerts.id })
+      .from(alerts)
+      .where(
+        and(
+          eq(alerts.module, "trivy"),
+          isNull(alerts.resolvedAt),
+          serverIdCondition(id),
+        ),
+      );
+    const now = new Date();
+    for (const row of open) {
+      await db
+        .update(alerts)
+        .set({
+          resolvedAt: now,
+          recommendation: "Manuell: Trivy-Reset (Scan-Cache geleert)",
+        })
+        .where(eq(alerts.id, row.id));
+    }
+
+    // Empty store → no new alerts
+    await syncTrivyAlertsFromStore(id);
+    revalidateTrivyViews();
     return {
       ok: true,
-      message: `Trivy-Batch: ${scanned}/${limit} gescannt, ${findings} Image(s) mit HIGH/CRIT → Warnungen`,
+      message: `Reset fertig: ${cleared} Scan(s) und ${open.length} Alert(s) weg. Liste = „nicht gescannt“ bis du wieder scannst.`,
     };
   } catch (e) {
     return {
       ok: false,
-      message: e instanceof Error ? e.message : "Trivy-Batch fehlgeschlagen",
+      message: e instanceof Error ? e.message : "Reset fehlgeschlagen",
     };
   }
 }

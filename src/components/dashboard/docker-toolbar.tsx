@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
+  resetTrivyStateAction,
   runTrivyBatchNowAction,
   syncTrivyAlertsAction,
 } from "@/app/actions/docker-trivy";
@@ -18,6 +19,8 @@ type Props = {
   total: number;
   imagesWithFindings: number;
   unscannedRunning: number;
+  /** App-Targets only (Coolify-Infra zählt nicht). */
+  scanProgress?: { scanned: number; total: number };
   checkMode: string;
   onlyCoolifyStack?: boolean;
   foreignCount?: number;
@@ -40,7 +43,8 @@ export function DockerToolbar({
   running,
   total,
   imagesWithFindings,
-  unscannedRunning,
+  unscannedRunning: _unscannedRunning,
+  scanProgress,
   checkMode,
   onlyCoolifyStack,
   foreignCount = 0,
@@ -53,6 +57,7 @@ export function DockerToolbar({
 
   const stale =
     !checkedAt || Date.now() - new Date(checkedAt).getTime() > 3 * 60_000;
+  const sshOk = checkMode === "ssh";
 
   return (
     <div
@@ -67,9 +72,7 @@ export function DockerToolbar({
           {running}/{total} running
         </span>
         <span className="text-zinc-600">·</span>
-        <span className="text-zinc-500">
-          Liste {ageLabel(checkedAt)}
-        </span>
+        <span className="text-zinc-500">Liste {ageLabel(checkedAt)}</span>
         {onlyCoolifyStack != null && (
           <Badge variant={onlyCoolifyStack ? "healthy" : "warning"}>
             {onlyCoolifyStack ? "nur Coolify" : "fremde Images"}
@@ -78,20 +81,35 @@ export function DockerToolbar({
         {foreignCount > 0 && (
           <Badge variant="critical">{foreignCount} fremd</Badge>
         )}
+        {scanProgress && scanProgress.total > 0 && (
+          <Badge
+            variant={
+              scanProgress.scanned >= scanProgress.total ? "healthy" : "warning"
+            }
+            title="Nur App-Container. Coolify-DB/Proxy/Redis zählen nicht."
+          >
+            Scan {scanProgress.scanned}/{scanProgress.total}
+          </Badge>
+        )}
         {imagesWithFindings > 0 ? (
-          <Badge variant="warning">{imagesWithFindings} mit HIGH/CRIT</Badge>
-        ) : (
-          <Badge variant="healthy">Trivy clean</Badge>
-        )}
-        {unscannedRunning > 0 && (
-          <Badge variant="warning">{unscannedRunning} unscanned</Badge>
-        )}
+          <Badge
+            variant="warning"
+            title="Nur App-Abhängigkeiten (nicht OS/Residual)"
+          >
+            {imagesWithFindings} mit App-Findings
+          </Badge>
+        ) : scanProgress &&
+          scanProgress.scanned >= scanProgress.total &&
+          scanProgress.total > 0 ? (
+          <Badge variant="healthy">keine App-Findings</Badge>
+        ) : null}
         <div className="ml-auto flex flex-wrap gap-1.5">
           <Button
             type="button"
             size="sm"
             variant={stale ? "default" : "outline"}
             disabled={pending || !serverId}
+            title="Nur Container-Liste vom Server holen (docker ps). Kein Security-Scan."
             onClick={() => {
               setNote(null);
               startTransition(async () => {
@@ -101,15 +119,17 @@ export function DockerToolbar({
               });
             }}
           >
-            {pending ? "…" : "Neu laden"}
+            {pending ? "…" : "1 · Liste"}
           </Button>
           <Button
             type="button"
             size="sm"
             variant="outline"
-            disabled={pending || checkMode !== "ssh"}
+            disabled={pending || !sshOk}
             title={
-              checkMode !== "ssh" ? "Braucht CHECK_MODE=ssh" : undefined
+              !sshOk
+                ? "Braucht CHECK_MODE=ssh"
+                : "Bis zu 20 Images ohne Scan. Mehrfach klicken bis nichts mehr offen ist."
             }
             onClick={() => {
               setNote(null);
@@ -120,26 +140,59 @@ export function DockerToolbar({
               });
             }}
           >
-            Batch-Scan
+            2 · Scannen
           </Button>
           <Button
             type="button"
             size="sm"
             variant="ghost"
-            disabled={pending}
+            disabled={pending || !serverId}
+            title="Gespeicherte Scan-Ergebnisse → Dashboard-Warnungen. Kein neuer Scan."
             onClick={() => {
               setNote(null);
               startTransition(async () => {
                 const r = await syncTrivyAlertsAction(serverId);
                 setNote(r.message);
+                if (r.ok) router.refresh();
               });
             }}
           >
-            Warnungen
+            3 · Alerts
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={pending || !serverId}
+            title="Löscht alle gespeicherten Trivy-Zahlen und schließt Trivy-Alerts. Zeilen werden leer („—“), nicht 0."
+            onClick={() => {
+              if (
+                !window.confirm(
+                  "Alle gespeicherten Trivy-Ergebnisse und Trivy-Alerts löschen?\n\nDie Liste zeigt danach „—“ (nicht gescannt).\nAlte Crit/High-Zahlen verschwinden — sie kommen erst nach „2 · Scannen“ neu.",
+                )
+              ) {
+                return;
+              }
+              setNote(null);
+              startTransition(async () => {
+                const r = await resetTrivyStateAction(serverId);
+                setNote(r.message);
+                if (r.ok) router.refresh();
+              });
+            }}
+          >
+            Reset
           </Button>
         </div>
       </div>
-      {note && <p className="text-xs text-zinc-500">{note}</p>}
+      <p className="text-[11px] text-zinc-500 leading-snug">
+        <span className="text-zinc-400">1 Liste</span> = Container ·{" "}
+        <span className="text-zinc-400">2 Scannen</span> = Sicherheitscheck
+        (Trivy) · <span className="text-zinc-400">3 Alerts</span> = Warnungen
+        aus Cache · <span className="text-zinc-400">Reset</span> = Cache weg,
+        neu anfangen
+      </p>
+      {note && <p className="text-xs text-zinc-400">{note}</p>}
     </div>
   );
 }

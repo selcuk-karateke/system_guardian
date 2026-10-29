@@ -65,3 +65,18 @@ export async function pruneTrivyScansNotLive(
     });
   return removed;
 }
+
+/** Wipe all cached Trivy scans (digest map). Alerts must be re-synced after. */
+export async function clearAllTrivyScans(): Promise<number> {
+  const map = await readMap();
+  const count = Object.keys(map).length;
+  if (count === 0) return 0;
+  await db
+    .insert(settings)
+    .values({ key: SETTINGS_KEY, value: {} })
+    .onConflictDoUpdate({
+      target: settings.key,
+      set: { value: {}, updatedAt: new Date() },
+    });
+  return count;
+}

@@ -14,6 +14,15 @@ import { isCoolifyRedeployConfigured } from "@/lib/config";
 import { getLatestCheckByModule } from "@/lib/dashboard-data";
 import { resolveSelectedServer } from "@/lib/server-scope";
 import { syncTrivyAlertsFromStore } from "@/lib/trivy/alerts";
+import {
+  isContainerScanned,
+  uniqueScanRecords,
+} from "@/lib/trivy/match-scan";
+import {
+  appFindingCounts,
+  coolifyUuidFromMeta,
+} from "@/lib/trivy/remediation";
+import { isTrivyBatchTarget } from "@/lib/trivy/scan-targets";
 import { getTrivyScansByDigest } from "@/lib/trivy/store";
 import type { TrivyScanRecord } from "@/lib/trivy/types";
 
@@ -93,22 +102,28 @@ export default async function DockerPage({
   const isMock = checkMode === "mock";
   const groups = buildDockerInventoryGroups(containers);
 
-  const scanList = Object.values(
-    Object.fromEntries(
-      Object.values(scansByKey).map((s) => [s.imageDigest, s]),
-    ),
+  const scanList = uniqueScanRecords(scansByKey);
+  /** Only App-bucket HIGH/CRIT — OS/Residual zählen hier nicht. */
+  const imagesWithFindings = scanList.filter((s) => {
+    const app = appFindingCounts(s.findings ?? []);
+    return app.critical > 0 || app.high > 0;
+  }).length;
+  /** Only containers the Scan-Button actually targets (not Coolify infra). */
+  const scanTargets = containers.filter(
+    (c) => c.State === "running" && isTrivyBatchTarget(c.Names),
   );
-  const imagesWithFindings = scanList.filter(
-    (s) => s.criticalCount > 0 || s.highCount > 0,
+  const scannedTargets = scanTargets.filter((c) =>
+    isContainerScanned(scanList, {
+      name: c.Names,
+      image: c.Image ?? "",
+      coolifyUuid: coolifyUuidFromMeta(c.coolify) ?? undefined,
+    }),
   ).length;
-  const scannedNames = new Set(scanList.map((s) => s.containerName));
-  const scannedRefs = new Set(scanList.map((s) => s.imageRef));
-  const unscannedRunning = containers.filter(
-    (c) =>
-      c.State === "running" &&
-      !scannedNames.has(c.Names) &&
-      !(c.Image && scannedRefs.has(c.Image)),
-  ).length;
+  const unscannedRunning = Math.max(0, scanTargets.length - scannedTargets);
+  const scanProgress = {
+    scanned: scannedTargets,
+    total: scanTargets.length,
+  };
 
   const checkedAt = docker?.createdAt
     ? new Date(docker.createdAt).toISOString()
@@ -166,6 +181,7 @@ export default async function DockerPage({
         total={(docker?.data as { total?: number })?.total ?? 0}
         imagesWithFindings={imagesWithFindings}
         unscannedRunning={unscannedRunning}
+        scanProgress={scanProgress}
         checkMode={checkMode}
         onlyCoolifyStack={inventory?.onlyCoolifyStack}
         foreignCount={inventory?.foreignRunning?.length ?? 0}

@@ -11,6 +11,12 @@ describe("coolifyUuidFromContainerName", () => {
       coolifyUuidFromContainerName("k5gesmdkvemisft5ugebotgb-203210584829"),
       "k5gesmdkvemisft5ugebotgb",
     );
+    assert.equal(
+      coolifyUuidFromContainerName(
+        "y12ug8h3x4nz6mg2d6qhl5bh-20261029T133623",
+      ),
+      "y12ug8h3x4nz6mg2d6qhl5bh",
+    );
   });
 
   it("ignores non-coolify names", () => {
