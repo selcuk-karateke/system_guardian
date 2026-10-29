@@ -23,6 +23,7 @@ import {
   formatModuleDetailLines,
   getLatestCheckDataByModule,
 } from "@/lib/monitor-details";
+import { buildGlobeTints } from "@/lib/geo/attack-markers";
 import { MONITOR_MODULE_ORDER, MONITOR_PLACEHOLDER_MODULES } from "@/lib/module-labels";
 import { listActiveServers } from "@/lib/servers";
 import { formatUptime } from "@/lib/utils";
@@ -135,6 +136,17 @@ export default async function MonitorPage({
     uptimeFormatted,
   );
 
+  const homeIpCandidate =
+    overview?.server?.ipv4 ??
+    (sshHost && /^\d{1,3}(?:\.\d{1,3}){3}$/.test(sshHost) ? sshHost : null);
+
+  const {
+    attacks: attackMarkers,
+    sessions: sessionMarkers,
+    web: webMarkers,
+    home: homeMarker,
+  } = await buildGlobeTints(checkData, { homeIp: homeIpCandidate });
+
   return (
     <MonitorAutoRefresh intervalSec={30}>
       <div className="px-4 pt-3 flex justify-end">
@@ -172,6 +184,10 @@ export default async function MonitorPage({
             module: a.module,
             message: a.message,
           }))}
+          attackMarkers={attackMarkers}
+          sessionMarkers={sessionMarkers}
+          webMarkers={webMarkers}
+          homeMarker={homeMarker}
         />
       </MonitorTvProtection>
     </MonitorAutoRefresh>

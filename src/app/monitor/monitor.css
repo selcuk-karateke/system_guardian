@@ -144,6 +144,43 @@
   width: min(85vmin, 78vw);
   aspect-ratio: 1;
   transform: translate(-50%, -50%);
+  /* Children opt in (globe); decorative rings stay non-interactive */
+  pointer-events: none;
+}
+
+/*
+ * Three rings: --1 inset 8% (outer), --2 18%, --3 28%.
+ * Globe diameter = ring--1 = 100% - 2×8% = 84% of .monitor-hud-rings.
+ */
+.monitor-hud-globe {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 84%;
+  height: 84%;
+  transform: translate(-50%, -50%);
+  /* Interactive — rings above must stay pointer-events: none */
+  pointer-events: auto;
+  cursor: grab;
+  touch-action: none;
+  /* no overflow:hidden — ray stubs must stick out past the surface */
+}
+
+.monitor-hud-globe[data-dragging="1"] {
+  cursor: grabbing;
+}
+
+.monitor-hud-globe-canvas,
+.monitor-hud-globe-rays {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.monitor-hud-globe-rays {
+  z-index: 1;
 }
 
 .monitor-hud-ring {
@@ -154,6 +191,8 @@
   box-shadow:
     0 0 40px rgb(34 211 238 / 6%),
     inset 0 0 30px rgb(34 211 238 / 4%);
+  /* Let clicks/drags reach the globe underneath */
+  pointer-events: none;
 }
 
 .monitor-hud-ring--1 {
@@ -1304,26 +1343,79 @@
   transform: translate(-2px, 1px);
 }
 
-.monitor-tv-shell[data-night="1"] .monitor-bg,
-.monitor-tv-shell[data-night="1"] .monitor-hud,
+/* Night: quiet UI, keep the HUD sphere behind the centered status */
+.monitor-tv-shell[data-night="1"] .monitor-aurora,
+.monitor-tv-shell[data-night="1"] .monitor-waves,
+.monitor-tv-shell[data-night="1"] .monitor-hud-grid,
+.monitor-tv-shell[data-night="1"] .monitor-hud-scan,
 .monitor-tv-shell[data-night="1"] .monitor-grid,
 .monitor-tv-shell[data-night="1"] .monitor-metrics,
 .monitor-tv-shell[data-night="1"] .monitor-host,
-.monitor-tv-shell[data-night="1"] .monitor-top-link {
+.monitor-tv-shell[data-night="1"] .monitor-top-link,
+.monitor-tv-shell[data-night="1"] .monitor-reload-btn {
   display: none;
 }
 
+.monitor-tv-shell[data-night="1"] .monitor-bg {
+  opacity: 0.9;
+}
+
+.monitor-tv-shell[data-night="1"] .monitor-bg::before {
+  display: none;
+}
+
+.monitor-tv-shell[data-night="1"] .monitor-hud {
+  display: block;
+  /* Above bg wash (::after), still under .monitor-content */
+  z-index: 5;
+}
+
+.monitor-tv-shell[data-night="1"] .monitor-bg::after {
+  opacity: 0.55;
+}
+
+.monitor-tv-shell[data-night="1"] .monitor-hud-rings {
+  top: 50%;
+  left: 50%;
+  width: min(92vmin, 86vw);
+  opacity: 0.95;
+}
+
+.monitor-tv-shell[data-night="1"] .monitor-hud-globe {
+  width: 84%;
+  height: 84%;
+}
+
 .monitor-tv-shell[data-night="1"] .monitor-content {
-  grid-template-rows: auto 1fr auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(20px, 3.5vh, 40px);
+  padding: clamp(24px, 4vh, 48px) clamp(24px, 3vw, 64px);
 }
 
 .monitor-tv-shell[data-night="1"] .monitor-top {
-  justify-content: center;
+  position: absolute;
+  top: clamp(16px, 3vh, 36px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: auto;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(6px, 1vh, 12px);
+  padding: 0;
   border-bottom: none;
+  text-align: center;
+}
+
+.monitor-tv-shell[data-night="1"] .monitor-brand {
+  font-size: clamp(12px, 1.2vmin, 18px);
+  opacity: 0.85;
 }
 
 .monitor-tv-shell[data-night="1"] .monitor-top-right {
-  width: 100%;
+  width: auto;
   justify-content: center;
 }
 
@@ -1332,8 +1424,10 @@
 }
 
 .monitor-tv-shell[data-night="1"] .monitor-status-band {
-  margin: auto clamp(24px, 3vw, 64px);
-  max-width: min(90vw, 720px);
+  position: relative;
+  z-index: 2;
+  margin: 0;
+  max-width: min(86vw, 640px);
   width: 100%;
   flex-direction: column;
   align-items: center;
@@ -1344,11 +1438,19 @@
 
 .monitor-tv-shell[data-night="1"] .monitor-status-main {
   width: 100%;
+  display: flex;
+  justify-content: center;
 }
 
 .monitor-tv-shell[data-night="1"] .monitor-status-side {
+  display: flex;
+  flex-direction: column;
   align-items: center;
   text-align: center;
+}
+
+.monitor-tv-shell[data-night="1"] .monitor-badges {
+  justify-content: center;
 }
 
 .monitor-tv-shell[data-night="1"] .monitor-display {
@@ -1363,6 +1465,17 @@
     .monitor-bottom--warning
   ) {
   display: none;
+}
+
+.monitor-tv-shell[data-night="1"] .monitor-bottom {
+  position: absolute;
+  bottom: clamp(36px, 6vh, 64px);
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+  max-width: min(90vw, 720px);
+  width: 100%;
+  z-index: 2;
 }
 
 .monitor-night-hint {

@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { MonitorAlertTicker } from "./monitor-alert-ticker";
 import { MonitorClock } from "./monitor-clock";
+import { MonitorGlobe } from "./monitor-globe";
 import { MonitorHeroMetric } from "./monitor-metric";
 import { MonitorReloadButton } from "./monitor-reload-button";
 import { MonitorTile } from "./monitor-tile";
+import type { GlobeTint } from "@/lib/geo/attack-markers";
 import type { MonitorMetricCards } from "@/lib/monitor-details";
 
 const COLUMNS = [
@@ -56,6 +58,10 @@ type Props = {
   moduleDetails: Record<string, string[]>;
   counts: { healthy: number; warning: number; critical: number; unknown: number };
   alerts: { id: string; level: string; module: string; message: string }[];
+  attackMarkers?: GlobeTint[];
+  sessionMarkers?: GlobeTint[];
+  webMarkers?: GlobeTint[];
+  homeMarker?: GlobeTint | null;
 };
 
 const STATUS_DISPLAY = {
@@ -75,6 +81,10 @@ export function MonitorWall({
   moduleDetails,
   counts,
   alerts,
+  attackMarkers = [],
+  sessionMarkers = [],
+  webMarkers = [],
+  homeMarker = null,
 }: Props) {
   const tickerAlerts = alerts.filter(
     (a) => a.level === "critical" || a.level === "warning",
@@ -86,6 +96,13 @@ export function MonitorWall({
         <div className="monitor-hud">
           <div className="monitor-hud-grid" />
           <div className="monitor-hud-rings">
+            <MonitorGlobe
+              status={globalStatus}
+              attackMarkers={attackMarkers}
+              sessionMarkers={sessionMarkers}
+              webMarkers={webMarkers}
+              homeMarker={homeMarker}
+            />
             <div className="monitor-hud-ring monitor-hud-ring--1" />
             <div className="monitor-hud-ring monitor-hud-ring--2" />
             <div className="monitor-hud-ring monitor-hud-ring--3" />

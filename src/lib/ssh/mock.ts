@@ -84,7 +84,7 @@ ESTAB 0      0      10.0.0.5:22         10.0.1.20:44022 users:(("sshd",pid=1201,
 \`- Actions
    |- Currently banned: 2
    |- Total banned:     45
-   \`- Banned IP list:   203.0.113.99 198.51.100.200
+   \`- Banned IP list:   203.0.113.99 203.0.113.41 203.0.113.55 198.51.100.200 198.51.100.44 192.0.2.10 192.0.2.88 192.0.2.33 198.18.0.50 198.18.0.61 198.18.0.72 198.18.0.83 198.18.0.94 198.18.0.105 198.18.0.116 198.18.0.127
 `,
   "systemctl is-active fail2ban": "active\n",
   "ls -la /etc/cron.d /var/spool/cron/crontabs 2>/dev/null":
