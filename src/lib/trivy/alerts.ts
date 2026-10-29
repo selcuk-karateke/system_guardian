@@ -126,9 +126,20 @@ export function isNonProdEnvironment(meta?: CoolifyMeta): boolean {
   return NON_PROD_ENV.test(env);
 }
 
+/** Coolify managed DB / official DB image — we don't patch those in-app. */
+export function isManagedDatabaseTarget(meta?: CoolifyMeta): boolean {
+  if (meta?.type === "database") return true;
+  const svc = (meta?.serviceName ?? "").trim();
+  if (svc && /^(mysql|mariadb|postgres|postgresql|redis|mongo|mongodb)$/i.test(svc)) {
+    return true;
+  }
+  return false;
+}
+
 /**
  * Dashboard level rules:
  * - staging/dev → warning (never critical)
+ * - managed DB / sidecars → warning (upstream image)
  * - CRITICAL only from App-bucket → critical on production
  * - residual / OS / stdlib CRITICAL → warning
  */
@@ -140,6 +151,7 @@ export function trivyAlertLevel(
 ): AlertLevel {
   if (criticalCount <= 0 && highCount <= 0) return "info";
   if (isNonProdEnvironment(meta)) return "warning";
+  if (isManagedDatabaseTarget(meta)) return "warning";
   if (appCriticalCount(findings) > 0) return "critical";
   if (criticalCount > 0) return "warning";
   return "warning";
@@ -224,6 +236,9 @@ export function buildTrivyAlerts(
     }
     if (isNonProdEnvironment(g.meta)) {
       recommendation += " — Non-Prod: Dashboard nur WARNING";
+    } else if (isManagedDatabaseTarget(g.meta)) {
+      recommendation +=
+        " — Managed DB/Sidecar: Upstream-Image, Dashboard nur WARNING";
     } else if (
       criticalCount > 0 &&
       appCriticalCount(mergedFindings) === 0

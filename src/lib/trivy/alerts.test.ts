@@ -109,6 +109,39 @@ describe("trivy alerts", () => {
     assert.equal(level, "warning");
   });
 
+  it("demotes managed database CRITICAL to warning", () => {
+    const alert = alertInputFromTrivyRecord(
+      {
+        ...base,
+        criticalCount: 2,
+        highCount: 23,
+        findings: [
+          {
+            vulnerabilityId: "GHSA-cert",
+            severity: "CRITICAL",
+            title: "certifi",
+            pkgName: "certifi",
+          },
+          {
+            vulnerabilityId: "CVE-STD",
+            severity: "CRITICAL",
+            title: "go",
+            pkgName: "stdlib",
+          },
+        ],
+      },
+      {
+        projectName: "lebenslauf",
+        environmentName: "production",
+        type: "database",
+        serviceName: "mysql",
+        databaseSubType: "mysql",
+      },
+    );
+    assert.equal(alert?.level, "warning");
+    assert.match(alert?.recommendation ?? "", /Managed DB|WARNING/i);
+  });
+
   it("returns null when clean", () => {
     assert.equal(
       alertInputFromTrivyRecord({ ...base, highCount: 0, criticalCount: 0 }),
