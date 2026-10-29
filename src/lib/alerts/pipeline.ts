@@ -92,14 +92,16 @@ export async function processAlerts(
       .limit(1);
 
     if (existing) {
-      const escalate =
-        LEVEL_RANK[input.level] > LEVEL_RANK[existing.level as AlertLevel];
+      const existingRank = LEVEL_RANK[existing.level as AlertLevel] ?? 0;
+      const nextRank = LEVEL_RANK[input.level] ?? 0;
+      const escalate = nextRank > existingRank;
+      const demote = nextRank < existingRank;
 
       await db
         .update(alerts)
         .set({
           lastSeenAt: now,
-          ...(escalate ? { level: input.level } : {}),
+          ...(escalate || demote ? { level: input.level } : {}),
           ...(input.recommendation
             ? { recommendation: input.recommendation }
             : {}),

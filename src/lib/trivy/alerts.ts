@@ -129,8 +129,15 @@ export function isNonProdEnvironment(meta?: CoolifyMeta): boolean {
 /** Coolify managed DB / official DB image — we don't patch those in-app. */
 export function isManagedDatabaseTarget(meta?: CoolifyMeta): boolean {
   if (meta?.type === "database") return true;
-  const svc = (meta?.serviceName ?? "").trim();
-  if (svc && /^(mysql|mariadb|postgres|postgresql|redis|mongo|mongodb)$/i.test(svc)) {
+  const sub = (meta?.databaseSubType ?? "").toLowerCase();
+  if (/mysql|mariadb|postgres|redis|mongo/.test(sub)) return true;
+  const svc = (meta?.serviceName ?? "").trim().toLowerCase();
+  // Coolify often names DBs `mysql-database-<uuid>` / `postgresql-database-…`
+  if (
+    /^(mysql|mariadb|postgres|postgresql|redis|mongo|mongodb)([-_]|$)/i.test(
+      svc,
+    )
+  ) {
     return true;
   }
   return false;
