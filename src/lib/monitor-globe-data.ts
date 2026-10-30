@@ -1,7 +1,8 @@
 import {
-  getGlobalStatus,
+  getGlobalCrisisStage,
   getServerOverview,
 } from "@/lib/dashboard-data";
+import { crisisStageToWallTone } from "@/lib/crisis/stages";
 import { buildGlobeTints } from "@/lib/geo/attack-markers";
 import { getLatestCheckDataByModule } from "@/lib/monitor-details";
 import { listActiveServers } from "@/lib/servers";
@@ -18,11 +19,14 @@ export async function loadMonitorGlobeView(serverParam?: string) {
   let checkData: Record<string, Record<string, unknown>> = {};
 
   try {
-    [globalStatus, overview, checkData] = await Promise.all([
-      getGlobalStatus(selectedServerId || undefined),
+    const [crisisStage, ov, data] = await Promise.all([
+      getGlobalCrisisStage(selectedServerId || undefined),
       getServerOverview(selectedServerId || undefined),
       getLatestCheckDataByModule(selectedServerId || undefined),
     ]);
+    globalStatus = crisisStageToWallTone(crisisStage);
+    overview = ov;
+    checkData = data;
   } catch {
     /* empty */
   }

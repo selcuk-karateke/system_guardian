@@ -5,6 +5,8 @@ import { useCallback, useEffect, useState } from "react";
 type Props = {
   children: React.ReactNode;
   globalStatus: "healthy" | "warning" | "critical";
+  /** Wake night mode on S1/S2 (Severe/Emergency). */
+  crisisStage?: 1 | 2 | 3 | 4 | null;
   nightStartHour: number;
   nightEndHour: number;
   pixelShiftSec: number;
@@ -22,6 +24,7 @@ function isNightHour(now: Date, start: number, end: number): boolean {
 export function MonitorTvProtection({
   children,
   globalStatus,
+  crisisStage = null,
   nightStartHour,
   nightEndHour,
   pixelShiftSec,
@@ -65,8 +68,9 @@ export function MonitorTvProtection({
   const inNightWindow =
     nightModeEnabled && isNightHour(now, nightStartHour, nightEndHour);
   const isAwake = Date.now() < awakeUntil;
-  const nightActive =
-    inNightWindow && !isAwake && globalStatus !== "critical";
+  const mustStayAwake =
+    (crisisStage != null && crisisStage <= 2) || globalStatus === "critical";
+  const nightActive = inNightWindow && !isAwake && !mustStayAwake;
 
   return (
     <div

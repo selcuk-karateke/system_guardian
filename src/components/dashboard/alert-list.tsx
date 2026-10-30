@@ -6,8 +6,9 @@ import { useTransition } from "react";
 import { dismissAlert } from "@/app/actions/alerts";
 import { CopyReportButton } from "@/components/dashboard/copy-report-button";
 import { MODULE_LABELS } from "@/lib/module-labels";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { CrisisStageBadge } from "@/components/dashboard/crisis-stage-badge";
+import { resolveCrisisStage, type CrisisStage } from "@/lib/crisis/stages";
 
 export type AlertRow = {
   id: string;
@@ -17,6 +18,7 @@ export type AlertRow = {
   createdAt: string;
   recommendation?: string | null;
   reportText?: string;
+  crisisStage?: CrisisStage;
 };
 
 export function AlertList({
@@ -46,17 +48,16 @@ export function AlertList({
               : "sg-alert-row flex flex-wrap items-start gap-3 rounded-lg border p-4"
           }
         >
-          <Badge
-            variant={
-              a.level === "critical"
-                ? "critical"
-                : a.level === "warning"
-                  ? "warning"
-                  : "default"
+          <CrisisStageBadge
+            stage={
+              a.crisisStage ??
+              resolveCrisisStage({
+                module: a.module,
+                level: a.level,
+                message: a.message,
+              })
             }
-          >
-            {a.level}
-          </Badge>
+          />
           <span className="text-zinc-500 shrink-0">
             {MODULE_LABELS[a.module] ?? a.module}
           </span>

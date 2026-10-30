@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { AddServerTile } from "@/components/dashboard/add-server-tile";
-import { StatusBadge } from "@/components/dashboard/status-badge";
+import { CrisisStageBadge } from "@/components/dashboard/crisis-stage-badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import type { GlobalStatus } from "@/lib/dashboard-data";
+import type { CrisisStage } from "@/lib/crisis/stages";
 
 export type ServerStatusItem = {
   id: string;
@@ -11,6 +13,7 @@ export type ServerStatusItem = {
   ipv4: string | null;
   monitorProfile?: string;
   status: GlobalStatus;
+  crisisStage: CrisisStage | null;
   cpuPercent: number | null;
   ramPercent: number | null;
   diskPercent: number | null;
@@ -26,6 +29,17 @@ function formatWhen(at: Date | null): string {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function ServerSeverityBadge({ stage }: { stage: CrisisStage | null }) {
+  if (stage == null) {
+    return (
+      <Badge variant="healthy" className="text-sm px-3 py-1 font-medium">
+        OK
+      </Badge>
+    );
+  }
+  return <CrisisStageBadge stage={stage} showName />;
 }
 
 export function ServerStatusList({
@@ -68,7 +82,7 @@ export function ServerStatusList({
                       : ""}
                   </p>
                 </div>
-                <StatusBadge status={s.status} />
+                <ServerSeverityBadge stage={s.crisisStage} />
               </div>
               <dl className="grid grid-cols-3 gap-2 text-xs text-zinc-400">
                 <div>

@@ -3,6 +3,7 @@
 | Dokument | Für wen | Inhalt |
 |----------|---------|--------|
 | **[SYSADMIN.md](./SYSADMIN.md)** | Systemadmins / Ops-Collaborators | Wo ist was, Checks, Betrieb, Zuarbeit |
+| **[CRISIS.md](./CRISIS.md)** | Ops / On-Call | Crisis stages S1–S4 (Emergency…Routine), if/then, mapping |
 | **[OPS-CHECKLIST-KAWAI.md](./OPS-CHECKLIST-KAWAI.md)** | Ops (Marco / Host) | Abhak-Liste aus Forensik-/Analyse-PDFs |
 | **[MARCO-UPDATE.md](./MARCO-UPDATE.md)** | Chat an Marco | Kopierfertige Kurzinfo Status + Aufgaben |
 | **[backlog.json](./backlog.json)** | Alle Collaborators | Roadmap-Ideen eintragen (PR) |

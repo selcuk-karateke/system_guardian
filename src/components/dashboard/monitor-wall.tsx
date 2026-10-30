@@ -8,6 +8,12 @@ import { MonitorReloadButton } from "./monitor-reload-button";
 import { MonitorTile } from "./monitor-tile";
 import type { GlobeTint } from "@/lib/geo/attack-markers";
 import type { MonitorMetricCards } from "@/lib/monitor-details";
+import {
+  CRISIS_STAGE_META,
+  crisisStageHeroLabel,
+  crisisStageToWallTone,
+  type CrisisStage,
+} from "@/lib/crisis/stages";
 
 const COLUMNS = [
   {
@@ -48,16 +54,18 @@ const COLUMNS = [
   },
 ] as const;
 
+type TileSeverity = CrisisStage | "ok" | "unknown";
+
 type Props = {
-  globalStatus: "healthy" | "warning" | "critical";
+  crisisStage: CrisisStage | null;
   hostLabel: string;
   hostIp: string;
   checkMode: string;
   lastCheck: Date | null;
   metricCards: MonitorMetricCards;
-  statusMap: Record<string, string>;
+  severityMap: Record<string, TileSeverity>;
   moduleDetails: Record<string, string[]>;
-  counts: { healthy: number; warning: number; critical: number; unknown: number };
+  counts: { ok: number; s4: number; s3: number; s2: number; s1: number };
   alerts: { id: string; level: string; module: string; message: string }[];
   attackMarkers?: GlobeTint[];
   sessionMarkers?: GlobeTint[];
@@ -65,20 +73,14 @@ type Props = {
   homeMarker?: GlobeTint | null;
 };
 
-const STATUS_DISPLAY = {
-  healthy: "HEALTHY",
-  warning: "WARNING",
-  critical: "CRITICAL",
-} as const;
-
 export function MonitorWall({
-  globalStatus,
+  crisisStage,
   hostLabel,
   hostIp,
   checkMode,
   lastCheck,
   metricCards,
-  statusMap,
+  severityMap,
   moduleDetails,
   counts,
   alerts,
@@ -87,18 +89,17 @@ export function MonitorWall({
   webMarkers = [],
   homeMarker = null,
 }: Props) {
-  const tickerAlerts = alerts.filter(
-    (a) => a.level === "critical" || a.level === "warning",
-  );
+  const wallTone = crisisStageToWallTone(crisisStage);
+  const hero = crisisStageHeroLabel(crisisStage);
 
   return (
-    <div className="monitor-wall" data-status={globalStatus}>
+    <div className="monitor-wall" data-status={wallTone}>
       <div className="monitor-bg" aria-hidden>
         <div className="monitor-hud">
           <div className="monitor-hud-grid" />
           <div className="monitor-hud-rings">
             <MonitorGlobe
-              status={globalStatus}
+              status={wallTone}
               attackMarkers={attackMarkers}
               sessionMarkers={sessionMarkers}
               webMarkers={webMarkers}
@@ -152,23 +153,28 @@ export function MonitorWall({
         </header>
 
         <section
-          className={`monitor-glass monitor-status-band monitor-status-band--${globalStatus}`}
+          className={`monitor-glass monitor-status-band monitor-status-band--${wallTone}`}
         >
           <div className="monitor-status-main">
-            <p className={`monitor-display monitor-display--${globalStatus}`}>
-              {STATUS_DISPLAY[globalStatus]}
+            <p className={`monitor-display monitor-display--${wallTone}`}>
+              {hero}
             </p>
+            {crisisStage != null && (
+              <p className="monitor-status-sub">
+                {CRISIS_STAGE_META[crisisStage].blurb}
+              </p>
+            )}
           </div>
           <div className="monitor-status-side">
             <div className="monitor-badges">
               <span className="monitor-badge monitor-badge--ok">
-                {counts.healthy} OK
+                {counts.ok} OK
               </span>
               <span className="monitor-badge monitor-badge--warn">
-                {counts.warning} Warn
+                {counts.s4 + counts.s3} S3–4
               </span>
               <span className="monitor-badge monitor-badge--crit">
-                {counts.critical} Crit
+                {counts.s2 + counts.s1} S1–2
               </span>
             </div>
             <p className="monitor-status-meta">
@@ -215,7 +221,7 @@ export function MonitorWall({
                 <MonitorTile
                   key={mod}
                   module={mod}
-                  status={statusMap[mod] ?? "unknown"}
+                  severity={severityMap[mod] ?? "unknown"}
                   details={moduleDetails[mod]}
                 />
               ))}
@@ -224,7 +230,7 @@ export function MonitorWall({
         </main>
 
         <footer className="monitor-glass monitor-bottom">
-          <MonitorAlertTicker alerts={tickerAlerts} intervalMs={3000} />
+          <MonitorAlertTicker alerts={alerts} intervalMs={3000} />
         </footer>
       </div>
     </div>

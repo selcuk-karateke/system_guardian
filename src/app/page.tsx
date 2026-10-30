@@ -1,12 +1,11 @@
 import Link from "next/link";
 import { Globe2, History, Monitor } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { StatusBadge } from "@/components/dashboard/status-badge";
 import { AlertList } from "@/components/dashboard/alert-list";
 import { TriggerChecks } from "@/components/dashboard/trigger-checks";
 import { ServerStatusList } from "@/components/dashboard/server-status-list";
 import {
-  getGlobalStatus,
+  getGlobalCrisisStage,
   getRecentAlerts,
   getServersWithStatus,
 } from "@/lib/dashboard-data";
@@ -14,9 +13,15 @@ import { getCheckMode } from "@/lib/config";
 import { MockDataBanner } from "@/components/dashboard/mock-data-banner";
 import { getDefaultServerId } from "@/lib/servers";
 import { syncTrivyAlertsFromStore } from "@/lib/trivy/alerts";
+import { CrisisStageBadge } from "@/components/dashboard/crisis-stage-badge";
+import { Badge } from "@/components/ui/badge";
+import {
+  resolveCrisisStage,
+  type CrisisStage,
+} from "@/lib/crisis/stages";
 
 export default async function DashboardPage() {
-  let globalStatus: "healthy" | "warning" | "critical" = "healthy";
+  let crisisStage: CrisisStage | null = null;
   let serverList: Awaited<ReturnType<typeof getServersWithStatus>> = [];
   let recentAlerts: Awaited<ReturnType<typeof getRecentAlerts>> = [];
   let dbError: string | null = null;
@@ -27,7 +32,7 @@ export default async function DashboardPage() {
     const sid = await getDefaultServerId().catch(() => null);
     if (sid) await syncTrivyAlertsFromStore(sid).catch(() => null);
 
-    globalStatus = await getGlobalStatus();
+    crisisStage = await getGlobalCrisisStage();
     serverList = await getServersWithStatus();
     recentAlerts = await getRecentAlerts(10);
   } catch (e) {
@@ -69,7 +74,15 @@ export default async function DashboardPage() {
           </div>
         </div>
         <div className="flex flex-col items-end gap-4">
-          <StatusBadge status={globalStatus} />
+          <Link href="/docs" title="Krisenstufen S1–S4 — docs/CRISIS.md">
+            {crisisStage != null ? (
+              <CrisisStageBadge stage={crisisStage} showName />
+            ) : (
+              <Badge variant="healthy" className="text-sm px-3 py-1 font-medium">
+                OK
+              </Badge>
+            )}
+          </Link>
           <TriggerChecks variant="compact" />
         </div>
       </div>
@@ -95,7 +108,15 @@ export default async function DashboardPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Aktuelle Warnungen</CardTitle>
+          <CardTitle className="flex flex-wrap items-baseline gap-2">
+            Aktuelle Warnungen
+            <span className="text-xs font-normal text-zinc-500">
+              nur S1–S4 ·{" "}
+              <Link href="/docs" className="sg-link hover:underline">
+                Matrix
+              </Link>
+            </span>
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <AlertList
@@ -107,6 +128,7 @@ export default async function DashboardPage() {
               message: a.message,
               recommendation: a.recommendation,
               createdAt: a.createdAt.toISOString(),
+              crisisStage: resolveCrisisStage(a),
             }))}
           />
         </CardContent>

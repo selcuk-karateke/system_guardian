@@ -10,6 +10,11 @@ import {
 } from "@/db/schema";
 import { getCheckMode } from "@/lib/config";
 import type { CheckStatus } from "@/lib/checks/types";
+import {
+  compareCrisisAlerts,
+  worstCrisisStageFromAlerts,
+  type CrisisStage,
+} from "@/lib/crisis/stages";
 
 export type GlobalStatus = "healthy" | "warning" | "critical";
 
@@ -217,6 +222,7 @@ export async function getServersWithStatus() {
     ipv4: string | null;
     monitorProfile: string;
     status: GlobalStatus;
+    crisisStage: CrisisStage | null;
     cpuPercent: number | null;
     ramPercent: number | null;
     diskPercent: number | null;
@@ -233,7 +239,12 @@ export async function getServersWithStatus() {
       .orderBy(desc(checkRuns.createdAt))
       .limit(1);
     const openAlertRows = await db
-      .select({ id: alerts.id })
+      .select({
+        id: alerts.id,
+        module: alerts.module,
+        level: alerts.level,
+        message: alerts.message,
+      })
       .from(alerts)
       .where(
         and(
@@ -250,6 +261,7 @@ export async function getServersWithStatus() {
       ipv4: server.ipv4,
       monitorProfile: server.monitorProfile,
       status: overview.status,
+      crisisStage: worstCrisisStageFromAlerts(openAlertRows),
       cpuPercent: overview.metrics?.cpuPercent ?? null,
       ramPercent: overview.metrics?.ramPercent ?? null,
       diskPercent: overview.metrics?.diskPercent ?? null,
@@ -272,12 +284,24 @@ export async function getRecentAlerts(
   if (opts?.serverId) {
     conditions.push(eq(alerts.serverId, opts.serverId));
   }
-  return db
+  // Over-fetch then sort by crisis stage (S1 first). Technical `critical` alone
+  // must not hide a quieter S1 or push Trivy Crit above real host incidents.
+  const fetchLimit = Math.max(limit * 5, 80);
+  const rows = await db
     .select()
     .from(alerts)
     .where(and(...conditions))
-    .orderBy(desc(alerts.createdAt))
-    .limit(limit);
+    .orderBy(desc(alerts.lastSeenAt), desc(alerts.createdAt))
+    .limit(fetchLimit);
+  return [...rows].sort(compareCrisisAlerts).slice(0, limit);
+}
+
+/** Worst open crisis stage (1–4), or null if no open warning/critical. */
+export async function getGlobalCrisisStage(
+  serverId?: string,
+): Promise<CrisisStage | null> {
+  const open = await getRecentAlerts(100, { serverId });
+  return worstCrisisStageFromAlerts(open);
 }
 
 export async function getAlertById(id: string) {

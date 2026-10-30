@@ -913,16 +913,23 @@
 
 .monitor-display {
   font-family: var(--monitor-display);
-  font-size: min(24cqi, 13vh, 180px);
+  font-size: min(18cqi, 10vh, 140px);
   font-weight: 800;
   line-height: 1;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   min-width: 0;
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   animation: monitor-display-glow 4.5s ease-in-out infinite;
+}
+
+.monitor-status-sub {
+  margin-top: 0.35rem;
+  font-size: clamp(0.7rem, 1.2cqi, 0.95rem);
+  letter-spacing: 0.04em;
+  color: rgb(161 161 170);
 }
 
 @keyframes monitor-display-glow {
