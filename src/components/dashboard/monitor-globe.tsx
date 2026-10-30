@@ -32,6 +32,12 @@ const KIND_LABEL: Record<RayKind, string> = {
 
 /** Stub past the surface (CSS px) — short ray, not infinite. */
 const RAY_EXTEND_PX = 12;
+/** Great-circle attack → home samples + mid-arc lift above the surface. */
+const ARC_STEPS = 48;
+const ARC_BULGE = 0.22;
+const ARC_MAX = 14;
+/** Extra paint margin on the rays canvas so arcs aren't clipped at the square edge. */
+const RAY_PAD_FRAC = 0.28;
 
 const WEB_CSS = "rgb(180 245 255)";
 const SESSION_CSS = "rgb(90 255 140)";
@@ -127,6 +133,9 @@ const RIPPLE_MAX_RAD = (22 * Math.PI) / 180;
  * sized to ring--1 (84%).
  */
 const GLOBE_SCALE = 0.97;
+/** Interactive zoom multiplier range (applied on top of GLOBE_SCALE). */
+const ZOOM_MIN = 0.62;
+const ZOOM_MAX = 2.2;
 
 function compile(
   gl: WebGLRenderingContext,
@@ -296,10 +305,11 @@ function projectTips(
   rot: Float32Array,
   css: number,
   marks: RayMark[],
+  scale: number,
 ): ProjectedTip[] {
   const cx = css / 2;
   const cy = css / 2;
-  const R = (css / 2) * GLOBE_SCALE;
+  const R = (css / 2) * scale;
   const out: ProjectedTip[] = [];
   for (const mark of marks) {
     const [x0, y0, z0] = attackToXyz(
@@ -349,21 +359,168 @@ function formatHover(mark: RayMark): string {
   return `${KIND_LABEL[mark.kind]} · ${t.id}${country}${hits} · ${fresh}% fresh`;
 }
 
+/** Unit-sphere slerp for great-circle attack arcs. */
+function slerpUnit(
+  ax: number,
+  ay: number,
+  az: number,
+  bx: number,
+  by: number,
+  bz: number,
+  t: number,
+): [number, number, number] {
+  let dot = ax * bx + ay * by + az * bz;
+  dot = Math.min(1, Math.max(-1, dot));
+  const omega = Math.acos(dot);
+  if (omega < 1e-4) return [ax, ay, az];
+  const so = Math.sin(omega);
+  const s0 = Math.sin((1 - t) * omega) / so;
+  const s1 = Math.sin(t * omega) / so;
+  const x = s0 * ax + s1 * bx;
+  const y = s0 * ay + s1 * by;
+  const z = s0 * az + s1 * bz;
+  const len = Math.hypot(x, y, z) || 1;
+  return [x / len, y / len, z / len];
+}
+
+function arcDepthFade(z: number): number {
+  // Soft limb fade — hard z>0 cuts left visible gaps on the silhouette.
+  if (z <= -0.18) return 0;
+  if (z >= 0.22) return 1;
+  return (z + 0.18) / 0.4;
+}
+
 /**
- * Draw a short radial stub: surface → +RAY_EXTEND_PX outward.
- * hoverId = active tip — boosts that ray, dims the rest.
+ * Attack arcs: great-circle flight paths attacker → home (lifted mid-arc).
+ * Segment strokes + depth fade (no hard path breaks on the front limb).
+ */
+function drawAttackArcs(
+  ctx: CanvasRenderingContext2D,
+  rot: Float32Array,
+  css: number,
+  scale: number,
+  pad: number,
+  home: RayMark,
+  attacks: RayMark[],
+  now: number,
+  reducedMotion: boolean,
+  hoverId: string | null,
+): void {
+  if (!attacks.length) return;
+  const cx = pad + css / 2;
+  const cy = pad + css / 2;
+  const R = (css / 2) * scale;
+  const [hx0, hy0, hz0] = attackToXyz(
+    home.tint.location[0],
+    home.tint.location[1],
+  );
+
+  const ranked = [...attacks]
+    .sort(
+      (a, b) =>
+        b.tint.freshness * b.tint.weight - a.tint.freshness * a.tint.weight,
+    )
+    .slice(0, ARC_MAX);
+
+  for (const mark of ranked) {
+    const [ax0, ay0, az0] = attackToXyz(
+      mark.tint.location[0],
+      mark.tint.location[1],
+    );
+    if (ax0 * hx0 + ay0 * hy0 + az0 * hz0 > 0.9995) continue;
+
+    const hot = hoverId != null && mark.tint.id === hoverId;
+    const dim = hoverId != null && !hot ? 0.22 : 1;
+    const baseAlpha =
+      Math.min(1, Math.max(0.45, mark.tint.weight)) *
+      (0.55 + 0.45 * mark.tint.freshness) *
+      (hot ? 1 : 0.85) *
+      dim;
+
+    type Pt = { sx: number; sy: number; z: number; t: number };
+    const pts: Pt[] = [];
+    for (let i = 0; i <= ARC_STEPS; i++) {
+      const t = i / ARC_STEPS;
+      const [lx, ly, lz] = slerpUnit(ax0, ay0, az0, hx0, hy0, hz0, t);
+      const elev = 1 + ARC_BULGE * Math.sin(Math.PI * t);
+      const [x, y, z] = mulRot(rot, lx * elev, ly * elev, lz * elev);
+      pts.push({ sx: cx + x * R, sy: cy - y * R, z, t });
+    }
+
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = hot ? ATTACK_CSS : mark.color;
+    ctx.shadowColor = ATTACK_CSS;
+
+    // Glow pass
+    ctx.lineWidth = hot ? 5 : 3.2;
+    ctx.shadowBlur = 0;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const a = pts[i]!;
+      const b = pts[i + 1]!;
+      const fade = (arcDepthFade(a.z) + arcDepthFade(b.z)) * 0.5;
+      if (fade < 0.03) continue;
+      ctx.globalAlpha = baseAlpha * 0.2 * fade;
+      ctx.beginPath();
+      ctx.moveTo(a.sx, a.sy);
+      ctx.lineTo(b.sx, b.sy);
+      ctx.stroke();
+    }
+
+    // Core stroke — continuous on the front, fades behind
+    ctx.lineWidth = hot ? 2.4 : 1.55;
+    ctx.shadowBlur = hot ? 16 : 8;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const a = pts[i]!;
+      const b = pts[i + 1]!;
+      const fade = (arcDepthFade(a.z) + arcDepthFade(b.z)) * 0.5;
+      if (fade < 0.03) continue;
+      ctx.globalAlpha = baseAlpha * 0.82 * fade;
+      ctx.beginPath();
+      ctx.moveTo(a.sx, a.sy);
+      ctx.lineTo(b.sx, b.sy);
+      ctx.stroke();
+    }
+
+    if (!reducedMotion) {
+      const travel =
+        (now * 0.00028 + (mark.tint.id.charCodeAt(0) % 17) * 0.05) % 1;
+      const ti = Math.min(ARC_STEPS, Math.floor(travel * ARC_STEPS));
+      const p = pts[ti]!;
+      const fade = p ? arcDepthFade(p.z) : 0;
+      if (p && fade > 0.2) {
+        ctx.globalAlpha = baseAlpha * fade;
+        ctx.fillStyle = ATTACK_CSS;
+        ctx.shadowColor = ATTACK_CSS;
+        ctx.shadowBlur = 12;
+        ctx.beginPath();
+        ctx.arc(p.sx, p.sy, hot ? 3.2 : 2.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.shadowBlur = 0;
+  }
+  ctx.globalAlpha = 1;
+}
+
+/**
+ * Overlay: attack→home arcs, then short radial stubs.
+ * hoverId = active tip — boosts that mark, dims the rest.
  */
 function drawRayStubs(
   ctx: CanvasRenderingContext2D,
   rot: Float32Array,
   css: number,
   dpr: number,
+  scale: number,
   marks: RayMark[],
   now: number,
   reducedMotion: boolean,
   hoverId: string | null = null,
 ): void {
-  const w = Math.max(1, Math.floor(css * dpr));
+  const pad = css * RAY_PAD_FRAC;
+  const full = css + pad * 2;
+  const w = Math.max(1, Math.floor(full * dpr));
   if (ctx.canvas.width !== w || ctx.canvas.height !== w) {
     ctx.canvas.width = w;
     ctx.canvas.height = w;
@@ -372,9 +529,26 @@ function drawRayStubs(
   ctx.clearRect(0, 0, w, w);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-  const cx = css / 2;
-  const cy = css / 2;
-  const R = (css / 2) * GLOBE_SCALE;
+  const home = marks.find((m) => m.kind === "home");
+  const attacks = marks.filter((m) => m.kind === "attack");
+  if (home) {
+    drawAttackArcs(
+      ctx,
+      rot,
+      css,
+      scale,
+      pad,
+      home,
+      attacks,
+      now,
+      reducedMotion,
+      hoverId,
+    );
+  }
+
+  const cx = pad + css / 2;
+  const cy = pad + css / 2;
+  const R = (css / 2) * scale;
   const pulse = reducedMotion
     ? 1
     : 0.55 + 0.45 * (0.5 + 0.5 * Math.sin(now * 0.0062));
@@ -440,7 +614,7 @@ function drawRayStubs(
 
 /**
  * Land-dot globe sized to the outermost HUD ring.
- * Marks = short radial stubs (+5px past surface), not spot-radius blots.
+ * Overlays: attack→home great-circle arcs + short radial stubs.
  */
 export function MonitorGlobe({
   status,
@@ -520,6 +694,7 @@ export function MonitorGlobe({
     let ripplesArmed = false;
 
     let dragging = false;
+    let pinching = false;
     let lastPtrX = 0;
     let lastPtrY = 0;
     let autoSpin = true;
@@ -527,9 +702,41 @@ export function MonitorGlobe({
     let pointerCssX = -1;
     let pointerCssY = -1;
     let lastTipId = "";
+    let zoom = 1;
+    let pinchStartDist = 0;
+    let pinchStartZoom = 1;
+    const activePtrs = new Map<number, { x: number; y: number }>();
 
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
     const DRAG_SENS = 0.005;
+
+    const clampZoom = (z: number) =>
+      Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z));
+
+    /** CSS zoom — keeps WebGL inside the canvas so land dots aren't clipped. */
+    const applyZoomCss = () => {
+      wrap?.style.setProperty("--globe-zoom", String(zoom));
+    };
+    applyZoomCss();
+
+    const ptrDist = () => {
+      const pts = [...activePtrs.values()];
+      if (pts.length < 2) return 0;
+      return Math.hypot(pts[0]!.x - pts[1]!.x, pts[0]!.y - pts[1]!.y);
+    };
+
+    /** Map pointer into layout (pre-CSS-scale) space for hit-testing. */
+    const pointerInLayout = (e: PointerEvent) => {
+      if (!wrap) return { x: -1, y: -1 };
+      const rect = wrap.getBoundingClientRect();
+      if (rect.width < 1 || rect.height < 1) return { x: -1, y: -1 };
+      const layoutW = wrap.offsetWidth || 1;
+      const layoutH = wrap.offsetHeight || 1;
+      return {
+        x: ((e.clientX - rect.left) / rect.width) * layoutW,
+        y: ((e.clientY - rect.top) / rect.height) * layoutH,
+      };
+    };
 
     /** Left-multiply view-space Rx/Ry so screen up/down stays vertical after yaw. */
     const orbitBy = (dYaw: number, dPitch: number) => {
@@ -573,20 +780,43 @@ export function MonitorGlobe({
 
     const onPointerDown = (e: PointerEvent) => {
       if (!interactiveRef.current || e.button !== 0) return;
-      dragging = true;
       pauseAutoSpin();
+      activePtrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      wrap?.setPointerCapture(e.pointerId);
+      hideTip();
+
+      if (activePtrs.size >= 2) {
+        pinching = true;
+        dragging = false;
+        if (wrap) delete wrap.dataset.dragging;
+        pinchStartDist = ptrDist() || 1;
+        pinchStartZoom = zoom;
+        return;
+      }
+
+      dragging = true;
       lastPtrX = e.clientX;
       lastPtrY = e.clientY;
-      wrap?.setPointerCapture(e.pointerId);
       if (wrap) wrap.dataset.dragging = "1";
-      hideTip();
     };
     const onPointerMove = (e: PointerEvent) => {
       if (!interactiveRef.current || !wrap) return;
-      const rect = wrap.getBoundingClientRect();
-      if (rect.width < 1 || rect.height < 1) return;
-      pointerCssX = e.clientX - rect.left;
-      pointerCssY = e.clientY - rect.top;
+      const layout = pointerInLayout(e);
+      pointerCssX = layout.x;
+      pointerCssY = layout.y;
+
+      if (activePtrs.has(e.pointerId)) {
+        activePtrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      }
+
+      if (pinching && activePtrs.size >= 2) {
+        const d = ptrDist();
+        if (d > 0 && pinchStartDist > 0) {
+          zoom = clampZoom(pinchStartZoom * (d / pinchStartDist));
+          applyZoomCss();
+        }
+        return;
+      }
 
       if (dragging) {
         const dx = e.clientX - lastPtrX;
@@ -600,8 +830,18 @@ export function MonitorGlobe({
       pauseAutoSpin();
     };
     const onPointerUp = (e: PointerEvent) => {
-      dragging = false;
-      if (wrap) delete wrap.dataset.dragging;
+      activePtrs.delete(e.pointerId);
+      if (activePtrs.size < 2) pinching = false;
+      if (activePtrs.size === 0) {
+        dragging = false;
+        if (wrap) delete wrap.dataset.dragging;
+      } else if (activePtrs.size === 1) {
+        const only = [...activePtrs.values()][0]!;
+        dragging = true;
+        lastPtrX = only.x;
+        lastPtrY = only.y;
+        if (wrap) wrap.dataset.dragging = "1";
+      }
       try {
         wrap?.releasePointerCapture(e.pointerId);
       } catch {
@@ -614,6 +854,14 @@ export function MonitorGlobe({
       pointerCssY = -1;
       hideTip();
     };
+    const onWheel = (e: WheelEvent) => {
+      if (!interactiveRef.current) return;
+      e.preventDefault();
+      pauseAutoSpin();
+      const factor = Math.exp(-e.deltaY * 0.0012);
+      zoom = clampZoom(zoom * factor);
+      applyZoomCss();
+    };
 
     if (interactive) {
       wrap?.addEventListener("pointerdown", onPointerDown);
@@ -621,6 +869,7 @@ export function MonitorGlobe({
       wrap?.addEventListener("pointerup", onPointerUp);
       wrap?.addEventListener("pointercancel", onPointerUp);
       wrap?.addEventListener("pointerleave", onPointerLeave);
+      wrap?.addEventListener("wheel", onWheel, { passive: false });
     }
 
     const syncSize = () => {
@@ -718,9 +967,9 @@ export function MonitorGlobe({
       gl.enable(gl.DEPTH_TEST);
       gl.depthFunc(gl.LEQUAL);
 
+      // Zoom is CSS (--globe-zoom); WebGL stays at GLOBE_SCALE so the canvas never clips.
       gl.uniformMatrix3fv(uRot, false, rot);
       gl.uniform1f(uScale, GLOBE_SCALE);
-      // Compensates 84% ring--1 canvas so land dots keep visual weight
       gl.uniform1f(uPoint, Math.max(1.4, (css / 300) * dpr * GLOBE_POINT_MUL));
       gl.uniform3f(uLight, 0.35, 0.55, 0.85);
       gl.uniform1f(uAmb, GLOBE_AMB);
@@ -743,9 +992,9 @@ export function MonitorGlobe({
       );
 
       let hoverId: string | null = null;
-      if (canInteract && !dragging && pointerCssX >= 0) {
+      if (canInteract && !dragging && !pinching && pointerCssX >= 0) {
         const hit = nearestTip(
-          projectTips(rot, css, marks),
+          projectTips(rot, css, marks, GLOBE_SCALE),
           pointerCssX,
           pointerCssY,
         );
@@ -762,6 +1011,7 @@ export function MonitorGlobe({
         rot,
         css,
         dpr,
+        GLOBE_SCALE,
         marks,
         now,
         reduced.matches,
@@ -797,6 +1047,7 @@ export function MonitorGlobe({
       wrap?.removeEventListener("pointerup", onPointerUp);
       wrap?.removeEventListener("pointercancel", onPointerUp);
       wrap?.removeEventListener("pointerleave", onPointerLeave);
+      wrap?.removeEventListener("wheel", onWheel);
       gl.deleteBuffer(posBuf);
       gl.deleteBuffer(colBuf);
       gl.deleteProgram(program);
@@ -812,7 +1063,7 @@ export function MonitorGlobe({
       aria-hidden={interactive ? undefined : true}
       aria-label={
         interactive
-          ? "Interaktiver Globus — ziehen zum Drehen, Markierungen hover"
+          ? "Interaktiver Globus — ziehen zum Drehen, scrollen zum Zoomen, Markierungen hover"
           : undefined
       }
     >

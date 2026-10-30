@@ -59,7 +59,7 @@ export function MonitorGlobeStage({
               {hostLabel} — {hostIp}
             </div>
             <p className="monitor-globe-hint">
-              Ziehen zum Drehen · Markierung hover für Details
+              Ziehen · Scroll/Pinch zoom · Attack-Arcs → Home · Hover
             </p>
           </div>
           <div className="monitor-top-right">

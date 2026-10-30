@@ -163,7 +163,9 @@
   top: 50%;
   width: 84%;
   height: 84%;
-  transform: translate(-50%, -50%);
+  --globe-zoom: 1;
+  transform: translate(-50%, -50%) scale(var(--globe-zoom));
+  transform-origin: center center;
   /* Decorative BG / screensaver — never capture input */
   pointer-events: none;
   /* no overflow:hidden — ray stubs must stick out past the surface */
@@ -174,6 +176,13 @@
   cursor: grab;
   touch-action: none;
   z-index: 2;
+  /* Allow CSS zoom to paint outside the ring box */
+  will-change: transform;
+}
+
+/* Standalone: don't clip the CSS-zoomed sphere (hud was overflow:hidden) */
+.monitor-wall--globe .monitor-hud {
+  overflow: visible;
 }
 
 .monitor-hud-globe[data-interactive="1"][data-dragging="1"] {
@@ -380,8 +389,13 @@
 }
 
 .monitor-hud-globe-rays {
+  /* Larger than land canvas so attack arcs aren't square-clipped mid-flight */
+  inset: -28%;
+  width: auto;
+  height: auto;
   z-index: 1;
   transition-delay: 120ms;
+  overflow: visible;
 }
 
 .monitor-hud-globe-rays--ready {
