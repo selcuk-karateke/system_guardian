@@ -235,6 +235,21 @@ function formatModuleDetailLinesFromData(
             latestKind?: string;
           }
         | undefined;
+      const mon = data.monitoring as
+        | { summaryLine?: string | null }
+        | null
+        | undefined;
+      if (mon?.summaryLine) {
+        const lines = [mon.summaryLine];
+        if (summary?.sizeHuman && summary.latestFile) {
+          const file =
+            summary.latestFile.split("/").pop() ?? summary.latestFile;
+          lines.push(
+            `${summary.sizeHuman} · ${shortenLabel(file, 24)}`,
+          );
+        }
+        return lines;
+      }
       if (summary?.present === false) return ["no backup"];
       if (summary?.sizeHuman && summary.latestFile) {
         const age =

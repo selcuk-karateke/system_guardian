@@ -8,9 +8,16 @@ const FIXTURES: Record<string, string> = {
 Mem:    16777216000  8388608000  4194304000   524288000  4194304000  7549747200
 Swap:    4294967296           0  4294967296
 `,
+  "df -hP": `Filesystem      Size  Used Avail Use% Mounted on
+/dev/md0        500G  200G  280G  42% /
+/dev/md1        2.0T  1.2T  700G  63% /data
+tmpfs            32G   32G  1.8M 100% /tmp
+`,
+  // legacy key — includes() still matches older commands
   "df -h": `Filesystem      Size  Used Avail Use% Mounted on
 /dev/md0        500G  200G  280G  42% /
 /dev/md1        2.0T  1.2T  700G  63% /data
+tmpfs            32G   32G  1.8M 100% /tmp
 `,
   "cat /proc/mdstat": `Personalities : [raid1] [raid6] [raid5] [raid4] [raid0] [raid10] [linear] 
 md0 : active raid1 sda1[0] sdb1[1]
@@ -84,7 +91,7 @@ ESTAB 0      0      10.0.0.5:22         10.0.1.20:44022 users:(("sshd",pid=1201,
 \`- Actions
    |- Currently banned: 2
    |- Total banned:     45
-   \`- Banned IP list:   203.0.113.99 198.51.100.200
+   \`- Banned IP list:   203.0.113.99 203.0.113.41 203.0.113.55 198.51.100.200 198.51.100.44 192.0.2.10 192.0.2.88 192.0.2.33 198.18.0.50 198.18.0.61 198.18.0.72 198.18.0.83 198.18.0.94 198.18.0.105 198.18.0.116 198.18.0.127
 `,
   "systemctl is-active fail2ban": "active\n",
   "ls -la /etc/cron.d /var/spool/cron/crontabs 2>/dev/null":
@@ -214,6 +221,39 @@ function matchFixture(command: string): string {
     command.includes("run-backup")
   ) {
     return "backup started\n";
+  }
+  if (command.includes("/backups/monitoring/status.json")) {
+    const finished = new Date(Date.now() - 2 * 3600_000).toISOString();
+    return JSON.stringify({
+      schema: 1,
+      state: "success",
+      exit_code: 0,
+      started_at: new Date(Date.now() - 3 * 3600_000).toISOString(),
+      finished_at: finished,
+      run_id: "backup-mock",
+      log_file: "/backups/logs/backup-mock.log",
+      mode: "backup",
+      message: "",
+    });
+  }
+  if (command.includes("/backups/monitoring/backup-health.json")) {
+    const generated = new Date(Date.now() - 2 * 3600_000).toISOString();
+    return JSON.stringify({
+      schema: 1,
+      backup_complete: true,
+      checksum_valid: true,
+      applications_expected: 3,
+      applications_backed_up: 3,
+      applications_failed: 0,
+      overall_status: "warning",
+      restore_tested: false,
+      last_run_successful: true,
+      backup_path: "/backups/daily/backup-mock",
+      generated_at: generated,
+      run_id: "backup-mock",
+      errors: [],
+      warnings: ["Restore-Test noch nicht nachgewiesen"],
+    });
   }
   for (const [key, value] of Object.entries(FIXTURES)) {
     if (command.includes(key) || command === key) return value;

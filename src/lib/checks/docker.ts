@@ -1,6 +1,8 @@
 import {
   getKnownDockerImagePrefixes,
   isExpectedStoppedContainer,
+  isMigrateOneShotContainer,
+  parseDockerExitedCode,
   THRESHOLDS,
 } from "@/lib/config";
 import {
@@ -160,15 +162,31 @@ export async function runDockerCheck(serverId: string): Promise<CheckResult> {
     if (c.State === "exited" || c.State === "dead") {
       if (isExpectedStoppedContainer(c.Names)) {
         stoppedExpected.push(c.Names);
-      } else {
+        continue;
+      }
+      if (isMigrateOneShotContainer(c.Names)) {
+        const exitCode = parseDockerExitedCode(c.Status);
+        if (exitCode === 0 || exitCode == null) {
+          // null: Status ohne Code — trotzdem als One-Shot behandeln (kein Panic)
+          stoppedExpected.push(c.Names);
+          continue;
+        }
         stoppedUnexpected.push(c.Names);
         if (status !== "critical") status = "warning";
         alerts.push({
           level: "warning",
-          message: `Container ${label(c.Names)} stopped unexpectedly`,
+          message: `Container ${label(c.Names)} migrate failed (exit ${exitCode})`,
           recommendation: `Inspect logs: docker logs ${c.Names}`,
         });
+        continue;
       }
+      stoppedUnexpected.push(c.Names);
+      if (status !== "critical") status = "warning";
+      alerts.push({
+        level: "warning",
+        message: `Container ${label(c.Names)} stopped unexpectedly`,
+        recommendation: `Inspect logs: docker logs ${c.Names}`,
+      });
     }
   }
 

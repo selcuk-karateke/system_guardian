@@ -95,10 +95,47 @@ export function isExpectedStoppedContainer(name: string): boolean {
   );
 }
 
+/**
+ * Coolify/Compose DB-Migrate-Jobs (api-migrate, db-migrate, …) — one-shot.
+ * Exit 0 = erwartet gestoppt; Exit ≠ 0 = eigener Alert (nicht „unexpected stop“).
+ */
+export function isMigrateOneShotContainer(name: string): boolean {
+  const n = name.toLowerCase();
+  return (
+    /(^|[-_/])(api-)?migrate([-_/]|$)/.test(n) ||
+    /(^|[-_/])db-migrate([-_/]|$)/.test(n)
+  );
+}
+
+/** Exit-Code aus `docker ps` Status, z. B. `Exited (0) 2 days ago`. */
+export function parseDockerExitedCode(status: string): number | null {
+  const m = /Exited\s*\((\d+)\)/i.exec(status);
+  if (!m) return null;
+  return parseInt(m[1]!, 10);
+}
+
 /** Critical if newest backup across all paths is older than this (days). */
 export function getBackupMaxAgeDays(): number {
   const v = process.env.BACKUP_MAX_AGE_DAYS;
   return v ? parseInt(v, 10) : 7;
+}
+
+/**
+ * Dir with status.json + backup-health.json from hetzner_backup.sh.
+ * Empty disables monitoring JSON checks.
+ */
+export function getBackupMonitoringDir(): string {
+  return (process.env.BACKUP_MONITORING_DIR ?? "/backups/monitoring").trim();
+}
+
+/**
+ * Critical if status.json finished_at is older than this (hours).
+ * Daily cron 01:00 → default 36h catches a missed night.
+ */
+export function getBackupRunMaxAgeHours(): number {
+  const v = process.env.BACKUP_RUN_MAX_AGE_HOURS;
+  const n = v ? parseInt(v, 10) : 36;
+  return Number.isFinite(n) && n > 0 ? n : 36;
 }
 
 /** Warning if best backup is smaller than this (bytes); 0-byte is always critical. */

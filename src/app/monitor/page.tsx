@@ -11,11 +11,10 @@ import {
 } from "@/lib/config";
 import {
   getAllModuleStatuses,
-  getGlobalStatus,
+  getGlobalCrisisStage,
   getLastCheckTime,
   getRecentAlerts,
   getServerOverview,
-  rollupRelatedModuleStatuses,
 } from "@/lib/dashboard-data";
 import { fimPathsFromAlerts } from "@/lib/alerts/fim-paths";
 import {
@@ -23,9 +22,18 @@ import {
   formatModuleDetailLines,
   getLatestCheckDataByModule,
 } from "@/lib/monitor-details";
+import {
+  compareCrisisAlerts,
+  crisisStageForModule,
+  crisisStageToWallTone,
+  type CrisisStage,
+} from "@/lib/crisis/stages";
+import { buildGlobeTints } from "@/lib/geo/attack-markers";
 import { MONITOR_MODULE_ORDER, MONITOR_PLACEHOLDER_MODULES } from "@/lib/module-labels";
 import { listActiveServers } from "@/lib/servers";
 import { formatUptime } from "@/lib/utils";
+
+type TileSeverity = CrisisStage | "ok" | "unknown";
 
 export default async function MonitorPage({
   searchParams,
@@ -39,7 +47,7 @@ export default async function MonitorPage({
     serverRows[0]?.id ??
     "";
 
-  let globalStatus: "healthy" | "warning" | "critical" = "healthy";
+  let crisisStage: CrisisStage | null = null;
   let overview: Awaited<ReturnType<typeof getServerOverview>> | null = null;
   let modules: Awaited<ReturnType<typeof getAllModuleStatuses>> = [];
   let alerts: Awaited<ReturnType<typeof getRecentAlerts>> = [];
@@ -47,9 +55,9 @@ export default async function MonitorPage({
   let checkData: Record<string, Record<string, unknown>> = {};
 
   try {
-    [globalStatus, overview, modules, alerts, lastCheck, checkData] =
+    [crisisStage, overview, modules, alerts, lastCheck, checkData] =
       await Promise.all([
-        getGlobalStatus(selectedServerId || undefined),
+        getGlobalCrisisStage(selectedServerId || undefined),
         getServerOverview(selectedServerId || undefined),
         getAllModuleStatuses(selectedServerId || undefined),
         getRecentAlerts(40, {
@@ -62,40 +70,9 @@ export default async function MonitorPage({
     /* empty */
   }
 
-  const statusMap = rollupRelatedModuleStatuses(
-    Object.fromEntries(modules.map((m) => [m.module, m.status])),
+  const checkStatusByModule = Object.fromEntries(
+    modules.map((m) => [m.module, m.status]),
   );
-
-  const fimAlertPaths = fimPathsFromAlerts(alerts);
-  if (fimAlertPaths.length > 0 && statusMap.fim !== "critical") {
-    statusMap.fim = "critical";
-  }
-
-  for (const mod of MONITOR_MODULE_ORDER) {
-    if (!statusMap[mod]) statusMap[mod] = "unknown";
-  }
-
-  const moduleDetails: Record<string, string[]> = {};
-  const moduleCheckedAt = Object.fromEntries(
-    modules.map((m) => [m.module, m.at]),
-  );
-  for (const mod of MONITOR_MODULE_ORDER) {
-    moduleDetails[mod] = formatModuleDetailLines(mod, checkData[mod], {
-      status: statusMap[mod],
-      checkedAt: moduleCheckedAt[mod] ?? null,
-      metrics: overview?.metrics ?? null,
-      compact: true,
-      fimAlertPaths: mod === "fim" ? fimAlertPaths : undefined,
-    });
-  }
-
-  const counts = { healthy: 0, warning: 0, critical: 0, unknown: 0 };
-  for (const mod of MONITOR_MODULE_ORDER) {
-    const s = statusMap[mod] as keyof typeof counts;
-    if (s in counts) counts[s]++;
-  }
-
-  // globalStatus bleibt aus getGlobalStatus (offene Alerts) — nicht aus Kachel-Subset überschreiben
 
   const placeholders = new Set<string>(MONITOR_PLACEHOLDER_MODULES);
   const liveAlerts = alerts.filter((a) => {
@@ -104,17 +81,66 @@ export default async function MonitorPage({
     return true;
   });
 
-  const levelRank = (level: string) =>
-    level === "critical" ? 0 : level === "warning" ? 1 : 2;
-  const ranked = [...liveAlerts].sort(
-    (a, b) => levelRank(a.level) - levelRank(b.level),
+  const severityMap: Record<string, TileSeverity> = {};
+  for (const mod of MONITOR_MODULE_ORDER) {
+    if (placeholders.has(mod)) {
+      severityMap[mod] = "unknown";
+      continue;
+    }
+    const related = mod === "docker" ? (["trivy"] as const) : [];
+    const stage = crisisStageForModule(mod, liveAlerts, related);
+    if (stage != null) {
+      severityMap[mod] = stage;
+    } else if (!checkStatusByModule[mod]) {
+      severityMap[mod] = "unknown";
+    } else {
+      severityMap[mod] = "ok";
+    }
+  }
+
+  // FIM path alerts already in liveAlerts; keep stage from alerts only.
+
+  const moduleDetails: Record<string, string[]> = {};
+  const moduleCheckedAt = Object.fromEntries(
+    modules.map((m) => [m.module, m.at]),
   );
-  const tickerAlerts: typeof liveAlerts = [];
+  for (const mod of MONITOR_MODULE_ORDER) {
+    const sev = severityMap[mod];
+    const legacyStatus =
+      sev === "ok" || sev === "unknown"
+        ? sev === "ok"
+          ? "healthy"
+          : "unknown"
+        : sev <= 2
+          ? "critical"
+          : "warning";
+    moduleDetails[mod] = formatModuleDetailLines(mod, checkData[mod], {
+      status: legacyStatus,
+      checkedAt: moduleCheckedAt[mod] ?? null,
+      metrics: overview?.metrics ?? null,
+      compact: true,
+      fimAlertPaths:
+        mod === "fim" ? fimPathsFromAlerts(alerts) : undefined,
+    });
+  }
+
+  const counts = { ok: 0, s4: 0, s3: 0, s2: 0, s1: 0 };
+  for (const mod of MONITOR_MODULE_ORDER) {
+    if (placeholders.has(mod)) continue;
+    const sev = severityMap[mod];
+    if (sev === "ok") counts.ok += 1;
+    else if (sev === 4) counts.s4 += 1;
+    else if (sev === 3) counts.s3 += 1;
+    else if (sev === 2) counts.s2 += 1;
+    else if (sev === 1) counts.s1 += 1;
+  }
+
+  const tickerDeduped = [];
   const seenModules = new Set<string>();
-  for (const a of ranked) {
+  for (const a of [...liveAlerts].sort(compareCrisisAlerts)) {
     if (seenModules.has(a.module)) continue;
     seenModules.add(a.module);
-    tickerAlerts.push(a);
+    tickerDeduped.push(a);
   }
 
   const sshHost = process.env.SSH_HOST;
@@ -135,6 +161,19 @@ export default async function MonitorPage({
     uptimeFormatted,
   );
 
+  const homeIpCandidate =
+    overview?.server?.ipv4 ??
+    (sshHost && /^\d{1,3}(?:\.\d{1,3}){3}$/.test(sshHost) ? sshHost : null);
+
+  const {
+    attacks: attackMarkers,
+    sessions: sessionMarkers,
+    web: webMarkers,
+    home: homeMarker,
+  } = await buildGlobeTints(checkData, { homeIp: homeIpCandidate });
+
+  const wallTone = crisisStageToWallTone(crisisStage);
+
   return (
     <MonitorAutoRefresh intervalSec={30}>
       <div className="px-4 pt-3 flex justify-end">
@@ -150,28 +189,33 @@ export default async function MonitorPage({
         </Suspense>
       </div>
       <MonitorTvProtection
-        globalStatus={globalStatus}
+        globalStatus={wallTone}
+        crisisStage={crisisStage}
         nightStartHour={getMonitorNightStartHour()}
         nightEndHour={getMonitorNightEndHour()}
         pixelShiftSec={getMonitorPixelShiftSec()}
         nightModeEnabled={isMonitorNightModeEnabled()}
       >
         <MonitorWall
-          globalStatus={globalStatus}
+          crisisStage={crisisStage}
           hostLabel={hostLabel}
           hostIp={hostIp}
           checkMode={overview?.checkMode ?? "mock"}
           lastCheck={lastCheck}
           metricCards={metricCards}
-          statusMap={statusMap}
+          severityMap={severityMap}
           moduleDetails={moduleDetails}
           counts={counts}
-          alerts={tickerAlerts.map((a) => ({
+          alerts={tickerDeduped.map((a) => ({
             id: a.id,
             level: a.level,
             module: a.module,
             message: a.message,
           }))}
+          attackMarkers={attackMarkers}
+          sessionMarkers={sessionMarkers}
+          webMarkers={webMarkers}
+          homeMarker={homeMarker}
         />
       </MonitorTvProtection>
     </MonitorAutoRefresh>

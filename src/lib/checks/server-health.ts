@@ -25,13 +25,74 @@ function parseMemPercent(freeOut: string): { ram: number; swap: number } {
   return { ram, swap: swapPct };
 }
 
-function parseDiskMax(dfOut: string): number {
-  let max = 0;
+export type DfMount = {
+  filesystem: string;
+  usePercent: number;
+  mountedOn: string;
+};
+
+/** Parse `df -hP` rows (portable columns: FS Size Used Avail Use% Mounted). */
+export function parseDfMounts(dfOut: string): DfMount[] {
+  const rows: DfMount[] = [];
   for (const line of dfOut.split("\n").slice(1)) {
-    const m = line.match(/(\d+)%/);
-    if (m) max = Math.max(max, parseInt(m[1], 10));
+    const parts = line.trim().split(/\s+/);
+    if (parts.length < 6) continue;
+    const use = parts[4]?.match(/^(\d+)%$/);
+    if (!use) continue;
+    rows.push({
+      filesystem: parts[0],
+      usePercent: parseInt(use[1], 10),
+      mountedOn: parts.slice(5).join(" "),
+    });
   }
-  return max;
+  return rows;
+}
+
+function isRealBlockFs(filesystem: string): boolean {
+  return (
+    filesystem.startsWith("/dev/") ||
+    filesystem.startsWith("/dev/mapper/") ||
+    // LVM / md without leading path edge cases already covered by /dev/
+    filesystem.startsWith("UUID=")
+  );
+}
+
+function isVirtualFs(filesystem: string): boolean {
+  return /^(tmpfs|devtmpfs|overlay|squashfs|efivarfs|udev)$/i.test(filesystem);
+}
+
+/** Max use% on real disks only — ignore tmpfs/overlay (often 100% while / is fine). */
+export function parseDiskMax(dfOut: string): {
+  percent: number;
+  mount: string | null;
+} {
+  let max = 0;
+  let mount: string | null = null;
+  for (const row of parseDfMounts(dfOut)) {
+    if (isVirtualFs(row.filesystem) || !isRealBlockFs(row.filesystem)) continue;
+    if (row.usePercent >= max) {
+      max = row.usePercent;
+      mount = row.mountedOn;
+    }
+  }
+  return { percent: max, mount };
+}
+
+const WATCHED_TMPFS = new Set(["/tmp", "/var/tmp", "/dev/shm"]);
+
+/** Watched tmpfs mounts at/over threshold (e.g. /tmp full) — not the disk metric. */
+export function parseTmpfsAlerts(
+  dfOut: string,
+  warnAt = 90,
+): { mount: string; percent: number }[] {
+  return parseDfMounts(dfOut)
+    .filter(
+      (r) =>
+        /^tmpfs$/i.test(r.filesystem) &&
+        WATCHED_TMPFS.has(r.mountedOn) &&
+        r.usePercent >= warnAt,
+    )
+    .map((r) => ({ mount: r.mountedOn, percent: r.usePercent }));
 }
 
 function parseUptimeSeconds(uptimeOut: string): number {
@@ -53,7 +114,7 @@ export async function runServerHealthCheck(
     ssh.exec("uptime"),
     ssh.exec("cat /proc/loadavg"),
     ssh.exec("free -b"),
-    ssh.exec("df -h"),
+    ssh.exec("df -hP"),
     ssh.exec("sensors 2>/dev/null || echo ''"),
     ssh.exec("nproc"),
   ]);
@@ -66,7 +127,8 @@ export async function runServerHealthCheck(
     Math.round((load1 / cpuCores) * 100),
   );
   const { ram, swap } = parseMemPercent(free.stdout);
-  const disk = parseDiskMax(df.stdout);
+  const { percent: disk, mount: diskMount } = parseDiskMax(df.stdout);
+  const tmpfsHot = parseTmpfsAlerts(df.stdout);
   const uptimeSec = parseUptimeSeconds(uptime.stdout);
 
   let temp: number | undefined;
@@ -99,11 +161,25 @@ export async function runServerHealthCheck(
   if (disk >= THRESHOLDS.diskCritical()) {
     alerts.push({
       level: "critical",
-      message: `Disk usage ${disk}%`,
+      message: `Disk usage ${disk}%${diskMount ? ` on ${diskMount}` : ""}`,
       recommendation: "Clean logs, old backups, or expand volume",
     });
   } else if (disk >= THRESHOLDS.diskWarning()) {
-    alerts.push({ level: "warning", message: `Disk usage ${disk}%` });
+    alerts.push({
+      level: "warning",
+      message: `Disk usage ${disk}%${diskMount ? ` on ${diskMount}` : ""}`,
+    });
+  }
+
+  for (const t of tmpfsHot) {
+    alerts.push({
+      level: t.percent >= 95 ? "critical" : "warning",
+      message: `tmpfs ${t.percent}% on ${t.mount}`,
+      recommendation:
+        t.mount === "/tmp" || t.mount === "/var/tmp"
+          ? `Clear old files under ${t.mount} (builds, apt, docker temp)`
+          : `Inspect ${t.mount} usage`,
+    });
   }
 
   if (swap > 50) {

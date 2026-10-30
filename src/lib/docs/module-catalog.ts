@@ -24,7 +24,12 @@ export const MODULE_CATALOG: readonly ModuleCatalogEntry[] = [
     summary: "HTTP(S)-Erreichbarkeit, Redirect zu HTTPS, HSTS",
   },
   { id: "ports", batch: "server", summary: "Listening vs. Baseline + KNOWN_PORTS" },
-  { id: "backups", batch: "server", summary: "Alter/Größe unter BACKUP_PATHS" },
+  {
+    id: "backups",
+    batch: "server",
+    summary:
+      "BACKUP_PATHS Alter/Größe + /backups/monitoring status/health JSON",
+  },
   { id: "logs", batch: "server", summary: "journal ERROR/FATAL/OOM" },
   { id: "fim", batch: "security", summary: "Datei-Hashes unter FIM_PATHS" },
   { id: "ssh_keys", batch: "security", summary: "authorized_keys Änderungen" },

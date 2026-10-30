@@ -46,6 +46,11 @@ const REPO_DOCS = [
     body: "Wo ist was? Architektur, Check-Katalog, Env/Allowlists, Betrieb, Zuarbeit.",
   },
   {
+    file: "docs/CRISIS.md",
+    title: "Crisis stages (S1–S4)",
+    body: "Emergency / Severe / Degraded / Routine — single UI severity; technical warning/critical stay internal.",
+  },
+  {
     file: "docs/COOLIFY.md",
     title: "Coolify / Production",
     body: "Deploy, Auth, Cron-Schedule, SSH-Key.",

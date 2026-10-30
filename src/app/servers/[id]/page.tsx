@@ -1,15 +1,18 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { StatusBadge } from "@/components/dashboard/status-badge";
 import { AlertList } from "@/components/dashboard/alert-list";
+import { CrisisStageBadge } from "@/components/dashboard/crisis-stage-badge";
 import { TriggerChecks } from "@/components/dashboard/trigger-checks";
 import { MockDataBanner } from "@/components/dashboard/mock-data-banner";
+import { Badge } from "@/components/ui/badge";
 import {
+  getGlobalCrisisStage,
   getLatestCheckByModule,
   getRecentAlerts,
   getServerOverview,
 } from "@/lib/dashboard-data";
+import type { CrisisStage } from "@/lib/crisis/stages";
 import {
   parseMonitorProfile,
   profileLabel,
@@ -27,6 +30,7 @@ export default async function ServerDetailPage({
   if (!server) notFound();
 
   let overview: Awaited<ReturnType<typeof getServerOverview>> | null = null;
+  let crisisStage: CrisisStage | null = null;
   let recentAlerts: Awaited<ReturnType<typeof getRecentAlerts>> = [];
   let logsCheck: Awaited<ReturnType<typeof getLatestCheckByModule>> | undefined;
   let backupsCheck:
@@ -36,6 +40,7 @@ export default async function ServerDetailPage({
 
   try {
     overview = await getServerOverview(id);
+    crisisStage = await getGlobalCrisisStage(id);
     recentAlerts = await getRecentAlerts(10, { serverId: id });
     logsCheck = (await getLatestCheckByModule("logs", id)) ?? undefined;
     backupsCheck = (await getLatestCheckByModule("backups", id)) ?? undefined;
@@ -68,7 +73,13 @@ export default async function ServerDetailPage({
           </p>
         </div>
         <div className="flex flex-col items-end gap-4">
-          <StatusBadge status={overview?.status ?? "healthy"} />
+          {crisisStage != null ? (
+            <CrisisStageBadge stage={crisisStage} showName />
+          ) : (
+            <Badge variant="healthy" className="text-sm px-3 py-1 font-medium">
+              OK
+            </Badge>
+          )}
           <TriggerChecks variant="compact" />
         </div>
       </div>

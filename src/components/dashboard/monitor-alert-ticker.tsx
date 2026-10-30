@@ -3,6 +3,12 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { MODULE_LABELS } from "@/lib/module-labels";
+import {
+  compareCrisisAlerts,
+  crisisStageToWallTone,
+  resolveCrisisStage,
+  CRISIS_STAGE_META,
+} from "@/lib/crisis/stages";
 
 export type MonitorTickerAlert = {
   id: string;
@@ -11,28 +17,16 @@ export type MonitorTickerAlert = {
   message: string;
 };
 
-const LEVEL_LABEL: Record<string, string> = {
-  critical: "Critical",
-  warning: "Warning",
-  info: "Info",
-};
-
 type Props = {
   alerts: MonitorTickerAlert[];
   intervalMs?: number;
 };
 
 export function MonitorAlertTicker({ alerts, intervalMs = 3000 }: Props) {
-  const sorted = useMemo(() => {
-    const rank: Record<string, number> = {
-      critical: 0,
-      warning: 1,
-      info: 2,
-    };
-    return [...alerts].sort(
-      (a, b) => (rank[a.level] ?? 9) - (rank[b.level] ?? 9),
-    );
-  }, [alerts]);
+  const sorted = useMemo(
+    () => [...alerts].sort(compareCrisisAlerts),
+    [alerts],
+  );
 
   const [index, setIndex] = useState(0);
   const [tick, setTick] = useState(0);
@@ -63,17 +57,16 @@ export function MonitorAlertTicker({ alerts, intervalMs = 3000 }: Props) {
   }
 
   const current = sorted[index]!;
-  const level = current.level;
+  const stage = resolveCrisisStage(current);
+  const meta = CRISIS_STAGE_META[stage];
+  const tone = crisisStageToWallTone(stage);
   const footerClass =
-    level === "critical"
+    tone === "critical"
       ? "monitor-bottom--critical"
-      : level === "warning"
+      : tone === "warning"
         ? "monitor-bottom--warning"
-        : level === "info"
-          ? "monitor-bottom--info"
-          : "";
+        : "";
 
-  const label = LEVEL_LABEL[level] ?? level;
   const showNav = sorted.length > 1;
 
   return (
@@ -91,8 +84,12 @@ export function MonitorAlertTicker({ alerts, intervalMs = 3000 }: Props) {
 
       <div className="monitor-bottom-inner">
         <Link href={`/alerts/${current.id}`} className="monitor-bottom-link">
-          <span className={`monitor-bottom-label monitor-bottom-label--${level}`}>
-            {label}
+          <span
+            className={`monitor-bottom-label monitor-bottom-label--${
+              tone === "critical" ? "critical" : "warning"
+            }`}
+          >
+            {meta.short}
             {showNav ? (
               <span className="monitor-bottom-counter">
                 {" "}

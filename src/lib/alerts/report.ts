@@ -1,6 +1,10 @@
 import { parseFailedUnitName } from "@/lib/checks/services";
 import { APP_TIMEZONE, formatAppDateTime } from "@/lib/datetime";
 import { getCheckMode } from "@/lib/config";
+import {
+  CRISIS_STAGE_META,
+  resolveCrisisStage,
+} from "@/lib/crisis/stages";
 import { MODULE_LABELS } from "@/lib/module-labels";
 import { formatModuleDetailLines } from "@/lib/monitor-details";
 
@@ -30,17 +34,7 @@ export type AlertReportContext = {
   check?: AlertCheckContext | null;
 };
 
-const LEVEL_DE: Record<string, string> = {
-  critical: "KRITISCH",
-  warning: "WARNUNG",
-  info: "INFO",
-};
-
 const formatDeDate = formatAppDateTime;
-
-function levelLabel(level: string): string {
-  return LEVEL_DE[level] ?? level.toUpperCase();
-}
 
 function moduleLabel(module: string): string {
   return MODULE_LABELS[module] ?? module;
@@ -481,13 +475,20 @@ export function buildAlertReport(
     "",
     ...hostSection(ctx),
     "",
-    alert.level === "info" ? "HINWEIS" : "WARNUNG",
-    alert.level === "info" ? "-------" : "-------",
-    `Stufe: ${levelLabel(alert.level)}`,
-    `Modul: ${moduleLabel(alert.module)} (${alert.module})`,
-    ...(alert.notificationSent
-      ? ["Benachrichtigung: Telegram/E-Mail/Discord gesendet"]
-      : []),
+    ...(() => {
+      const stage = resolveCrisisStage(alert);
+      const meta = CRISIS_STAGE_META[stage];
+      return [
+        "KRISENSTUFE",
+        "-----------",
+        `Stufe: ${meta.short} · ${meta.name}`,
+        `Bedeutung: ${meta.blurb}`,
+        `Modul: ${moduleLabel(alert.module)} (${alert.module})`,
+        ...(alert.notificationSent
+          ? ["Benachrichtigung: Telegram/E-Mail/Discord gesendet"]
+          : []),
+      ];
+    })(),
     "",
     "MELDUNG",
     "-------",
@@ -548,8 +549,10 @@ export function buildAlertsBundleReport(
 
   for (let i = 0; i < alertList.length; i++) {
     const a = alertList[i];
+    const stage = resolveCrisisStage(a);
+    const meta = CRISIS_STAGE_META[stage];
     header.push(
-      `${i + 1}. [${levelLabel(a.level)}] ${moduleLabel(a.module)} — ${a.message}`,
+      `${i + 1}. [${meta.short} ${meta.name}] ${moduleLabel(a.module)} — ${a.message}`,
     );
     header.push(`   Zeit: ${formatDeDate(a.createdAt)} · ID: ${a.id}`);
     if (a.recommendation) {

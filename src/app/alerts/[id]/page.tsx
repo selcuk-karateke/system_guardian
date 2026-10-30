@@ -2,13 +2,14 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AlertDetailActions } from "@/components/dashboard/alert-detail-actions";
 import { CopyReportButton } from "@/components/dashboard/copy-report-button";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CrisisStageBadge } from "@/components/dashboard/crisis-stage-badge";
 import { parseFimPathFromAlert } from "@/lib/alerts/fim-paths";
 import { buildAlertReport } from "@/lib/alerts/report";
 import { APP_TIMEZONE, formatAppDateTime } from "@/lib/datetime";
 import { getModulePageForAlert } from "@/lib/alert-routes";
 import { isBackupTriggerEnabled } from "@/lib/config";
+import { resolveCrisisStage } from "@/lib/crisis/stages";
 import {
   getAlertById,
   getLatestCheckByModule,
@@ -16,12 +17,6 @@ import {
 } from "@/lib/dashboard-data";
 import { MODULE_LABELS } from "@/lib/module-labels";
 import { formatModuleDetailLines } from "@/lib/monitor-details";
-
-function levelBadgeVariant(level: string) {
-  if (level === "critical") return "critical" as const;
-  if (level === "warning") return "warning" as const;
-  return "default" as const;
-}
 
 function checkStatusClass(status: string) {
   if (status === "critical") return "text-red-400";
@@ -118,7 +113,7 @@ export default async function AlertDetailPage({
 
       <div className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant={levelBadgeVariant(alert.level)}>{alert.level}</Badge>
+          <CrisisStageBadge stage={resolveCrisisStage(alert)} showName />
           <span className="text-zinc-500 text-sm">{moduleLabel}</span>
           {alert.notificationSent && (
             <span className="text-xs text-zinc-600">Benachrichtigung gesendet</span>

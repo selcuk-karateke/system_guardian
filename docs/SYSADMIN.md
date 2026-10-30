@@ -139,6 +139,8 @@ Zwei Batches, zwei Cron-Jobs.
 | **WARNING** | Nicht akut (SSL bald ablaufend, neuer Port, Restart) | Notify je nach Kanal |
 | **CRITICAL** | Sofort (RAID fail, Backup weg, unbekannter Root-Login, DB down, IOC) | Sofort-Notify |
 
+**User-facing severity (S1–S4):** Technical `warning`/`critical` ≠ crisis stage. English labels Emergency / Severe / Degraded / Routine — [CRISIS.md](./CRISIS.md) · `src/lib/crisis/stages.ts`.
+
 **Alert-Lifecycle:** Offene Alerts werden **nicht** bei jedem Cron neu eingefügt (Dedup über Modul + Message + Server). Stattdessen wird `last_seen_at` aktualisiert. Wenn ein Modul-Lauf die Message nicht mehr produziert, setzt `reconcileOpenAlerts` `resolved_at` (Auto-Close). UI/Bericht zeigen „zuletzt bestätigt“. Entschärfte Alerts zählen nicht mehr zum globalen WARNING/CRITICAL.
 
 ---
