@@ -26,25 +26,26 @@ export function MonitorGlobeStage({
 }: Props) {
   return (
     <div className="monitor-wall monitor-wall--globe" data-status={globalStatus}>
+      {/* BG wash only — globe outside so .monitor-bg opacity cannot dim it */}
       <div className="monitor-bg" aria-hidden>
-        <div className="monitor-hud">
-          <div className="monitor-hud-grid" />
-          <div className="monitor-hud-rings monitor-hud-rings--focus">
-            <MonitorGlobe
-              status={globalStatus}
-              interactive
-              attackMarkers={attackMarkers}
-              sessionMarkers={sessionMarkers}
-              webMarkers={webMarkers}
-              homeMarker={homeMarker}
-            />
-            <div className="monitor-hud-ring monitor-hud-ring--1" />
-            <div className="monitor-hud-ring monitor-hud-ring--2" />
-            <div className="monitor-hud-ring monitor-hud-ring--3" />
-          </div>
-          <div className="monitor-hud-scan" />
-        </div>
         <div className="monitor-aurora" />
+      </div>
+      <div className="monitor-hud">
+        <div className="monitor-hud-grid" />
+        <div className="monitor-hud-rings monitor-hud-rings--focus">
+          <MonitorGlobe
+            status={globalStatus}
+            interactive
+            attackMarkers={attackMarkers}
+            sessionMarkers={sessionMarkers}
+            webMarkers={webMarkers}
+            homeMarker={homeMarker}
+          />
+          <div className="monitor-hud-ring monitor-hud-ring--1" />
+          <div className="monitor-hud-ring monitor-hud-ring--2" />
+          <div className="monitor-hud-ring monitor-hud-ring--3" />
+        </div>
+        <div className="monitor-hud-scan" />
       </div>
 
       <div className="monitor-content monitor-content--globe">

@@ -111,10 +111,15 @@
     radial-gradient(circle at 50% 50%, rgb(5 150 105 / 10%), transparent 55%);
 }
 
-/* HUD backdrop — dezent für TV, JARVIS-Optik */
+/*
+ * HUD / globe — sibling of .monitor-bg (not a child).
+ * .monitor-bg uses opacity ~0.62 for the wash; nesting the globe there
+ * multiplied that onto every land dot in all three views.
+ */
 .monitor-hud {
   position: absolute;
   inset: 0;
+  z-index: 1;
   overflow: hidden;
   pointer-events: none;
 }
@@ -180,7 +185,11 @@
   top: 50%;
 }
 
-/* Standalone Globus: lift the stage so the sphere isn't lost in pure black */
+/* Standalone Globus: full-opacity stage + brighter wash */
+.monitor-wall--globe .monitor-bg {
+  opacity: 1;
+}
+
 .monitor-wall--globe[data-status="healthy"] .monitor-bg {
   background: linear-gradient(
     315deg,
@@ -229,12 +238,6 @@
   );
   pointer-events: none;
   z-index: 0;
-}
-
-.monitor-wall--globe .monitor-hud-globe-canvas--ready {
-  filter: blur(0)
-    drop-shadow(0 0 28px var(--globe-glow, rgb(56 226 255 / 70%)))
-    drop-shadow(0 0 72px var(--globe-glow, rgb(34 211 238 / 45%)));
 }
 
 .monitor-wall--globe .monitor-content--globe {
@@ -372,7 +375,8 @@
   opacity: 1;
   transform: scale(1);
   filter: blur(0)
-    drop-shadow(0 0 40px var(--globe-glow, rgb(34 211 238 / 48%)));
+    drop-shadow(0 0 28px var(--globe-glow, rgb(56 226 255 / 70%)))
+    drop-shadow(0 0 72px var(--globe-glow, rgb(34 211 238 / 45%)));
 }
 
 .monitor-hud-globe-rays {
@@ -1599,40 +1603,40 @@
 }
 
 .monitor-tv-shell[data-night="1"] .monitor-bg {
-  opacity: 0.85;
+  opacity: 0.75;
 }
 
 .monitor-tv-shell[data-night="1"] .monitor-bg::before {
-  opacity: 0.35;
+  opacity: 0.4;
 }
 
 .monitor-tv-shell[data-night="1"] .monitor-aurora {
-  opacity: 0.22;
+  opacity: 0.28;
 }
 
 .monitor-tv-shell[data-night="1"] .monitor-hud-grid {
-  opacity: 0.1;
+  opacity: 0.12;
 }
 
 .monitor-tv-shell[data-night="1"] .monitor-hud-scan {
-  opacity: 0.18;
+  opacity: 0.2;
 }
 
 .monitor-tv-shell[data-night="1"] .monitor-hud {
   display: block;
-  /* Above bg wash (::after), still under .monitor-content */
-  z-index: 5;
+  /* Above edge drift/noise; content stays above for clock/status */
+  z-index: 8;
 }
 
 .monitor-tv-shell[data-night="1"] .monitor-bg::after {
-  opacity: 0.4;
+  opacity: 0.35;
 }
 
 .monitor-tv-shell[data-night="1"] .monitor-hud-rings {
   top: 50%;
   left: 50%;
   width: min(92vmin, 86vw);
-  opacity: 0.88;
+  opacity: 1;
 }
 
 .monitor-tv-shell[data-night="1"] .monitor-hud-globe {
@@ -1640,28 +1644,17 @@
   height: 84%;
 }
 
-/*
- * Night burn layers sit UNDER content (z9) so clock/status stay crisp.
- * Soft edge vignette + grain only — no heavy full-screen blackout.
- */
-.monitor-night-dim {
-  position: absolute;
-  inset: 0;
-  z-index: 6;
-  pointer-events: none;
-  background: rgb(0 0 0 / 8%);
-}
-
+/* Night burn: edge vignette + grain under the globe (clear center) */
 .monitor-night-drift {
   position: absolute;
   inset: -18%;
   z-index: 7;
   pointer-events: none;
   background: radial-gradient(
-    ellipse 70% 62% at 50% 46%,
-    transparent 48%,
-    rgb(0 0 0 / 18%) 78%,
-    rgb(0 0 0 / 32%) 100%
+    ellipse 78% 70% at 50% 46%,
+    transparent 58%,
+    rgb(0 0 0 / 12%) 82%,
+    rgb(0 0 0 / 22%) 100%
   );
   animation: monitor-night-drift 52s ease-in-out infinite alternate;
 }
@@ -1707,7 +1700,6 @@
   justify-content: center;
   gap: clamp(20px, 3.5vh, 40px);
   padding: clamp(24px, 4vh, 48px) clamp(24px, 3vw, 64px);
-  /* Above night-dim so clock/status stay readable; globe stays under the wash */
   z-index: 9;
 }
 

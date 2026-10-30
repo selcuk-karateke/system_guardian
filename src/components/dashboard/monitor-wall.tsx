@@ -94,23 +94,8 @@ export function MonitorWall({
 
   return (
     <div className="monitor-wall" data-status={wallTone}>
+      {/* BG wash only — globe lives in .monitor-hud so bg opacity cannot dim it */}
       <div className="monitor-bg" aria-hidden>
-        <div className="monitor-hud">
-          <div className="monitor-hud-grid" />
-          <div className="monitor-hud-rings">
-            <MonitorGlobe
-              status={wallTone}
-              attackMarkers={attackMarkers}
-              sessionMarkers={sessionMarkers}
-              webMarkers={webMarkers}
-              homeMarker={homeMarker}
-            />
-            <div className="monitor-hud-ring monitor-hud-ring--1" />
-            <div className="monitor-hud-ring monitor-hud-ring--2" />
-            <div className="monitor-hud-ring monitor-hud-ring--3" />
-          </div>
-          <div className="monitor-hud-scan" />
-        </div>
         <div className="monitor-aurora" />
         <div className="monitor-waves monitor-waves--top">
           <div className="monitor-wave monitor-wave--flip" />
@@ -129,6 +114,22 @@ export function MonitorWall({
           <div className="monitor-wave" />
           <div className="monitor-wave" />
         </div>
+      </div>
+      <div className="monitor-hud" aria-hidden>
+        <div className="monitor-hud-grid" />
+        <div className="monitor-hud-rings">
+          <MonitorGlobe
+            status={wallTone}
+            attackMarkers={attackMarkers}
+            sessionMarkers={sessionMarkers}
+            webMarkers={webMarkers}
+            homeMarker={homeMarker}
+          />
+          <div className="monitor-hud-ring monitor-hud-ring--1" />
+          <div className="monitor-hud-ring monitor-hud-ring--2" />
+          <div className="monitor-hud-ring monitor-hud-ring--3" />
+        </div>
+        <div className="monitor-hud-scan" />
       </div>
 
       <div className="monitor-content">

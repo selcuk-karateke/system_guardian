@@ -17,7 +17,7 @@ type Props = {
   sessionMarkers?: GlobeTint[];
   webMarkers?: GlobeTint[];
   homeMarker?: GlobeTint | null;
-  /** Drag + hover readout — screensaver keeps this false. */
+  /** Drag + hover readout only — look/brightness is shared everywhere. */
   interactive?: boolean;
 };
 
@@ -39,6 +39,7 @@ const HOME_CSS = "rgb(255 230 90)";
 const ATTACK_CSS = "rgb(255 95 75)";
 const RIPPLE_RGB: [number, number, number] = [1, 0.55, 0.25];
 
+/** One look for screensaver, night, and standalone — no per-view dimming. */
 const PALETTE: Record<
   Status,
   {
@@ -46,22 +47,6 @@ const PALETTE: Record<
     glow: string;
   }
 > = {
-  healthy: {
-    base: [0.2, 0.72, 0.78],
-    glow: "rgb(34 211 238 / 40%)",
-  },
-  warning: {
-    base: [0.85, 0.65, 0.2],
-    glow: "rgb(251 191 36 / 38%)",
-  },
-  critical: {
-    base: [0.85, 0.3, 0.3],
-    glow: "rgb(248 113 113 / 42%)",
-  },
-};
-
-/** Hero / standalone interactive view — brighter land + glow than screensaver inset. */
-const PALETTE_FOCUS: Record<Status, { base: [number, number, number]; glow: string }> = {
   healthy: {
     base: [0.38, 0.92, 0.98],
     glow: "rgb(56 226 255 / 72%)",
@@ -75,6 +60,9 @@ const PALETTE_FOCUS: Record<Status, { base: [number, number, number]; glow: stri
     glow: "rgb(248 113 113 / 72%)",
   },
 };
+
+const GLOBE_POINT_MUL = 2.35;
+const GLOBE_AMB = 0.55;
 
 const VERT = `
 attribute vec3 a_pos;
@@ -669,10 +657,7 @@ export function MonitorGlobe({
     /** Land base + optional ban ripples only — marks are ray stubs, not spots. */
     const paintLand = (now: number) => {
       if (!count) return;
-      const focus = interactiveRef.current;
-      const p = focus
-        ? PALETTE_FOCUS[statusRef.current]
-        : PALETTE[statusRef.current];
+      const p = PALETTE[statusRef.current];
       const layers: TintLayer[] = [];
       for (const rip of ripples) {
         const age = (now - rip.t0) / RIPPLE_MS;
@@ -696,7 +681,7 @@ export function MonitorGlobe({
         sessionsRef.current,
         webRef.current,
         homeRef.current,
-      )}#${statusRef.current}#${focus ? "f" : "s"}`;
+      )}#${statusRef.current}`;
     };
 
     const tick = () => {
@@ -710,7 +695,7 @@ export function MonitorGlobe({
         sessionsRef.current,
         webRef.current,
         homeRef.current,
-      )}#${statusRef.current}#${interactiveRef.current ? "f" : "s"}`;
+      )}#${statusRef.current}`;
       if (nextKey !== lastDataKey || ripples.length > 0) {
         paintLand(now);
       }
@@ -733,15 +718,12 @@ export function MonitorGlobe({
       gl.enable(gl.DEPTH_TEST);
       gl.depthFunc(gl.LEQUAL);
 
-      const focus = canInteract;
       gl.uniformMatrix3fv(uRot, false, rot);
       gl.uniform1f(uScale, GLOBE_SCALE);
-      // Compensates 84% ring--1 canvas so land dots keep prior visual weight
-      const pointMul = focus ? 2.35 : 1.9;
-      gl.uniform1f(uPoint, Math.max(1.4, (css / 300) * dpr * pointMul));
+      // Compensates 84% ring--1 canvas so land dots keep visual weight
+      gl.uniform1f(uPoint, Math.max(1.4, (css / 300) * dpr * GLOBE_POINT_MUL));
       gl.uniform3f(uLight, 0.35, 0.55, 0.85);
-      // Standalone globe needs more fill light; screensaver stays moodier
-      gl.uniform1f(uAmb, focus ? 0.55 : 0.32);
+      gl.uniform1f(uAmb, GLOBE_AMB);
 
       gl.bindBuffer(gl.ARRAY_BUFFER, posBuf);
       gl.enableVertexAttribArray(aPos);

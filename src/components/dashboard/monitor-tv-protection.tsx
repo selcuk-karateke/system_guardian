@@ -83,7 +83,6 @@ export function MonitorTvProtection({
         {children}
         {nightActive && (
           <>
-            <div className="monitor-night-dim" aria-hidden />
             <div className="monitor-night-drift" aria-hidden />
             <div className="monitor-night-noise" aria-hidden />
             <p className="monitor-night-hint" aria-hidden>
