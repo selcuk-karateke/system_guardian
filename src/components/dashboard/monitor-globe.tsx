@@ -339,7 +339,7 @@ export function MonitorGlobe({
       ...sessionMarkers,
       ...attackMarkers,
     ]);
-    let theta = 0.22;
+    const theta = 0.22;
     let raf = 0;
     let destroyed = false;
     let lastDataKey = "";
@@ -347,79 +347,7 @@ export function MonitorGlobe({
     const ripples: Ripple[] = [];
     let ripplesArmed = false;
 
-    // Pointer: drag to spin; hover nudges; auto-spin resumes after idle
-    let dragging = false;
-    let lastPtrX = 0;
-    let lastPtrY = 0;
-    let autoSpin = true;
-    let resumeTimer: ReturnType<typeof setTimeout> | null = null;
-    let hoverPhi = 0;
-    let hoverTheta = 0;
-    let smoothHoverPhi = 0;
-    let smoothHoverTheta = 0;
-
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const wrap = wrapRef.current;
-
-    const pauseAutoSpin = () => {
-      autoSpin = false;
-      if (resumeTimer) clearTimeout(resumeTimer);
-      resumeTimer = setTimeout(() => {
-        if (!dragging) autoSpin = true;
-      }, 2200);
-    };
-
-    const onPointerDown = (e: PointerEvent) => {
-      if (e.button !== 0) return;
-      dragging = true;
-      pauseAutoSpin();
-      lastPtrX = e.clientX;
-      lastPtrY = e.clientY;
-      wrap?.setPointerCapture(e.pointerId);
-      if (wrap) wrap.dataset.dragging = "1";
-    };
-    const onPointerMove = (e: PointerEvent) => {
-      if (!wrap) return;
-      const rect = wrap.getBoundingClientRect();
-      if (rect.width < 1 || rect.height < 1) return;
-
-      if (dragging) {
-        const dx = e.clientX - lastPtrX;
-        const dy = e.clientY - lastPtrY;
-        lastPtrX = e.clientX;
-        lastPtrY = e.clientY;
-        phi += dx * 0.0055;
-        theta = Math.max(-0.55, Math.min(0.75, theta - dy * 0.0045));
-        return;
-      }
-
-      // Free move over the globe — gentle aim toward cursor
-      const nx = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-      const ny = ((e.clientY - rect.top) / rect.height) * 2 - 1;
-      hoverPhi = nx * 0.45;
-      hoverTheta = ny * 0.28;
-      pauseAutoSpin();
-    };
-    const onPointerUp = (e: PointerEvent) => {
-      dragging = false;
-      if (wrap) delete wrap.dataset.dragging;
-      try {
-        wrap?.releasePointerCapture(e.pointerId);
-      } catch {
-        /* ignore */
-      }
-      pauseAutoSpin();
-    };
-    const onPointerLeave = () => {
-      hoverPhi = 0;
-      hoverTheta = 0;
-    };
-
-    wrap?.addEventListener("pointerdown", onPointerDown);
-    wrap?.addEventListener("pointermove", onPointerMove);
-    wrap?.addEventListener("pointerup", onPointerUp);
-    wrap?.addEventListener("pointercancel", onPointerUp);
-    wrap?.addEventListener("pointerleave", onPointerLeave);
 
     const syncSize = () => {
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -497,11 +425,8 @@ export function MonitorGlobe({
         paintLand(now);
       }
 
-      if (!reduced.matches && autoSpin && !dragging) phi += 0.0024;
-      // Ease hover parallax
-      smoothHoverPhi += (hoverPhi - smoothHoverPhi) * 0.08;
-      smoothHoverTheta += (hoverTheta - smoothHoverTheta) * 0.08;
-      rotMat(phi + smoothHoverPhi, theta + smoothHoverTheta, rot);
+      if (!reduced.matches) phi += 0.0024;
+      rotMat(phi, theta, rot);
 
       gl.enable(gl.BLEND);
       gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
@@ -564,12 +489,6 @@ export function MonitorGlobe({
     return () => {
       destroyed = true;
       cancelAnimationFrame(raf);
-      if (resumeTimer) clearTimeout(resumeTimer);
-      wrap?.removeEventListener("pointerdown", onPointerDown);
-      wrap?.removeEventListener("pointermove", onPointerMove);
-      wrap?.removeEventListener("pointerup", onPointerUp);
-      wrap?.removeEventListener("pointercancel", onPointerUp);
-      wrap?.removeEventListener("pointerleave", onPointerLeave);
       gl.deleteBuffer(posBuf);
       gl.deleteBuffer(colBuf);
       gl.deleteProgram(program);
@@ -577,12 +496,7 @@ export function MonitorGlobe({
   }, []);
 
   return (
-    <div
-      ref={wrapRef}
-      className="monitor-hud-globe"
-      role="img"
-      aria-label="Angriffs- und Session-Karte — ziehen zum Drehen"
-    >
+    <div ref={wrapRef} className="monitor-hud-globe" aria-hidden>
       <canvas
         ref={canvasRef}
         className="monitor-hud-globe-canvas"

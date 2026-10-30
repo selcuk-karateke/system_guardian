@@ -159,15 +159,9 @@
   width: 84%;
   height: 84%;
   transform: translate(-50%, -50%);
-  /* Interactive — rings above must stay pointer-events: none */
-  pointer-events: auto;
-  cursor: grab;
-  touch-action: none;
+  /* Decorative BG / screensaver — never capture input */
+  pointer-events: none;
   /* no overflow:hidden — ray stubs must stick out past the surface */
-}
-
-.monitor-hud-globe[data-dragging="1"] {
-  cursor: grabbing;
 }
 
 .monitor-hud-globe-canvas,
