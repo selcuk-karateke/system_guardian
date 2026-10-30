@@ -1,5 +1,6 @@
 import {
   getKnownDockerImagePrefixes,
+  isBuildInfraContainer,
   isExpectedStoppedContainer,
   isMigrateOneShotContainer,
   parseDockerExitedCode,
@@ -317,6 +318,7 @@ export async function runDockerCheck(serverId: string): Promise<CheckResult> {
   const memWarn = THRESHOLDS.dockerMemWarning();
 
   for (const s of stats) {
+    if (isBuildInfraContainer(s.Name)) continue;
     const cpu = parsePercent(s.CPUPerc);
     const mem = parsePercent(s.MemPerc);
     if (cpu < cpuWarn && mem < memWarn) continue;

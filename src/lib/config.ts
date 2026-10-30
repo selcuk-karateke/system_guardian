@@ -107,6 +107,19 @@ export function isMigrateOneShotContainer(name: string): boolean {
   );
 }
 
+/**
+ * Coolify / Docker Buildx builders (railpack, buildkit) — high CPU during deploys is expected.
+ * Skip docker-stats resource WARN so deploy spikes do not page as “miner / traffic spike”.
+ */
+export function isBuildInfraContainer(name: string): boolean {
+  const n = name.toLowerCase();
+  return (
+    n.includes("buildkit") ||
+    n.includes("buildx") ||
+    n.includes("railpack")
+  );
+}
+
 /** Exit-Code aus `docker ps` Status, z. B. `Exited (0) 2 days ago`. */
 export function parseDockerExitedCode(status: string): number | null {
   const m = /Exited\s*\((\d+)\)/i.exec(status);

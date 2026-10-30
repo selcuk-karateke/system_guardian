@@ -180,6 +180,63 @@
   top: 50%;
 }
 
+/* Standalone Globus: lift the stage so the sphere isn't lost in pure black */
+.monitor-wall--globe[data-status="healthy"] .monitor-bg {
+  background: linear-gradient(
+    315deg,
+    #04151a 0%,
+    #0a2a32 38%,
+    #0d3a36 68%,
+    #061018 100%
+  );
+}
+
+.monitor-wall--globe[data-status="warning"] .monitor-bg {
+  background: linear-gradient(
+    315deg,
+    #1a1206 0%,
+    #2a1c08 38%,
+    #3a2810 68%,
+    #120c05 100%
+  );
+}
+
+.monitor-wall--globe[data-status="critical"] .monitor-bg {
+  background: linear-gradient(
+    315deg,
+    #1a0808 0%,
+    #2a1010 38%,
+    #3a1414 68%,
+    #120606 100%
+  );
+}
+
+.monitor-wall--globe .monitor-aurora {
+  opacity: 0.85;
+  filter: saturate(1.25) brightness(1.2);
+}
+
+.monitor-wall--globe .monitor-hud-rings--focus::before {
+  content: "";
+  position: absolute;
+  inset: 8%;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 38% 32%,
+    rgb(120 220 255 / 22%) 0%,
+    rgb(34 211 238 / 8%) 42%,
+    transparent 68%
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+
+.monitor-wall--globe .monitor-hud-globe-canvas--ready {
+  filter: blur(0)
+    drop-shadow(0 0 28px var(--globe-glow, rgb(56 226 255 / 70%)))
+    drop-shadow(0 0 72px var(--globe-glow, rgb(34 211 238 / 45%)));
+}
+
 .monitor-wall--globe .monitor-content--globe {
   pointer-events: none;
 }
@@ -1486,38 +1543,53 @@
   color: var(--muted);
 }
 
-/* TV burn-in protection */
+/* TV burn-in protection — shift globe + overlay together (not content-only) */
 .monitor-tv-shell {
   position: fixed;
   inset: 0;
   z-index: 0;
 }
 
-.monitor-tv-shell .monitor-content {
+.monitor-tv-shell .monitor-tv-shift {
+  position: absolute;
+  inset: 0;
   transition: transform 1.2s ease;
 }
 
-.monitor-tv-shell[data-pixel-shift="0"] .monitor-content {
+.monitor-tv-shell[data-pixel-shift="0"] .monitor-tv-shift {
   transform: translate(0, 0);
 }
 
-.monitor-tv-shell[data-pixel-shift="1"] .monitor-content {
+.monitor-tv-shell[data-pixel-shift="1"] .monitor-tv-shift {
   transform: translate(2px, 0);
 }
 
-.monitor-tv-shell[data-pixel-shift="2"] .monitor-content {
+.monitor-tv-shell[data-pixel-shift="2"] .monitor-tv-shift {
   transform: translate(0, 2px);
 }
 
-.monitor-tv-shell[data-pixel-shift="3"] .monitor-content {
+.monitor-tv-shell[data-pixel-shift="3"] .monitor-tv-shift {
   transform: translate(-2px, 1px);
 }
 
-/* Night: quiet UI, keep the HUD sphere behind the centered status */
-.monitor-tv-shell[data-night="1"] .monitor-aurora,
+/* Night: larger amplitude — quiet UI + bright globe burn faster if locked */
+.monitor-tv-shell[data-night="1"][data-pixel-shift="1"] .monitor-tv-shift {
+  transform: translate(5px, 0);
+}
+
+.monitor-tv-shell[data-night="1"][data-pixel-shift="2"] .monitor-tv-shift {
+  transform: translate(0, 5px);
+}
+
+.monitor-tv-shell[data-night="1"][data-pixel-shift="3"] .monitor-tv-shift {
+  transform: translate(-4px, 3px);
+}
+
+/*
+ * Night: quiet chrome, but KEEP screensaver motion (aurora/grid/scan/rings).
+ * Hiding those left only a bright static-ish globe — worse for OLED than day mode.
+ */
 .monitor-tv-shell[data-night="1"] .monitor-waves,
-.monitor-tv-shell[data-night="1"] .monitor-hud-grid,
-.monitor-tv-shell[data-night="1"] .monitor-hud-scan,
 .monitor-tv-shell[data-night="1"] .monitor-grid,
 .monitor-tv-shell[data-night="1"] .monitor-metrics,
 .monitor-tv-shell[data-night="1"] .monitor-host,
@@ -1527,11 +1599,23 @@
 }
 
 .monitor-tv-shell[data-night="1"] .monitor-bg {
-  opacity: 0.9;
+  opacity: 0.85;
 }
 
 .monitor-tv-shell[data-night="1"] .monitor-bg::before {
-  display: none;
+  opacity: 0.35;
+}
+
+.monitor-tv-shell[data-night="1"] .monitor-aurora {
+  opacity: 0.22;
+}
+
+.monitor-tv-shell[data-night="1"] .monitor-hud-grid {
+  opacity: 0.1;
+}
+
+.monitor-tv-shell[data-night="1"] .monitor-hud-scan {
+  opacity: 0.18;
 }
 
 .monitor-tv-shell[data-night="1"] .monitor-hud {
@@ -1541,19 +1625,79 @@
 }
 
 .monitor-tv-shell[data-night="1"] .monitor-bg::after {
-  opacity: 0.55;
+  opacity: 0.4;
 }
 
 .monitor-tv-shell[data-night="1"] .monitor-hud-rings {
   top: 50%;
   left: 50%;
   width: min(92vmin, 86vw);
-  opacity: 0.95;
+  opacity: 0.88;
 }
 
 .monitor-tv-shell[data-night="1"] .monitor-hud-globe {
   width: 84%;
   height: 84%;
+}
+
+/*
+ * Night burn layers sit UNDER content (z9) so clock/status stay crisp.
+ * Soft edge vignette + grain only — no heavy full-screen blackout.
+ */
+.monitor-night-dim {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+  background: rgb(0 0 0 / 8%);
+}
+
+.monitor-night-drift {
+  position: absolute;
+  inset: -18%;
+  z-index: 7;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse 70% 62% at 50% 46%,
+    transparent 48%,
+    rgb(0 0 0 / 18%) 78%,
+    rgb(0 0 0 / 32%) 100%
+  );
+  animation: monitor-night-drift 52s ease-in-out infinite alternate;
+}
+
+@keyframes monitor-night-drift {
+  0% {
+    transform: translate(-2.8%, -2%);
+  }
+  50% {
+    transform: translate(2.2%, 2.6%);
+  }
+  100% {
+    transform: translate(3%, -1.4%);
+  }
+}
+
+.monitor-night-noise {
+  position: absolute;
+  inset: 0;
+  z-index: 7;
+  pointer-events: none;
+  opacity: 0.03;
+  mix-blend-mode: soft-light;
+  background-image: repeating-radial-gradient(
+    circle at 18% 32%,
+    rgb(255 255 255 / 55%) 0 0.6px,
+    transparent 1px 3px
+  );
+  background-size: 140px 110px;
+  animation: monitor-night-noise 16s linear infinite;
+}
+
+@keyframes monitor-night-noise {
+  to {
+    background-position: 140px 90px;
+  }
 }
 
 .monitor-tv-shell[data-night="1"] .monitor-content {
@@ -1563,6 +1707,8 @@
   justify-content: center;
   gap: clamp(20px, 3.5vh, 40px);
   padding: clamp(24px, 4vh, 48px) clamp(24px, 3vw, 64px);
+  /* Above night-dim so clock/status stay readable; globe stays under the wash */
+  z-index: 9;
 }
 
 .monitor-tv-shell[data-night="1"] .monitor-top {
@@ -1661,9 +1807,14 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .monitor-tv-shell .monitor-content {
+  .monitor-tv-shell .monitor-tv-shift {
     transition: none;
     transform: none !important;
+  }
+
+  .monitor-night-drift,
+  .monitor-night-noise {
+    animation: none;
   }
 
   .monitor-bg {

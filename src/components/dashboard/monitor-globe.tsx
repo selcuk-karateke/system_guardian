@@ -60,6 +60,22 @@ const PALETTE: Record<
   },
 };
 
+/** Hero / standalone interactive view — brighter land + glow than screensaver inset. */
+const PALETTE_FOCUS: Record<Status, { base: [number, number, number]; glow: string }> = {
+  healthy: {
+    base: [0.38, 0.92, 0.98],
+    glow: "rgb(56 226 255 / 72%)",
+  },
+  warning: {
+    base: [1, 0.82, 0.35],
+    glow: "rgb(251 191 36 / 70%)",
+  },
+  critical: {
+    base: [1, 0.48, 0.42],
+    glow: "rgb(248 113 113 / 72%)",
+  },
+};
+
 const VERT = `
 attribute vec3 a_pos;
 attribute vec3 a_col;
@@ -67,12 +83,14 @@ uniform mat3 u_rot;
 uniform float u_scale;
 uniform float u_point;
 uniform vec3 u_light;
+uniform float u_amb;
 varying vec3 v_col;
 varying float v_z;
 void main() {
   vec3 p = u_rot * a_pos;
   v_z = p.z;
-  float lit = 0.32 + 0.68 * max(0.0, dot(normalize(p), u_light));
+  float amb = clamp(u_amb, 0.2, 0.75);
+  float lit = amb + (1.0 - amb) * max(0.0, dot(normalize(p), u_light));
   v_col = a_col * lit;
   gl_Position = vec4(p.x * u_scale, p.y * u_scale, -p.z * 0.5, 1.0);
   gl_PointSize = max(1.0, u_point * (0.75 + 0.35 * p.z));
@@ -486,6 +504,7 @@ export function MonitorGlobe({
     const uScale = gl.getUniformLocation(program, "u_scale");
     const uPoint = gl.getUniformLocation(program, "u_point");
     const uLight = gl.getUniformLocation(program, "u_light");
+    const uAmb = gl.getUniformLocation(program, "u_amb");
 
     const posBuf = gl.createBuffer();
     const colBuf = gl.createBuffer();
@@ -650,7 +669,10 @@ export function MonitorGlobe({
     /** Land base + optional ban ripples only — marks are ray stubs, not spots. */
     const paintLand = (now: number) => {
       if (!count) return;
-      const p = PALETTE[statusRef.current];
+      const focus = interactiveRef.current;
+      const p = focus
+        ? PALETTE_FOCUS[statusRef.current]
+        : PALETTE[statusRef.current];
       const layers: TintLayer[] = [];
       for (const rip of ripples) {
         const age = (now - rip.t0) / RIPPLE_MS;
@@ -669,12 +691,12 @@ export function MonitorGlobe({
       gl.bindBuffer(gl.ARRAY_BUFFER, colBuf);
       gl.bufferData(gl.ARRAY_BUFFER, colors, gl.DYNAMIC_DRAW);
       canvas.style.setProperty("--globe-glow", p.glow);
-      lastDataKey = tintKey(
+      lastDataKey = `${tintKey(
         attacksRef.current,
         sessionsRef.current,
         webRef.current,
         homeRef.current,
-      );
+      )}#${statusRef.current}#${focus ? "f" : "s"}`;
     };
 
     const tick = () => {
@@ -683,12 +705,12 @@ export function MonitorGlobe({
       const now = performance.now();
 
       syncRipples(now);
-      const nextKey = tintKey(
+      const nextKey = `${tintKey(
         attacksRef.current,
         sessionsRef.current,
         webRef.current,
         homeRef.current,
-      );
+      )}#${statusRef.current}#${interactiveRef.current ? "f" : "s"}`;
       if (nextKey !== lastDataKey || ripples.length > 0) {
         paintLand(now);
       }
@@ -711,11 +733,15 @@ export function MonitorGlobe({
       gl.enable(gl.DEPTH_TEST);
       gl.depthFunc(gl.LEQUAL);
 
+      const focus = canInteract;
       gl.uniformMatrix3fv(uRot, false, rot);
       gl.uniform1f(uScale, GLOBE_SCALE);
       // Compensates 84% ring--1 canvas so land dots keep prior visual weight
-      gl.uniform1f(uPoint, Math.max(1.4, (css / 300) * dpr * 1.9));
+      const pointMul = focus ? 2.35 : 1.9;
+      gl.uniform1f(uPoint, Math.max(1.4, (css / 300) * dpr * pointMul));
       gl.uniform3f(uLight, 0.35, 0.55, 0.85);
+      // Standalone globe needs more fill light; screensaver stays moodier
+      gl.uniform1f(uAmb, focus ? 0.55 : 0.32);
 
       gl.bindBuffer(gl.ARRAY_BUFFER, posBuf);
       gl.enableVertexAttribArray(aPos);

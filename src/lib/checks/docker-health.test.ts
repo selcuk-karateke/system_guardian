@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  isBuildInfraContainer,
   isMigrateOneShotContainer,
   parseDockerExitedCode,
 } from "@/lib/config";
@@ -60,5 +61,17 @@ describe("migrate one-shot helpers", () => {
     assert.equal(parseDockerExitedCode("Exited (0) 2 days ago"), 0);
     assert.equal(parseDockerExitedCode("Exited (1) 3 minutes ago"), 1);
     assert.equal(parseDockerExitedCode("Up 2 hours (healthy)"), null);
+  });
+});
+
+describe("isBuildInfraContainer", () => {
+  it("matches Coolify railpack / buildx builders", () => {
+    assert.equal(
+      isBuildInfraContainer("buildx_buildkit_coolify-railpack0"),
+      true,
+    );
+    assert.equal(isBuildInfraContainer("buildkit_default"), true);
+    assert.equal(isBuildInfraContainer("coolify-proxy"), false);
+    assert.equal(isBuildInfraContainer("nextcloud-aio-nextcloud"), false);
   });
 });

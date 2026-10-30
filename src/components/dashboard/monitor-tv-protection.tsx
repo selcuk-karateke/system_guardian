@@ -78,12 +78,20 @@ export function MonitorTvProtection({
       data-pixel-shift={pixelShift}
       data-night={nightActive ? "1" : "0"}
     >
-      {children}
-      {nightActive && (
-        <p className="monitor-night-hint" aria-hidden>
-          Night mode · move pointer to wake
-        </p>
-      )}
+      {/* Shift + night motion/dim layers (pixel-shift alone is not enough) */}
+      <div className="monitor-tv-shift">
+        {children}
+        {nightActive && (
+          <>
+            <div className="monitor-night-dim" aria-hidden />
+            <div className="monitor-night-drift" aria-hidden />
+            <div className="monitor-night-noise" aria-hidden />
+            <p className="monitor-night-hint" aria-hidden>
+              Night mode · move pointer to wake
+            </p>
+          </>
+        )}
+      </div>
     </div>
   );
 }
