@@ -3,6 +3,7 @@ import { MonitorAlertTicker } from "./monitor-alert-ticker";
 import { MonitorClock } from "./monitor-clock";
 import { MonitorGlobe } from "./monitor-globe";
 import { MonitorHeroMetric } from "./monitor-metric";
+import { MonitorModeSwitch } from "./monitor-mode-switch";
 import { MonitorReloadButton } from "./monitor-reload-button";
 import { MonitorTile } from "./monitor-tile";
 import type { GlobeTint } from "@/lib/geo/attack-markers";
@@ -141,6 +142,7 @@ export function MonitorWall({
             </div>
           </div>
           <div className="monitor-top-right">
+            <MonitorModeSwitch compact />
             <MonitorClock />
             <MonitorReloadButton />
             <Link href="/" className="monitor-top-link">

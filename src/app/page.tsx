@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Globe2, History, Monitor } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/dashboard/status-badge";
 import { AlertList } from "@/components/dashboard/alert-list";
@@ -41,12 +42,29 @@ export default async function DashboardPage() {
           <p className="text-zinc-400 mt-1">
             Server mit Status — Detail per Klick
           </p>
-          <div className="flex flex-wrap gap-4 mt-3 text-sm">
-            <Link href="/monitor" className="sg-link hover:underline font-medium">
-              Monitor (TV) →
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <Link
+              href="/monitor"
+              className="inline-flex items-center gap-2 rounded-lg border border-zinc-700/80 bg-zinc-900/60 px-3 py-2 text-sm font-medium text-zinc-200 transition hover:border-cyan-500/40 hover:text-white"
+              title="Screensaver"
+            >
+              <Monitor className="size-4 text-cyan-400" aria-hidden />
+              Screensaver
             </Link>
-            <Link href="/history" className="sg-link hover:underline font-medium">
-              Historie & Zeitfilter →
+            <Link
+              href="/monitor/globe"
+              className="inline-flex items-center gap-2 rounded-lg border border-zinc-700/80 bg-zinc-900/60 px-3 py-2 text-sm font-medium text-zinc-200 transition hover:border-cyan-500/40 hover:text-white"
+              title="Globus"
+            >
+              <Globe2 className="size-4 text-amber-300" aria-hidden />
+              Globus
+            </Link>
+            <Link
+              href="/history"
+              className="inline-flex items-center gap-2 rounded-lg border border-zinc-800 bg-transparent px-3 py-2 text-sm text-zinc-400 transition hover:text-zinc-200"
+            >
+              <History className="size-4" aria-hidden />
+              Historie
             </Link>
           </div>
         </div>

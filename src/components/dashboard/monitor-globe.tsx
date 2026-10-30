@@ -17,6 +17,17 @@ type Props = {
   sessionMarkers?: GlobeTint[];
   webMarkers?: GlobeTint[];
   homeMarker?: GlobeTint | null;
+  /** Drag + hover readout — screensaver keeps this false. */
+  interactive?: boolean;
+};
+
+type RayKind = "web" | "session" | "home" | "attack";
+
+const KIND_LABEL: Record<RayKind, string> = {
+  web: "Web",
+  session: "SSH",
+  home: "Home",
+  attack: "Attack",
 };
 
 /** Stub past the surface (CSS px) — short ray, not infinite. */
@@ -90,12 +101,20 @@ type Ripple = {
 
 type RayMark = {
   tint: GlobeTint;
+  kind: RayKind;
   color: string;
   pulse: boolean;
 };
 
-const RIPPLE_MS = 2200;
-const RIPPLE_MAX_RAD = (14 * Math.PI) / 180;
+type ProjectedTip = {
+  mark: RayMark;
+  tipX: number;
+  tipY: number;
+  z: number;
+};
+
+const RIPPLE_MS = 3200;
+const RIPPLE_MAX_RAD = (22 * Math.PI) / 180;
 /**
  * Slightly under 1 so land-dot sprites aren't WebGL-clipped
  * (that was the flat left/right cut). Canvas itself is already
@@ -141,6 +160,7 @@ function link(
   return p;
 }
 
+/** R = Ry(phi) * Rx(theta), column-major for mulRot. */
 function rotMat(phi: number, theta: number, out: Float32Array): void {
   const cp = Math.cos(phi);
   const sp = Math.sin(phi);
@@ -155,6 +175,60 @@ function rotMat(phi: number, theta: number, out: Float32Array): void {
   out[6] = sp * ct;
   out[7] = -st;
   out[8] = cp * ct;
+}
+
+/** out = a * b (column-major 3×3). */
+function matMul(
+  a: Float32Array,
+  b: Float32Array,
+  out: Float32Array,
+): void {
+  const r0 = a[0]! * b[0]! + a[3]! * b[1]! + a[6]! * b[2]!;
+  const r1 = a[1]! * b[0]! + a[4]! * b[1]! + a[7]! * b[2]!;
+  const r2 = a[2]! * b[0]! + a[5]! * b[1]! + a[8]! * b[2]!;
+  const r3 = a[0]! * b[3]! + a[3]! * b[4]! + a[6]! * b[5]!;
+  const r4 = a[1]! * b[3]! + a[4]! * b[4]! + a[7]! * b[5]!;
+  const r5 = a[2]! * b[3]! + a[5]! * b[4]! + a[8]! * b[5]!;
+  const r6 = a[0]! * b[6]! + a[3]! * b[7]! + a[6]! * b[8]!;
+  const r7 = a[1]! * b[6]! + a[4]! * b[7]! + a[7]! * b[8]!;
+  const r8 = a[2]! * b[6]! + a[5]! * b[7]! + a[8]! * b[8]!;
+  out[0] = r0;
+  out[1] = r1;
+  out[2] = r2;
+  out[3] = r3;
+  out[4] = r4;
+  out[5] = r5;
+  out[6] = r6;
+  out[7] = r7;
+  out[8] = r8;
+}
+
+function setRotX(angle: number, out: Float32Array): void {
+  const c = Math.cos(angle);
+  const s = Math.sin(angle);
+  out[0] = 1;
+  out[1] = 0;
+  out[2] = 0;
+  out[3] = 0;
+  out[4] = c;
+  out[5] = s;
+  out[6] = 0;
+  out[7] = -s;
+  out[8] = c;
+}
+
+function setRotY(angle: number, out: Float32Array): void {
+  const c = Math.cos(angle);
+  const s = Math.sin(angle);
+  out[0] = c;
+  out[1] = 0;
+  out[2] = -s;
+  out[3] = 0;
+  out[4] = 1;
+  out[5] = 0;
+  out[6] = s;
+  out[7] = 0;
+  out[8] = c;
 }
 
 function mulRot(
@@ -174,7 +248,8 @@ function phiTowardTints(lists: (GlobeTint | null | undefined)[]): number {
   const all = lists.filter((m): m is GlobeTint => !!m);
   if (!all.length) return 0.4;
   const lon = all.reduce((sum, m) => sum + m.location[1], 0) / all.length;
-  return (-lon * Math.PI) / 180;
+  // With z = -sin(lon), +phi brings east toward the camera.
+  return (lon * Math.PI) / 180;
 }
 
 function tintKey(
@@ -200,17 +275,77 @@ function collectRays(
   attacks: GlobeTint[],
 ): RayMark[] {
   const out: RayMark[] = [];
-  for (const t of web) out.push({ tint: t, color: WEB_CSS, pulse: false });
+  for (const t of web)
+    out.push({ tint: t, kind: "web", color: WEB_CSS, pulse: false });
   for (const t of sessions)
-    out.push({ tint: t, color: SESSION_CSS, pulse: false });
-  if (home) out.push({ tint: home, color: HOME_CSS, pulse: false });
+    out.push({ tint: t, kind: "session", color: SESSION_CSS, pulse: false });
+  if (home)
+    out.push({ tint: home, kind: "home", color: HOME_CSS, pulse: false });
   for (const t of attacks)
-    out.push({ tint: t, color: ATTACK_CSS, pulse: true });
+    out.push({ tint: t, kind: "attack", color: ATTACK_CSS, pulse: true });
   return out;
 }
 
+function projectTips(
+  rot: Float32Array,
+  css: number,
+  marks: RayMark[],
+): ProjectedTip[] {
+  const cx = css / 2;
+  const cy = css / 2;
+  const R = (css / 2) * GLOBE_SCALE;
+  const out: ProjectedTip[] = [];
+  for (const mark of marks) {
+    const [x0, y0, z0] = attackToXyz(
+      mark.tint.location[0],
+      mark.tint.location[1],
+    );
+    const [x, y, z] = mulRot(rot, x0, y0, z0);
+    if (z < 0.04) continue;
+    const sx = cx + x * R;
+    const sy = cy - y * R;
+    const len = Math.hypot(x, y);
+    const dx = len < 1e-4 ? 0 : x / len;
+    const dy = len < 1e-4 ? -1 : -y / len;
+    out.push({
+      mark,
+      tipX: sx + dx * RAY_EXTEND_PX,
+      tipY: sy + dy * RAY_EXTEND_PX,
+      z,
+    });
+  }
+  return out;
+}
+
+function nearestTip(
+  tips: ProjectedTip[],
+  mx: number,
+  my: number,
+  maxDist = 28,
+): ProjectedTip | null {
+  let best: ProjectedTip | null = null;
+  let bestD = maxDist;
+  for (const tip of tips) {
+    const d = Math.hypot(tip.tipX - mx, tip.tipY - my);
+    if (d <= bestD) {
+      bestD = d;
+      best = tip;
+    }
+  }
+  return best;
+}
+
+function formatHover(mark: RayMark): string {
+  const t = mark.tint;
+  const hits = t.hits != null ? ` · ${t.hits} hits` : "";
+  const country = t.country ? ` · ${t.country}` : "";
+  const fresh = Math.round(t.freshness * 100);
+  return `${KIND_LABEL[mark.kind]} · ${t.id}${country}${hits} · ${fresh}% fresh`;
+}
+
 /**
- * Draw a short radial stub: surface → +5px outward (no infinite ray, no spot radius).
+ * Draw a short radial stub: surface → +RAY_EXTEND_PX outward.
+ * hoverId = active tip — boosts that ray, dims the rest.
  */
 function drawRayStubs(
   ctx: CanvasRenderingContext2D,
@@ -220,6 +355,7 @@ function drawRayStubs(
   marks: RayMark[],
   now: number,
   reducedMotion: boolean,
+  hoverId: string | null = null,
 ): void {
   const w = Math.max(1, Math.floor(css * dpr));
   if (ctx.canvas.width !== w || ctx.canvas.height !== w) {
@@ -235,7 +371,10 @@ function drawRayStubs(
   const R = (css / 2) * GLOBE_SCALE;
   const pulse = reducedMotion
     ? 1
-    : 0.72 + 0.28 * (0.5 + 0.5 * Math.sin(now * 0.0038));
+    : 0.55 + 0.45 * (0.5 + 0.5 * Math.sin(now * 0.0062));
+  const hoverPulse = reducedMotion
+    ? 1
+    : 0.7 + 0.3 * (0.5 + 0.5 * Math.sin(now * 0.011));
 
   for (const mark of marks) {
     const [x0, y0, z0] = attackToXyz(
@@ -250,29 +389,44 @@ function drawRayStubs(
     const len = Math.hypot(x, y);
     const dx = len < 1e-4 ? 0 : x / len;
     const dy = len < 1e-4 ? -1 : -y / len;
+    const hot = hoverId != null && mark.tint.id === hoverId;
+    const dim = hoverId != null && !hot ? 0.28 : 1;
 
     const alpha =
       Math.min(1, Math.max(0.7, mark.tint.weight)) *
       (0.75 + 0.25 * mark.tint.freshness) *
-      (mark.pulse ? pulse : 1);
+      (mark.pulse ? pulse : 1) *
+      (hot ? hoverPulse : 1) *
+      dim;
 
-    const x2 = sx + dx * RAY_EXTEND_PX;
-    const y2 = sy + dy * RAY_EXTEND_PX;
+    const extend = hot ? RAY_EXTEND_PX + 10 : RAY_EXTEND_PX;
+    const x2 = sx + dx * extend;
+    const y2 = sy + dy * extend;
 
     ctx.globalAlpha = alpha;
     ctx.strokeStyle = mark.color;
     ctx.fillStyle = mark.color;
     ctx.shadowColor = mark.color;
-    ctx.shadowBlur = mark.pulse ? 8 : 5;
-    ctx.lineWidth = mark.pulse ? 2.6 : 2.2;
+    ctx.shadowBlur = hot ? 22 : mark.pulse ? 14 : 6;
+    ctx.lineWidth = hot ? 3.8 : mark.pulse ? 3.1 : 2.2;
     ctx.lineCap = "round";
     ctx.beginPath();
     ctx.moveTo(sx, sy);
     ctx.lineTo(x2, y2);
     ctx.stroke();
     ctx.beginPath();
-    ctx.arc(x2, y2, mark.pulse ? 2.6 : 2.2, 0, Math.PI * 2);
+    ctx.arc(x2, y2, hot ? 4.2 : mark.pulse ? 3.1 : 2.2, 0, Math.PI * 2);
     ctx.fill();
+
+    if (hot && !reducedMotion) {
+      const ringT = (now % 900) / 900;
+      ctx.globalAlpha = alpha * (1 - ringT) * 0.85;
+      ctx.lineWidth = 2;
+      ctx.shadowBlur = 18;
+      ctx.beginPath();
+      ctx.arc(x2, y2, 4 + ringT * 18, 0, Math.PI * 2);
+      ctx.stroke();
+    }
     ctx.shadowBlur = 0;
   }
   ctx.globalAlpha = 1;
@@ -288,24 +442,30 @@ export function MonitorGlobe({
   sessionMarkers = [],
   webMarkers = [],
   homeMarker = null,
+  interactive = false,
 }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rayRef = useRef<HTMLCanvasElement>(null);
+  const tipRef = useRef<HTMLDivElement>(null);
   const statusRef = useRef(status);
   const attacksRef = useRef(attackMarkers);
   const sessionsRef = useRef(sessionMarkers);
   const webRef = useRef(webMarkers);
   const homeRef = useRef(homeMarker);
+  const interactiveRef = useRef(interactive);
   statusRef.current = status;
   attacksRef.current = attackMarkers;
   sessionsRef.current = sessionMarkers;
   webRef.current = webMarkers;
   homeRef.current = homeMarker;
+  interactiveRef.current = interactive;
 
   useEffect(() => {
     const canvas = canvasRef.current;
     const rayCanvas = rayRef.current;
+    const wrap = wrapRef.current;
+    const tipEl = tipRef.current;
     if (!canvas || !rayCanvas) return;
 
     const gl = canvas.getContext("webgl", {
@@ -330,6 +490,9 @@ export function MonitorGlobe({
     const posBuf = gl.createBuffer();
     const colBuf = gl.createBuffer();
     const rot = new Float32Array(9);
+    const dragTmp = new Float32Array(9);
+    const dragA = new Float32Array(9);
+    const dragB = new Float32Array(9);
 
     let positions = new Float32Array(0);
     let colors = new Float32Array(0);
@@ -339,7 +502,9 @@ export function MonitorGlobe({
       ...sessionMarkers,
       ...attackMarkers,
     ]);
-    const theta = 0.22;
+    const theta0 = 0.22;
+    // Interactive mode accumulates view-space orbit on `rot` (not Euler).
+    rotMat(phi, theta0, rot);
     let raf = 0;
     let destroyed = false;
     let lastDataKey = "";
@@ -347,7 +512,109 @@ export function MonitorGlobe({
     const ripples: Ripple[] = [];
     let ripplesArmed = false;
 
+    let dragging = false;
+    let lastPtrX = 0;
+    let lastPtrY = 0;
+    let autoSpin = true;
+    let resumeTimer: ReturnType<typeof setTimeout> | null = null;
+    let pointerCssX = -1;
+    let pointerCssY = -1;
+    let lastTipId = "";
+
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const DRAG_SENS = 0.005;
+
+    /** Left-multiply view-space Rx/Ry so screen up/down stays vertical after yaw. */
+    const orbitBy = (dYaw: number, dPitch: number) => {
+      setRotY(dYaw, dragA);
+      setRotX(dPitch, dragB);
+      matMul(dragB, rot, dragTmp); // pitch in view space
+      matMul(dragA, dragTmp, rot); // then yaw in view space
+    };
+
+    const pauseAutoSpin = () => {
+      autoSpin = false;
+      if (resumeTimer) clearTimeout(resumeTimer);
+      resumeTimer = setTimeout(() => {
+        if (!dragging) autoSpin = true;
+      }, 2200);
+    };
+
+    const hideTip = () => {
+      if (!tipEl) return;
+      tipEl.dataset.show = "0";
+      lastTipId = "";
+    };
+
+    const showTip = (hit: ProjectedTip, css: number) => {
+      if (!tipEl) return;
+      const id = hit.mark.tint.id;
+      if (id !== lastTipId) {
+        tipEl.dataset.show = "0";
+        tipEl.textContent = formatHover(hit.mark);
+        tipEl.style.setProperty("--tip-accent", hit.mark.color);
+        lastTipId = id;
+        // Retrigger enter keyframes
+        void tipEl.offsetWidth;
+      }
+      const left = Math.min(css - 12, Math.max(12, hit.tipX));
+      const top = Math.min(css - 12, Math.max(12, hit.tipY - 22));
+      tipEl.style.left = `${left}px`;
+      tipEl.style.top = `${top}px`;
+      tipEl.dataset.show = "1";
+    };
+
+    const onPointerDown = (e: PointerEvent) => {
+      if (!interactiveRef.current || e.button !== 0) return;
+      dragging = true;
+      pauseAutoSpin();
+      lastPtrX = e.clientX;
+      lastPtrY = e.clientY;
+      wrap?.setPointerCapture(e.pointerId);
+      if (wrap) wrap.dataset.dragging = "1";
+      hideTip();
+    };
+    const onPointerMove = (e: PointerEvent) => {
+      if (!interactiveRef.current || !wrap) return;
+      const rect = wrap.getBoundingClientRect();
+      if (rect.width < 1 || rect.height < 1) return;
+      pointerCssX = e.clientX - rect.left;
+      pointerCssY = e.clientY - rect.top;
+
+      if (dragging) {
+        const dx = e.clientX - lastPtrX;
+        const dy = e.clientY - lastPtrY;
+        lastPtrX = e.clientX;
+        lastPtrY = e.clientY;
+        // Grab semantics: finger right → surface right; finger down → surface down.
+        orbitBy(dx * DRAG_SENS, dy * DRAG_SENS);
+        return;
+      }
+      pauseAutoSpin();
+    };
+    const onPointerUp = (e: PointerEvent) => {
+      dragging = false;
+      if (wrap) delete wrap.dataset.dragging;
+      try {
+        wrap?.releasePointerCapture(e.pointerId);
+      } catch {
+        /* ignore */
+      }
+      if (interactiveRef.current) pauseAutoSpin();
+    };
+    const onPointerLeave = () => {
+      pointerCssX = -1;
+      pointerCssY = -1;
+      hideTip();
+    };
+
+    if (interactive) {
+      wrap?.addEventListener("pointerdown", onPointerDown);
+      wrap?.addEventListener("pointermove", onPointerMove);
+      wrap?.addEventListener("pointerup", onPointerUp);
+      wrap?.addEventListener("pointercancel", onPointerUp);
+      wrap?.addEventListener("pointerleave", onPointerLeave);
+    }
 
     const syncSize = () => {
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -388,13 +655,14 @@ export function MonitorGlobe({
       for (const rip of ripples) {
         const age = (now - rip.t0) / RIPPLE_MS;
         if (age < 0 || age > 1) continue;
+        const fade = 1 - age;
         layers.push({
           centers: new Float32Array(rip.xyz),
-          weights: new Float32Array([0.9 * (1 - age)]),
+          weights: new Float32Array([1.15 * fade * fade]),
           rgb: RIPPLE_RGB,
           mode: "ring",
           ringRadiusRad: age * RIPPLE_MAX_RAD,
-          ringWidthRad: (1.4 * Math.PI) / 180,
+          ringWidthRad: (2.2 * Math.PI) / 180,
         });
       }
       tintLandColors(positions, colors, p.base, layers);
@@ -425,8 +693,16 @@ export function MonitorGlobe({
         paintLand(now);
       }
 
-      if (!reduced.matches) phi += 0.0024;
-      rotMat(phi, theta, rot);
+      const canInteract = interactiveRef.current;
+      if (!reduced.matches && (!canInteract || (autoSpin && !dragging))) {
+        if (canInteract) {
+          // Spin around screen-vertical axis (stays upright after pitch).
+          orbitBy(0.0024, 0);
+        } else {
+          phi += 0.0024;
+          rotMat(phi, theta0, rot);
+        }
+      }
 
       gl.enable(gl.BLEND);
       gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
@@ -451,23 +727,41 @@ export function MonitorGlobe({
 
       if (count > 0) gl.drawArrays(gl.POINTS, 0, count);
 
+      const marks = collectRays(
+        webRef.current,
+        sessionsRef.current,
+        homeRef.current,
+        attacksRef.current,
+      );
+
+      let hoverId: string | null = null;
+      if (canInteract && !dragging && pointerCssX >= 0) {
+        const hit = nearestTip(
+          projectTips(rot, css, marks),
+          pointerCssX,
+          pointerCssY,
+        );
+        if (hit) {
+          hoverId = hit.mark.tint.id;
+          showTip(hit, css);
+        } else {
+          hideTip();
+        }
+      }
+
       drawRayStubs(
         rayCtx,
         rot,
         css,
         dpr,
-        collectRays(
-          webRef.current,
-          sessionsRef.current,
-          homeRef.current,
-          attacksRef.current,
-        ),
+        marks,
         now,
         reduced.matches,
+        hoverId,
       );
 
-      canvas.style.opacity = "1";
-      rayCanvas.style.opacity = "1";
+      canvas.classList.add("monitor-hud-globe-canvas--ready");
+      rayCanvas.classList.add("monitor-hud-globe-rays--ready");
       raf = requestAnimationFrame(tick);
     };
 
@@ -489,29 +783,36 @@ export function MonitorGlobe({
     return () => {
       destroyed = true;
       cancelAnimationFrame(raf);
+      if (resumeTimer) clearTimeout(resumeTimer);
+      wrap?.removeEventListener("pointerdown", onPointerDown);
+      wrap?.removeEventListener("pointermove", onPointerMove);
+      wrap?.removeEventListener("pointerup", onPointerUp);
+      wrap?.removeEventListener("pointercancel", onPointerUp);
+      wrap?.removeEventListener("pointerleave", onPointerLeave);
       gl.deleteBuffer(posBuf);
       gl.deleteBuffer(colBuf);
       gl.deleteProgram(program);
     };
-  }, []);
+  }, [interactive]);
 
   return (
-    <div ref={wrapRef} className="monitor-hud-globe" aria-hidden>
-      <canvas
-        ref={canvasRef}
-        className="monitor-hud-globe-canvas"
-        style={{
-          opacity: 0,
-          transition: "opacity 0.8s ease",
-          filter:
-            "drop-shadow(0 0 32px var(--globe-glow, rgb(34 211 238 / 40%)))",
-        }}
-      />
-      <canvas
-        ref={rayRef}
-        className="monitor-hud-globe-rays"
-        style={{ opacity: 0, transition: "opacity 0.8s ease" }}
-      />
+    <div
+      ref={wrapRef}
+      className="monitor-hud-globe"
+      data-interactive={interactive ? "1" : undefined}
+      role={interactive ? "img" : undefined}
+      aria-hidden={interactive ? undefined : true}
+      aria-label={
+        interactive
+          ? "Interaktiver Globus — ziehen zum Drehen, Markierungen hover"
+          : undefined
+      }
+    >
+      <canvas ref={canvasRef} className="monitor-hud-globe-canvas" />
+      <canvas ref={rayRef} className="monitor-hud-globe-rays" />
+      {interactive && (
+        <div ref={tipRef} className="monitor-globe-tip" data-show="0" />
+      )}
     </div>
   );
 }

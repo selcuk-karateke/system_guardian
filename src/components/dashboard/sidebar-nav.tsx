@@ -8,6 +8,7 @@ import {
   BookOpen,
   Boxes,
   Database,
+  Globe2,
   HardDrive,
   History,
   LayoutDashboard,
@@ -39,7 +40,18 @@ const NAV_GROUPS: NavGroup[] = [
     label: "Überblick",
     items: [
       { href: "/", label: "Dashboard", short: "Dash", icon: LayoutDashboard },
-      { href: "/monitor", label: "Monitor (TV)", short: "TV", icon: Monitor },
+      {
+        href: "/monitor",
+        label: "Screensaver",
+        short: "TV",
+        icon: Monitor,
+      },
+      {
+        href: "/monitor/globe",
+        label: "Globus",
+        short: "Geo",
+        icon: Globe2,
+      },
     ],
   },
   {
@@ -82,6 +94,12 @@ const NAV_GROUPS: NavGroup[] = [
 
 function isActive(pathname: string, href: string) {
   if (href === "/") return pathname === "/";
+  if (href === "/monitor") {
+    return pathname === "/monitor" || pathname === "/monitor/";
+  }
+  if (href === "/monitor/globe") {
+    return pathname.startsWith("/monitor/globe");
+  }
   if (href === "/notifications") {
     return pathname === "/notifications" || pathname.startsWith("/alerts/");
   }

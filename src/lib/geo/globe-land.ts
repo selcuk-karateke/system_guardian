@@ -12,7 +12,9 @@ function lonLatToXyz(latDeg: number, lonDeg: number): [number, number, number] {
   const lat = (latDeg * Math.PI) / 180;
   const lon = (lonDeg * Math.PI) / 180;
   const cl = Math.cos(lat);
-  return [cl * Math.cos(lon), Math.sin(lat), cl * Math.sin(lon)];
+  // Y-up, east = +lon. Negate Z so west sits left when facing +Z (north up).
+  // Without this, Europe appears east of Asia — map looks mirrored.
+  return [cl * Math.cos(lon), Math.sin(lat), -cl * Math.sin(lon)];
 }
 
 function isLand(
@@ -63,7 +65,8 @@ export async function sampleLandPoints(target = 14_000): Promise<Float32Array> {
       const x = Math.cos(theta) * r;
       const z = Math.sin(theta) * r;
       const lat = (Math.asin(Math.max(-1, Math.min(1, y))) * 180) / Math.PI;
-      const lon = (Math.atan2(z, x) * 180) / Math.PI;
+      // Match lonLatToXyz (z = -sin(lon)) so mask UVs aren't mirrored.
+      const lon = (Math.atan2(-z, x) * 180) / Math.PI;
       if (!isLand(data, w, h, lat, lon)) continue;
       const o = n * 3;
       out[o] = x;
