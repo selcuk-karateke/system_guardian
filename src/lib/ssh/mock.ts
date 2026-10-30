@@ -8,9 +8,16 @@ const FIXTURES: Record<string, string> = {
 Mem:    16777216000  8388608000  4194304000   524288000  4194304000  7549747200
 Swap:    4294967296           0  4294967296
 `,
+  "df -hP": `Filesystem      Size  Used Avail Use% Mounted on
+/dev/md0        500G  200G  280G  42% /
+/dev/md1        2.0T  1.2T  700G  63% /data
+tmpfs            32G   32G  1.8M 100% /tmp
+`,
+  // legacy key — includes() still matches older commands
   "df -h": `Filesystem      Size  Used Avail Use% Mounted on
 /dev/md0        500G  200G  280G  42% /
 /dev/md1        2.0T  1.2T  700G  63% /data
+tmpfs            32G   32G  1.8M 100% /tmp
 `,
   "cat /proc/mdstat": `Personalities : [raid1] [raid6] [raid5] [raid4] [raid0] [raid10] [linear] 
 md0 : active raid1 sda1[0] sdb1[1]
