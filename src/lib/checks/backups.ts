@@ -1,7 +1,9 @@
 import {
   getBackupMaxAgeDays,
   getBackupMinSizeWarningBytes,
+  getBackupMonitoringDir,
   getBackupPaths,
+  getBackupRunMaxAgeHours,
 } from "@/lib/config";
 import {
   backupEmptyRecommendation,
@@ -10,6 +12,7 @@ import {
   backupStaleRecommendation,
 } from "@/lib/protect/playbooks";
 import { getSshClient } from "@/lib/ssh";
+import { evaluateBackupMonitoring } from "./backup-monitoring";
 import type { AlertInput, CheckResult } from "./types";
 
 export type BackupFileInfo = {
@@ -175,25 +178,88 @@ function formatBytes(n: number): string {
   return `${n} B`;
 }
 
+function monitoringPayload(
+  dir: string | undefined,
+  monitoring: ReturnType<typeof evaluateBackupMonitoring> | null,
+) {
+  if (!monitoring) return null;
+  return {
+    dir,
+    summaryLine: monitoring.summaryLine,
+    ageHours: monitoring.ageHours,
+    status: monitoring.status,
+    health: monitoring.health
+      ? {
+          backup_complete: monitoring.health.backup_complete,
+          checksum_valid: monitoring.health.checksum_valid,
+          applications_expected: monitoring.health.applications_expected,
+          applications_backed_up: monitoring.health.applications_backed_up,
+          applications_failed: monitoring.health.applications_failed,
+          overall_status: monitoring.health.overall_status,
+          restore_tested: monitoring.health.restore_tested,
+          backup_path: monitoring.health.backup_path,
+          run_id: monitoring.health.run_id,
+        }
+      : null,
+  };
+}
+
+async function fetchBackupMonitoring(serverId: string): Promise<{
+  statusRaw: string;
+  healthRaw: string;
+  dir: string;
+} | null> {
+  const dir = getBackupMonitoringDir();
+  if (!dir) return null;
+  const ssh = await getSshClient(serverId);
+  const q = shellQuote(dir);
+  const [statusRes, healthRes] = await Promise.all([
+    ssh.exec(`cat ${q}/status.json 2>/dev/null || true`),
+    ssh.exec(`cat ${q}/backup-health.json 2>/dev/null || true`),
+  ]);
+  return {
+    dir,
+    statusRaw: statusRes.stdout ?? "",
+    healthRaw: healthRes.stdout ?? "",
+  };
+}
+
 export async function runBackupsCheck(serverId: string): Promise<CheckResult> {
   const configuredPaths = getBackupPaths();
   const paths = await expandBackupPaths(serverId, configuredPaths);
   const maxAgeDays = getBackupMaxAgeDays();
   const minWarningBytes = getBackupMinSizeWarningBytes();
+  const runMaxAgeHours = getBackupRunMaxAgeHours();
   const alerts: AlertInput[] = [];
   const pathResults: Record<string, unknown> = {};
+
+  const monFetch = await fetchBackupMonitoring(serverId).catch(() => null);
+  const monitoring = monFetch
+    ? evaluateBackupMonitoring({
+        statusRaw: monFetch.statusRaw,
+        healthRaw: monFetch.healthRaw,
+        maxRunAgeHours: runMaxAgeHours,
+      })
+    : null;
+  if (monitoring) alerts.push(...monitoring.alerts);
 
   if (paths.length === 0) {
     return {
       module: "backups",
       status: "critical",
-      data: { configuredPaths, paths: pathResults, summary: { present: false } },
+      data: {
+        configuredPaths,
+        paths: pathResults,
+        summary: { present: false },
+        monitoring: monitoringPayload(monFetch?.dir, monitoring),
+      },
       alerts: [
         {
           level: "critical",
           message: "No backup paths resolved from BACKUP_PATHS",
           recommendation: `Check BACKUP_PATHS (${configuredPaths.join(", ")})`,
         },
+        ...alerts,
       ],
     };
   }
@@ -242,6 +308,7 @@ export async function runBackupsCheck(serverId: string): Promise<CheckResult> {
       message: "No backups found in any configured path",
       recommendation: backupMissingRecommendation(paths),
     });
+    const crit = alerts.filter((a) => a.level === "critical");
     return {
       module: "backups",
       status,
@@ -249,10 +316,11 @@ export async function runBackupsCheck(serverId: string): Promise<CheckResult> {
         configuredPaths,
         paths: pathResults,
         summary: { present: false },
+        monitoring: monitoringPayload(monFetch?.dir, monitoring),
         nasNote:
           "NAS-Kopie (/mnt/md0/… auf separatem Host) wird nicht per SSH geprüft — nur Hetzner-Pfade",
       },
-      alerts: alerts.filter((a) => a.level === "critical"),
+      alerts: crit,
     };
   }
 
@@ -314,7 +382,11 @@ export async function runBackupsCheck(serverId: string): Promise<CheckResult> {
       ),
   );
 
-  if (status === "healthy" && finalAlerts.some((a) => a.level === "warning")) {
+  if (finalAlerts.some((a) => a.level === "critical")) status = "critical";
+  else if (
+    status === "healthy" &&
+    finalAlerts.some((a) => a.level === "warning")
+  ) {
     status = "warning";
   }
 
@@ -325,6 +397,7 @@ export async function runBackupsCheck(serverId: string): Promise<CheckResult> {
       configuredPaths,
       paths: pathResults,
       summary,
+      monitoring: monitoringPayload(monFetch?.dir, monitoring),
       nasNote:
         "NAS unter /mnt/md0/backups/hetzner/ wird vom NAS geholt — Guardian prüft nur Cron-Ziel auf dem SSH-Host (/backups/…)",
     },

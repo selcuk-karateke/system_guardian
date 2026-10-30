@@ -101,6 +101,24 @@ export function getBackupMaxAgeDays(): number {
   return v ? parseInt(v, 10) : 7;
 }
 
+/**
+ * Dir with status.json + backup-health.json from hetzner_backup.sh.
+ * Empty disables monitoring JSON checks.
+ */
+export function getBackupMonitoringDir(): string {
+  return (process.env.BACKUP_MONITORING_DIR ?? "/backups/monitoring").trim();
+}
+
+/**
+ * Critical if status.json finished_at is older than this (hours).
+ * Daily cron 01:00 → default 36h catches a missed night.
+ */
+export function getBackupRunMaxAgeHours(): number {
+  const v = process.env.BACKUP_RUN_MAX_AGE_HOURS;
+  const n = v ? parseInt(v, 10) : 36;
+  return Number.isFinite(n) && n > 0 ? n : 36;
+}
+
 /** Warning if best backup is smaller than this (bytes); 0-byte is always critical. */
 export function getBackupMinSizeWarningBytes(): number {
   const v = process.env.BACKUP_MIN_SIZE_WARNING_BYTES;

@@ -222,6 +222,39 @@ function matchFixture(command: string): string {
   ) {
     return "backup started\n";
   }
+  if (command.includes("/backups/monitoring/status.json")) {
+    const finished = new Date(Date.now() - 2 * 3600_000).toISOString();
+    return JSON.stringify({
+      schema: 1,
+      state: "success",
+      exit_code: 0,
+      started_at: new Date(Date.now() - 3 * 3600_000).toISOString(),
+      finished_at: finished,
+      run_id: "backup-mock",
+      log_file: "/backups/logs/backup-mock.log",
+      mode: "backup",
+      message: "",
+    });
+  }
+  if (command.includes("/backups/monitoring/backup-health.json")) {
+    const generated = new Date(Date.now() - 2 * 3600_000).toISOString();
+    return JSON.stringify({
+      schema: 1,
+      backup_complete: true,
+      checksum_valid: true,
+      applications_expected: 3,
+      applications_backed_up: 3,
+      applications_failed: 0,
+      overall_status: "warning",
+      restore_tested: false,
+      last_run_successful: true,
+      backup_path: "/backups/daily/backup-mock",
+      generated_at: generated,
+      run_id: "backup-mock",
+      errors: [],
+      warnings: ["Restore-Test noch nicht nachgewiesen"],
+    });
+  }
   for (const [key, value] of Object.entries(FIXTURES)) {
     if (command.includes(key) || command === key) return value;
   }
