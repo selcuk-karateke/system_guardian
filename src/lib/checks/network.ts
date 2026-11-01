@@ -1,5 +1,6 @@
 import {
   getBlockedRemoteIps,
+  getTrustedOutboundProcessPatterns,
   isAutoBlockEnabled,
   isTrustedOutboundKey,
 } from "@/lib/config";
@@ -135,6 +136,12 @@ export async function runNetworkCheck(serverId: string): Promise<CheckResult> {
   for (const d of outboundDiffs) {
     if (d.changeType !== "added") continue;
     if (isTrustedOutboundKey(d.entityKey)) continue;
+    // Same allowlist as suspicious :80/:443 (e.g. hermes → Telegram/CF)
+    if (
+      getTrustedOutboundProcessPatterns().some((re) => re.test(d.entityKey))
+    ) {
+      continue;
+    }
     alerts.push({
       level: "warning",
       message: `Neue ausgehende Verbindung: ${d.entityKey.slice(0, 100)}`,

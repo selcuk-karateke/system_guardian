@@ -32,32 +32,44 @@ export async function runContainerTrivyScan(
   serverId?: string,
   coolifyUuid?: string | null,
 ): Promise<TrivyScanResult> {
-  const id = serverId || (await getDefaultServerId());
+  try {
+    const id = serverId || (await getDefaultServerId());
 
-  // After Coolify Dockerfile rebuild the container name suffix changes —
-  // pull fresh docker ps so remap + page refresh see the live name.
-  if (getCheckMode() === "ssh") {
-    await refreshDockerInventory(id).catch(() => null);
+    // After Coolify Dockerfile rebuild the container name suffix changes —
+    // pull fresh docker ps so remap + page refresh see the live name.
+    if (getCheckMode() === "ssh") {
+      await refreshDockerInventory(id).catch(() => null);
+    }
+
+    const result =
+      getCheckMode() === "mock"
+        ? await mockScanContainerImage(containerName, imageRef)
+        : await scanContainerImage(containerName, {
+            force,
+            serverId: id,
+            coolifyUuid,
+          });
+
+    if (result.ok) {
+      // Notify channels can throw (Telegram ECONNRESET) — scan result still valid.
+      await syncTrivyAlertsFromStore(id).catch((e) => {
+        console.warn(
+          "[trivy] alert sync failed:",
+          e instanceof Error ? e.message : e,
+        );
+      });
+      revalidateTrivyViews();
+    } else if (getCheckMode() === "ssh") {
+      // Still refresh list when name was stale so UI drops ghost rows.
+      revalidateTrivyViews();
+    }
+
+    return result;
+  } catch (e) {
+    const message =
+      e instanceof Error ? e.message : "Trivy-Scan fehlgeschlagen";
+    return { ok: false, message: message.slice(0, 300) };
   }
-
-  const result =
-    getCheckMode() === "mock"
-      ? await mockScanContainerImage(containerName, imageRef)
-      : await scanContainerImage(containerName, {
-          force,
-          serverId: id,
-          coolifyUuid,
-        });
-
-  if (result.ok) {
-    await syncTrivyAlertsFromStore(id);
-    revalidateTrivyViews();
-  } else if (getCheckMode() === "ssh") {
-    // Still refresh list when name was stale so UI drops ghost rows.
-    revalidateTrivyViews();
-  }
-
-  return result;
 }
 
 /** Cached Findings → Dashboard-Warnungen (ohne neuen Scan). */

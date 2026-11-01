@@ -22,6 +22,16 @@ function buildAlertText(alert: AlertRow): string {
     .join("\n");
 }
 
+/** Channel failures (Telegram ECONNRESET, SMTP, …) must not fail the caller. */
+async function settle(channel: string, task: Promise<unknown>): Promise<void> {
+  try {
+    await task;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[notify] ${channel} failed: ${msg}`);
+  }
+}
+
 export async function sendAlertNotifications(alert: AlertRow): Promise<void> {
   const text = buildAlertText(alert);
   const discordLevel =
@@ -32,12 +42,18 @@ export async function sendAlertNotifications(alert: AlertRow): Promise<void> {
         : "info";
 
   await Promise.all([
-    sendTelegram(text),
-    sendDiscord(text, {
-      title: `System Guardian — ${alert.level.toUpperCase()} · ${alert.module}`,
-      color: discordColorForLevel(discordLevel),
-    }),
-    sendEmail(`System Guardian: ${alert.level} – ${alert.module}`, text),
+    settle("telegram", sendTelegram(text)),
+    settle(
+      "discord",
+      sendDiscord(text, {
+        title: `System Guardian — ${alert.level.toUpperCase()} · ${alert.module}`,
+        color: discordColorForLevel(discordLevel),
+      }),
+    ),
+    settle(
+      "email",
+      sendEmail(`System Guardian: ${alert.level} – ${alert.module}`, text),
+    ),
   ]);
 }
 
@@ -45,11 +61,14 @@ export async function sendDailyReportDigest(content: string): Promise<void> {
   const telegramBody = `📊 <b>Daily Report</b>\n<pre>${content.replace(/</g, "&lt;")}</pre>`;
 
   await Promise.all([
-    sendTelegram(telegramBody),
-    sendDiscord(content, {
-      title: "System Guardian — Daily Report",
-      color: discordColorForLevel("report"),
-    }),
-    sendEmail("System Guardian – Daily Report", content),
+    settle("telegram", sendTelegram(telegramBody)),
+    settle(
+      "discord",
+      sendDiscord(content, {
+        title: "System Guardian — Daily Report",
+        color: discordColorForLevel("report"),
+      }),
+    ),
+    settle("email", sendEmail("System Guardian – Daily Report", content)),
   ]);
 }

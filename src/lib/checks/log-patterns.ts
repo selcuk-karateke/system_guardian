@@ -7,6 +7,11 @@ export const LOG_IGNORE_PATTERNS: RegExp[] = [
   /snd_hda_intel/i,
   /\bPANIC\b/i,
   /\bFATAL\b/i,
+  // Internet SSH scanners — Fail2ban handles; journal noise only
+  /maximum authentication attempts exceeded/i,
+  /sshd(?:-session)?\[\d+\]: error:.*invalid user/i,
+  /Disconnected from (authenticating|invalid) user/i,
+  /banner exchange: Connection from .* port \d+: invalid format/i,
 ];
 
 /** CRITICAL – konkrete Muster, keine generischen Log-Level-Wörter. */

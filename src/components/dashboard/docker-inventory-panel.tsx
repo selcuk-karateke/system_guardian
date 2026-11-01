@@ -108,44 +108,56 @@ export function DockerInventoryPanel({
     setActiveScan(containerName);
     setStatus(containerName, null);
     startTransition(async () => {
-      const result = await runContainerTrivyScan(
-        containerName,
-        imageRef,
-        force,
-        serverId,
-        coolifyUuid,
-      );
-      setActiveScan(null);
-      if (!result.ok) {
-        setStatus(containerName, { kind: "error", text: result.message });
-        setExpanded(containerName);
+      try {
+        const result = await runContainerTrivyScan(
+          containerName,
+          imageRef,
+          force,
+          serverId,
+          coolifyUuid,
+        );
+        setActiveScan(null);
+        if (!result.ok) {
+          setStatus(containerName, { kind: "error", text: result.message });
+          setExpanded(containerName);
+          router.refresh();
+          return;
+        }
+        setScansByImage((prev) => ({
+          ...prev,
+          [imageRef]: result.record,
+          [result.record.imageRef]: result.record,
+          [result.record.imageDigest]: result.record,
+        }));
+        const liveKey = result.record.containerName;
+        const plan = buildRemediationPlan(result.record.findings);
+        const bits = [
+          result.cached ? "Cache" : "Scan ok",
+          `${result.record.durationMs}ms`,
+          `CRIT ${result.record.criticalCount}`,
+          `HIGH ${result.record.highCount}`,
+        ];
+        if (result.remappedFrom) bits.push("Name aktualisiert");
+        setStatus(liveKey, {
+          kind: "ok",
+          text: bits.join(" · "),
+        });
+        if (liveKey !== containerName) setStatus(containerName, null);
+        setExpanded(liveKey);
+        // Keep primary action in status only via detail panel, not prose dump.
+        void plan;
         router.refresh();
-        return;
+      } catch (e) {
+        setActiveScan(null);
+        setStatus(containerName, {
+          kind: "error",
+          text:
+            e instanceof Error
+              ? e.message.slice(0, 200)
+              : "Scan-Anfrage fehlgeschlagen",
+        });
+        setExpanded(containerName);
       }
-      setScansByImage((prev) => ({
-        ...prev,
-        [imageRef]: result.record,
-        [result.record.imageRef]: result.record,
-        [result.record.imageDigest]: result.record,
-      }));
-      const liveKey = result.record.containerName;
-      const plan = buildRemediationPlan(result.record.findings);
-      const bits = [
-        result.cached ? "Cache" : "Scan ok",
-        `${result.record.durationMs}ms`,
-        `CRIT ${result.record.criticalCount}`,
-        `HIGH ${result.record.highCount}`,
-      ];
-      if (result.remappedFrom) bits.push("Name aktualisiert");
-      setStatus(liveKey, {
-        kind: "ok",
-        text: bits.join(" · "),
-      });
-      if (liveKey !== containerName) setStatus(containerName, null);
-      setExpanded(liveKey);
-      // Keep primary action in status only via detail panel, not prose dump.
-      void plan;
-      router.refresh();
     });
   }
 
@@ -153,16 +165,28 @@ export function DockerInventoryPanel({
     setActiveRedeploy(containerName);
     setStatus(containerName, null);
     startTransition(async () => {
-      const result = await triggerCoolifyRedeployAction(coolifyUuid, serverId);
-      setActiveRedeploy(null);
-      setStatus(containerName, {
-        kind: result.ok ? "info" : "error",
-        text: result.ok
-          ? "Deploy gestartet — hilft nur mit neuem Image (Lockfile-Commit). Dann Scan Neu."
-          : result.message,
-      });
-      setExpanded(containerName);
-      router.refresh();
+      try {
+        const result = await triggerCoolifyRedeployAction(coolifyUuid, serverId);
+        setActiveRedeploy(null);
+        setStatus(containerName, {
+          kind: result.ok ? "info" : "error",
+          text: result.ok
+            ? "Deploy gestartet — hilft nur mit neuem Image (Lockfile-Commit). Dann Scan Neu."
+            : result.message,
+        });
+        setExpanded(containerName);
+        router.refresh();
+      } catch (e) {
+        setActiveRedeploy(null);
+        setStatus(containerName, {
+          kind: "error",
+          text:
+            e instanceof Error
+              ? e.message.slice(0, 200)
+              : "Redeploy-Anfrage fehlgeschlagen",
+        });
+        setExpanded(containerName);
+      }
     });
   }
 

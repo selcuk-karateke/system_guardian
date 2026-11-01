@@ -37,13 +37,17 @@ export async function sendDiscord(
       }
     : { content: trimmed.slice(0, 2000) };
 
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-
-  return res.ok;
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(12_000),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
 }
 
 export async function sendDiscordWithDetail(
