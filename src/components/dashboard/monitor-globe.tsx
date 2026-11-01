@@ -1025,7 +1025,8 @@ export function MonitorGlobe({
 
     void (async () => {
       try {
-        positions = await sampleLandPoints(14_000);
+        // Copy into a concrete ArrayBuffer-backed view (TS 5.x Float32Array generics).
+        positions = new Float32Array(await sampleLandPoints(14_000));
       } catch {
         positions = new Float32Array(0);
       }
