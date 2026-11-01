@@ -7,14 +7,14 @@ const APP_PKG =
   /^(next|next-auth|@auth\/|zod|react|react-dom|express|fastify|axios|lodash|node-tar|@nestjs\/|brace-expansion|minimatch|semver|cross-spawn|glob|PyJWT|anyio|pip|setuptools|wheel)/i;
 
 const OS_PKG =
-  /^(lib|linux-|zlib|openssl|ca-certificates|libc6|perl|libperl|python3|curl|wget|bash|coreutils|ncurses|tesseract|bsdutils|util-linux|login|mount|gpg|gpgv|gnupg|dirmngr|sudo|git|tar$|openssh|docker-cli|docker-ce|mesa|libgbm|libgl|libmbed|glib|mariadb|mysql|sqlite|brotli|pcre)/i;
+  /^(lib|linux-|zlib|openssl|ca-certificates|libc6|perl|libperl|python3|curl|wget|bash|coreutils|ncurses|tesseract|bsdutils|util-linux|login|mount|gpg|gpgv|gnupg|dirmngr|sudo|git|tar$|gzip$|openssh|docker-cli|docker-ce|mesa|libgbm|libgl|libmbed|glib|mariadb|mysql|sqlite|brotli|pcre)/i;
 
 /**
  * Distro/base or intentional feature deps (OCR, PHP-cURL) that Force-Rebuild
  * without a newer Debian release / removing the feature will not clear.
  */
 const RESIDUAL_OS =
-  /^(libxml2|libncurses|ncurses-|libtinfo|libcurl|curl$|libsystemd|libudev|libtiff|libacl|libtesseract|tesseract|bsdutils|util-linux|libblkid|libmount|libsmartcols|libuuid|liblastlog|login$|mount$|python3-libxml|sudo$|git$|git-man|gpgv|tar$|openssh|docker-cli|mesa|libgbm|libgl|libmbed|libglib|libperl|perl$)/i;
+  /^(libxml2|libncurses|ncurses-|libtinfo|libcurl|curl$|libsystemd|libudev|libtiff|libacl|libtesseract|tesseract|bsdutils|util-linux|libblkid|libmount|libsmartcols|libuuid|liblastlog|login$|mount$|python3-libxml|sudo$|git$|git-man|gpgv|tar$|gzip$|openssh|docker-cli|mesa|libgbm|libgl|libmbed|libglib|libperl|perl$)/i;
 
 export type RemediationPlan = {
   kind: RemediationKind;

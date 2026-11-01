@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  appFindingCounts,
   buildRemediationPlan,
   buildTrivyRecommendation,
   coolifyUuidFromMeta,
@@ -163,6 +164,24 @@ describe("trivy remediation", () => {
     assert.ok(!plan.steps.some((s) => /Lockfile|App-Deps/i.test(s)));
     const grouped = groupFindingsByCve(findings);
     assert.ok(grouped.every((g) => g.bucket === "os" || g.bucket === "residual"));
+  });
+
+  it("treats debian gzip as residual OS, not npm App HIGH", () => {
+    const findings = [
+      {
+        vulnerabilityId: "CVE-2026-41992",
+        severity: "HIGH",
+        title: "LZH buffer overflow",
+        pkgName: "gzip",
+      },
+    ];
+    const plan = buildRemediationPlan(findings);
+    assert.equal(plan.kind, "os_packages");
+    assert.equal(plan.redeployHelpsAlone, false);
+    assert.deepEqual(appFindingCounts(findings), { critical: 0, high: 0 });
+    const grouped = groupFindingsByCve(findings);
+    assert.equal(grouped[0].bucket, "residual");
+    assert.match(primaryActionLabel(plan), /Residual/i);
   });
 
   it("groups util-linux package spam into one CVE row", () => {
