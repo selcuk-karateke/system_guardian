@@ -183,10 +183,13 @@ describe("trivy alerts", () => {
     );
   });
 
-  it("groups multiple images of same app/env", () => {
+  it("groups multiple images of same Coolify application", () => {
     const meta: CoolifyMeta = {
       projectName: "dachpro",
       environmentName: "development",
+      coolifyName: "aig0ql9hlb5gt94zllg14urr",
+      resourceName: "dachprowebsitedevelopment-aig0ql9hlb5gt94zllg14urr",
+      type: "application",
     };
     const a: TrivyScanRecord = {
       ...base,
@@ -210,7 +213,7 @@ describe("trivy alerts", () => {
     };
     const b: TrivyScanRecord = {
       ...base,
-      containerName: "txnc0e2ap4siwvz8i797909q-2",
+      containerName: "aig0ql9hlb5gt94zllg14urr-worker-2",
       imageDigest: "sha256:bbbbbbbbbbbbbbbb",
       criticalCount: 3,
       highCount: 10,
@@ -229,11 +232,64 @@ describe("trivy alerts", () => {
     ]);
     const alerts = buildTrivyAlerts([a, b], coolify);
     assert.equal(alerts.length, 1);
-    assert.match(alerts[0]!.message, /dachpro \(development\)/);
+    assert.match(alerts[0]!.message, /dachpro website \(development\)/);
     // Merged App findings across images (raw highCount ignored).
     assert.match(alerts[0]!.message, /3 crit \/ 0 high/);
     assert.match(alerts[0]!.message, /2 images/);
     assert.equal(alerts[0]!.level, "warning"); // development
+  });
+
+  it("does not merge unrelated apps that share a Coolify project", () => {
+    const website: CoolifyMeta = {
+      projectName: "kawai-labs",
+      environmentName: "production",
+      coolifyName: "a0o4oo8kco000sg8wckoscss",
+      resourceName: "kawai-labswebsitemain-a0o4oo8kco000sg8wckoscss",
+      type: "application",
+    };
+    const kibo: CoolifyMeta = {
+      projectName: "kawai-labs",
+      environmentName: "production",
+      coolifyName: "vtb624d83m0f31ytiso8nfcq",
+      resourceName: "kibo-pymain-vtb624d83m0f31ytiso8nfcq",
+      type: "application",
+    };
+    const a: TrivyScanRecord = {
+      ...base,
+      containerName: "a0o4oo8kco000sg8wckoscss-1",
+      criticalCount: 0,
+      highCount: 0,
+      findings: [],
+    };
+    const b: TrivyScanRecord = {
+      ...base,
+      containerName: "vtb624d83m0f31ytiso8nfcq-1",
+      imageDigest: "sha256:cccccccccccccccc",
+      criticalCount: 0,
+      highCount: 2,
+      findings: [
+        {
+          vulnerabilityId: "CVE-S",
+          severity: "HIGH",
+          title: "setuptools",
+          pkgName: "setuptools",
+        },
+        {
+          vulnerabilityId: "CVE-M",
+          severity: "HIGH",
+          title: "msgpack",
+          pkgName: "msgpack",
+        },
+      ],
+    };
+    const coolify = new Map<string, CoolifyMeta>([
+      [normalizeContainerName(a.containerName), website],
+      [normalizeContainerName(b.containerName), kibo],
+    ]);
+    const alerts = buildTrivyAlerts([a, b], coolify);
+    assert.equal(alerts.length, 1);
+    assert.match(alerts[0]!.message, /kibo-py \(production\): 0 crit \/ 2 high/);
+    assert.doesNotMatch(alerts[0]!.message, /website/);
   });
 
   it("strips coolify suffixes for fallback labels", () => {
@@ -250,14 +306,15 @@ describe("trivy alerts", () => {
     );
   });
 
-  it("stable group key uses project+env+kind", () => {
+  it("stable group key uses project+env+application identity", () => {
     assert.equal(
       trivyGroupKey(base, {
         projectName: "Website",
         environmentName: "Production",
+        coolifyName: "abc123coolifyappuuid0001",
         serviceName: "web",
       }),
-      "proj:website|env:production|app",
+      "proj:website|env:production|app:abc123coolifyappuuid0001",
     );
     assert.equal(
       trivyGroupKey(base, {

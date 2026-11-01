@@ -46,7 +46,39 @@ export function stripCoolifyContainerSuffix(name: string): string {
   return n;
 }
 
-function trivyKind(meta?: CoolifyMeta): string {
+/**
+ * Stable Coolify application id — never collapse unrelated apps that share a
+ * project name (e.g. website + kibo-py under "kawai-labs").
+ */
+export function coolifyAppIdentity(
+  containerName: string,
+  meta?: CoolifyMeta,
+): string {
+  const fromMeta =
+    meta?.coolifyName?.trim() ||
+    meta?.applicationId?.trim() ||
+    meta?.resourceName?.trim() ||
+    meta?.serviceName?.trim();
+  if (fromMeta) return fromMeta.toLowerCase();
+  const n = normalizeContainerName(containerName);
+  const uuid = n.match(/^([a-z0-9]{20,})(?:-|$)/i);
+  if (uuid) return uuid[1]!.toLowerCase();
+  return stripCoolifyContainerSuffix(n).toLowerCase();
+}
+
+/** Human label from Coolify resource/service (kibo-pymain-<uuid> → kibo-py). */
+export function humanizeCoolifyAppName(meta?: CoolifyMeta): string | null {
+  const raw = (meta?.resourceName || meta?.serviceName || "").trim();
+  if (!raw) return null;
+  let s = raw.replace(/-[a-z0-9]{16,}$/i, "");
+  s = s.replace(/websitedevelopment$/i, " website");
+  s = s.replace(/websitemain$/i, " website");
+  s = s.replace(/main$/i, "");
+  s = s.replace(/_+/g, " ").replace(/\s+/g, " ").trim();
+  return s || null;
+}
+
+function trivyKind(containerName: string, meta?: CoolifyMeta): string {
   if (meta?.type === "database") {
     return `db:${(meta.databaseSubType ?? meta.serviceName ?? "db").toLowerCase()}`;
   }
@@ -54,8 +86,7 @@ function trivyKind(meta?: CoolifyMeta): string {
   if (svc && SIDECAR_NAME.test(svc)) {
     return `sidecar:${svc.toLowerCase()}`;
   }
-  // All app/web containers of the same project+env share one alert.
-  return "app";
+  return `app:${coolifyAppIdentity(containerName, meta)}`;
 }
 
 /** Coolify PR/preview containers (e.g. `uuid-pr-2`) — never drive prod CRITICAL. */
@@ -86,9 +117,9 @@ export function trivyGroupKey(
   const project = meta?.projectName?.trim();
   if (project) {
     const env = (meta?.environmentName ?? "").trim().toLowerCase() || "_";
-    return `proj:${project.toLowerCase()}|env:${env}|${trivyKind(meta)}`;
+    return `proj:${project.toLowerCase()}|env:${env}|${trivyKind(record.containerName, meta)}`;
   }
-  return `name:${stripCoolifyContainerSuffix(record.containerName).toLowerCase()}`;
+  return `name:${coolifyAppIdentity(record.containerName, meta)}`;
 }
 
 export function formatTrivyAlertLabel(
@@ -99,11 +130,16 @@ export function formatTrivyAlertLabel(
   if (meta?.type === "database") {
     return formatContainerDisplay(record.containerName, meta);
   }
-  const project = meta?.projectName?.trim();
   const env = meta?.environmentName?.trim();
   const svc = meta?.serviceName?.trim();
+  const project = meta?.projectName?.trim();
   if (project && svc && SIDECAR_NAME.test(svc)) {
     return env ? `${project}/${svc} (${env})` : `${project}/${svc}`;
+  }
+  // Per Coolify application — not the shared project name alone.
+  const app = humanizeCoolifyAppName(meta);
+  if (app) {
+    return env ? `${app} (${env})` : app;
   }
   if (project) {
     return env ? `${project} (${env})` : project;
