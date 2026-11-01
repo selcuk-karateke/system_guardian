@@ -39,7 +39,7 @@ describe("trivy alerts", () => {
     const alert = alertInputFromTrivyRecord(base);
     assert.ok(alert);
     assert.equal(alert.level, "warning");
-    assert.match(alert.message, /2 high/);
+    assert.match(alert.message, /0 crit \/ 1 high/);
     assert.match(alert.recommendation ?? "", /Scan Neu|Coolify|Deps|Fix|next/i);
   });
 
@@ -90,6 +90,41 @@ describe("trivy alerts", () => {
     );
     assert.equal(alert, null);
     assert.equal(appCriticalCount(base.findings), 0);
+  });
+
+  it("message counts App findings only (hides stdlib crit)", () => {
+    const alert = alertInputFromTrivyRecord(
+      {
+        ...base,
+        criticalCount: 1,
+        highCount: 25,
+        findings: [
+          {
+            vulnerabilityId: "CVE-2025-68121",
+            severity: "CRITICAL",
+            title: "go tls",
+            pkgName: "stdlib",
+          },
+          {
+            vulnerabilityId: "CVE-BRACE",
+            severity: "HIGH",
+            title: "brace",
+            pkgName: "brace-expansion",
+          },
+          {
+            vulnerabilityId: "CVE-PICO",
+            severity: "HIGH",
+            title: "pico",
+            pkgName: "picomatch",
+          },
+        ],
+      },
+      { projectName: "kawai-labs", environmentName: "production" },
+    );
+    assert.ok(alert);
+    assert.equal(alert.level, "warning");
+    assert.match(alert.message, /0 crit \/ 2 high/);
+    assert.doesNotMatch(alert.message, /1 crit/);
   });
 
   it("demotes staging/dev CRITICAL to warning", () => {
@@ -165,6 +200,12 @@ describe("trivy alerts", () => {
           title: "x",
           pkgName: "next",
         },
+        {
+          vulnerabilityId: "CVE-A2",
+          severity: "CRITICAL",
+          title: "x2",
+          pkgName: "next",
+        },
       ],
     };
     const b: TrivyScanRecord = {
@@ -189,7 +230,8 @@ describe("trivy alerts", () => {
     const alerts = buildTrivyAlerts([a, b], coolify);
     assert.equal(alerts.length, 1);
     assert.match(alerts[0]!.message, /dachpro \(development\)/);
-    assert.match(alerts[0]!.message, /5 crit \/ 20 high/);
+    // Merged App findings across images (raw highCount ignored).
+    assert.match(alerts[0]!.message, /3 crit \/ 0 high/);
     assert.match(alerts[0]!.message, /2 images/);
     assert.equal(alerts[0]!.level, "warning"); // development
   });
@@ -313,7 +355,7 @@ describe("trivy alerts", () => {
     const alerts = buildTrivyAlerts(filtered, coolify);
     assert.equal(alerts.length, 1);
     assert.equal(alerts[0]!.level, "warning");
-    assert.match(alerts[0]!.message, /0 crit \/ 2 high/);
+    assert.match(alerts[0]!.message, /0 crit \/ 1 high/);
     assert.doesNotMatch(alerts[0]!.message, /5 crit/);
   });
 });

@@ -5,10 +5,22 @@ const MODULE_PAGE: Record<string, string> = {
   logs: "/infrastructure",
   ssl: "/infrastructure",
   website: "/infrastructure",
+  ports: "/infrastructure",
+  processes: "/infrastructure",
+  services: "/infrastructure",
   docker: "/docker",
   coolify: "/docker",
   trivy: "/docker",
   database: "/databases",
+  network: "/security",
+  fim: "/security",
+  ssh_keys: "/security",
+  users: "/security",
+  logins: "/security",
+  scanner: "/security",
+  security_posture: "/security",
+  cron: "/security",
+  web_presence: "/security",
 };
 
 const PAGE_LABELS: Record<string, string> = {

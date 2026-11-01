@@ -1,7 +1,14 @@
-import { MODULE_LABELS } from "@/lib/module-labels";
+import Link from "next/link";
+import { getModulePageForAlert } from "@/lib/alert-routes";
 import type { CrisisStage } from "@/lib/crisis/stages";
+import {
+  MODULE_LABELS,
+  MONITOR_PLACEHOLDER_MODULES,
+} from "@/lib/module-labels";
 
 type TileSeverity = CrisisStage | "ok" | "unknown";
+
+const PLACEHOLDERS = new Set<string>(MONITOR_PLACEHOLDER_MODULES);
 
 const STATUS: Record<
   TileSeverity,
@@ -62,9 +69,13 @@ export function MonitorTile({
   const lines =
     details?.filter((line) => line.trim()) ?? defaultLines(severity);
   const manyLines = lines.length > 3;
+  const href = PLACEHOLDERS.has(module)
+    ? null
+    : getModulePageForAlert(module).href;
+  const className = `monitor-glass monitor-cell ${s.cell}${href ? " monitor-cell-link" : ""}`;
 
-  return (
-    <div className={`monitor-glass monitor-cell ${s.cell}`}>
+  const body = (
+    <>
       <div className="monitor-cell-main">
         <span className="monitor-cell-name">
           {MODULE_LABELS[module] ?? module}
@@ -86,6 +97,20 @@ export function MonitorTile({
       <span className={`monitor-cell-status monitor-cell-status-ring ${s.text}`}>
         {s.label}
       </span>
-    </div>
+    </>
   );
+
+  if (href) {
+    return (
+      <Link
+        href={href}
+        className={className}
+        title={`Open ${getModulePageForAlert(module).label}`}
+      >
+        {body}
+      </Link>
+    );
+  }
+
+  return <div className={className}>{body}</div>;
 }

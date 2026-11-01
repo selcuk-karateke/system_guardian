@@ -246,18 +246,20 @@ export function buildTrivyAlerts(
 
   const alerts: AlertInput[] = [];
   for (const g of groups.values()) {
-    const criticalCount = Math.max(...g.records.map((r) => r.criticalCount));
-    const highCount = Math.max(...g.records.map((r) => r.highCount));
-    if (criticalCount <= 0 && highCount <= 0) continue;
+    const rawCritical = Math.max(...g.records.map((r) => r.criticalCount));
+    const rawHigh = Math.max(...g.records.map((r) => r.highCount));
+    if (rawCritical <= 0 && rawHigh <= 0) continue;
 
     const worst = pickWorst(g.records);
     const mergedFindings = g.records.flatMap((r) => r.findings);
     if (shouldSkipTrivyAlert(g.records, mergedFindings, g.meta)) continue;
 
+    // Dashboard counts = App-bucket only (stdlib/OS residual stay in scan UI).
+    const appCounts = appFindingCounts(mergedFindings);
     const level = trivyAlertLevel(
       mergedFindings,
-      criticalCount,
-      highCount,
+      appCounts.critical,
+      appCounts.high,
       g.meta,
     );
 
@@ -273,8 +275,8 @@ export function buildTrivyAlerts(
       level,
       message: trivyAlertMessage(
         g.label,
-        criticalCount,
-        highCount,
+        appCounts.critical,
+        appCounts.high,
         g.records.length,
       ),
       recommendation,

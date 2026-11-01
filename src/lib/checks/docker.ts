@@ -181,6 +181,11 @@ export async function runDockerCheck(serverId: string): Promise<CheckResult> {
         });
         continue;
       }
+      // Coolify railpack/buildkit builders idle between deploys — not an app outage
+      if (isBuildInfraContainer(c.Names)) {
+        stoppedExpected.push(c.Names);
+        continue;
+      }
       stoppedUnexpected.push(c.Names);
       if (status !== "critical") status = "warning";
       alerts.push({
