@@ -1,9 +1,35 @@
 import { db } from "@/db";
 import { metricsSnapshots } from "@/db/schema";
-import { THRESHOLDS, worstStatus } from "@/lib/config";
+import { THRESHOLDS } from "@/lib/config";
 import { getSshClient } from "@/lib/ssh";
+import {
+  DISK_TEMP_CMD,
+  DISK_TEMP_CRIT_C,
+  DISK_TEMP_WARN_C,
+  listBlockFilesystems,
+  parseDiskMax,
+  parseDiskTemps,
+  parseTmpfsAlerts,
+} from "./disk-storage";
 import { sampleHostEgress } from "./egress-traffic";
+import {
+  HOST_INVENTORY_CMD,
+  parseHostInventory,
+} from "./host-inventory";
+import {
+  HOST_NETWORK_CMD,
+  parseHostInterfaces,
+} from "./host-network";
 import type { AlertInput, CheckResult } from "./types";
+
+export type { DfMount, DiskTemp } from "./disk-storage";
+export {
+  listBlockFilesystems,
+  parseDfMounts,
+  parseDiskMax,
+  parseDiskTemps,
+  parseTmpfsAlerts,
+} from "./disk-storage";
 
 function parseMemPercent(freeOut: string): { ram: number; swap: number } {
   const lines = freeOut.trim().split("\n");
@@ -13,95 +39,25 @@ function parseMemPercent(freeOut: string): { ram: number; swap: number } {
   let swapPct = 0;
   if (mem) {
     const parts = mem.split(/\s+/).filter(Boolean);
-    const total = parseInt(parts[1], 10);
-    const used = parseInt(parts[2], 10);
+    const total = parseInt(parts[1]!, 10);
+    const used = parseInt(parts[2]!, 10);
     if (total) ram = Math.round((used / total) * 100);
   }
   if (swap) {
     const parts = swap.split(/\s+/).filter(Boolean);
-    const total = parseInt(parts[1], 10);
-    const used = parseInt(parts[2], 10);
+    const total = parseInt(parts[1]!, 10);
+    const used = parseInt(parts[2]!, 10);
     if (total) swapPct = Math.round((used / total) * 100);
   }
   return { ram, swap: swapPct };
-}
-
-export type DfMount = {
-  filesystem: string;
-  usePercent: number;
-  mountedOn: string;
-};
-
-/** Parse `df -hP` rows (portable columns: FS Size Used Avail Use% Mounted). */
-export function parseDfMounts(dfOut: string): DfMount[] {
-  const rows: DfMount[] = [];
-  for (const line of dfOut.split("\n").slice(1)) {
-    const parts = line.trim().split(/\s+/);
-    if (parts.length < 6) continue;
-    const use = parts[4]?.match(/^(\d+)%$/);
-    if (!use) continue;
-    rows.push({
-      filesystem: parts[0],
-      usePercent: parseInt(use[1], 10),
-      mountedOn: parts.slice(5).join(" "),
-    });
-  }
-  return rows;
-}
-
-function isRealBlockFs(filesystem: string): boolean {
-  return (
-    filesystem.startsWith("/dev/") ||
-    filesystem.startsWith("/dev/mapper/") ||
-    // LVM / md without leading path edge cases already covered by /dev/
-    filesystem.startsWith("UUID=")
-  );
-}
-
-function isVirtualFs(filesystem: string): boolean {
-  return /^(tmpfs|devtmpfs|overlay|squashfs|efivarfs|udev)$/i.test(filesystem);
-}
-
-/** Max use% on real disks only — ignore tmpfs/overlay (often 100% while / is fine). */
-export function parseDiskMax(dfOut: string): {
-  percent: number;
-  mount: string | null;
-} {
-  let max = 0;
-  let mount: string | null = null;
-  for (const row of parseDfMounts(dfOut)) {
-    if (isVirtualFs(row.filesystem) || !isRealBlockFs(row.filesystem)) continue;
-    if (row.usePercent >= max) {
-      max = row.usePercent;
-      mount = row.mountedOn;
-    }
-  }
-  return { percent: max, mount };
-}
-
-const WATCHED_TMPFS = new Set(["/tmp", "/var/tmp", "/dev/shm"]);
-
-/** Watched tmpfs mounts at/over threshold (e.g. /tmp full) — not the disk metric. */
-export function parseTmpfsAlerts(
-  dfOut: string,
-  warnAt = 90,
-): { mount: string; percent: number }[] {
-  return parseDfMounts(dfOut)
-    .filter(
-      (r) =>
-        /^tmpfs$/i.test(r.filesystem) &&
-        WATCHED_TMPFS.has(r.mountedOn) &&
-        r.usePercent >= warnAt,
-    )
-    .map((r) => ({ mount: r.mountedOn, percent: r.usePercent }));
 }
 
 function parseUptimeSeconds(uptimeOut: string): number {
   const m = uptimeOut.match(/up\s+(?:(\d+)\s+days?,?\s*)?(\d+):(\d+)/);
   if (!m) return 0;
   const days = parseInt(m[1] ?? "0", 10);
-  const hours = parseInt(m[2], 10);
-  const mins = parseInt(m[3], 10);
+  const hours = parseInt(m[2]!, 10);
+  const mins = parseInt(m[3]!, 10);
   return days * 86400 + hours * 3600 + mins * 60;
 }
 
@@ -111,18 +67,36 @@ export async function runServerHealthCheck(
   const ssh = await getSshClient(serverId);
   const alerts: AlertInput[] = [];
 
-  const [uptime, loadavg, free, df, sensors, nprocOut, egress] =
-    await Promise.all([
-      ssh.exec("uptime"),
-      ssh.exec("cat /proc/loadavg"),
-      ssh.exec("free -b"),
-      ssh.exec("df -hP"),
-      ssh.exec("sensors 2>/dev/null || echo ''"),
-      ssh.exec("nproc"),
-      sampleHostEgress(serverId, ssh).catch(() => null),
-    ]);
+  const [
+    uptime,
+    loadavg,
+    free,
+    df,
+    sensors,
+    nprocOut,
+    inventoryOut,
+    diskTempOut,
+    netIfacesOut,
+    egress,
+  ] = await Promise.all([
+    ssh.exec("uptime"),
+    ssh.exec("cat /proc/loadavg"),
+    ssh.exec("free -b"),
+    ssh.exec("df -hP"),
+    ssh.exec("sensors 2>/dev/null || echo ''"),
+    ssh.exec("nproc"),
+    ssh.exec(HOST_INVENTORY_CMD),
+    ssh.exec(DISK_TEMP_CMD),
+    ssh.exec(HOST_NETWORK_CMD),
+    sampleHostEgress(serverId, ssh).catch(() => null),
+  ]);
 
   if (egress?.alerts.length) alerts.push(...egress.alerts);
+
+  const inventory = parseHostInventory(inventoryOut.stdout);
+  const filesystems = listBlockFilesystems(df.stdout);
+  const diskTemps = parseDiskTemps(diskTempOut.stdout);
+  const interfaces = parseHostInterfaces(netIfacesOut.stdout);
 
   const loadParts = loadavg.stdout.trim().split(/\s+/);
   const cpuCores = Math.max(1, parseInt(nprocOut.stdout.trim(), 10) || 1);
@@ -138,7 +112,7 @@ export async function runServerHealthCheck(
 
   let temp: number | undefined;
   const tempMatch = sensors.stdout.match(/\+(\d+\.?\d*)/);
-  if (tempMatch) temp = Math.round(parseFloat(tempMatch[1]));
+  if (tempMatch) temp = Math.round(parseFloat(tempMatch[1]!));
 
   if (effectiveLoadPercent >= THRESHOLDS.cpuCritical()) {
     alerts.push({
@@ -194,13 +168,41 @@ export async function runServerHealthCheck(
     });
   }
 
-  const statuses = alerts.map((a) =>
-    a.level === "critical" ? "critical" : a.level === "warning" ? "warning" : "healthy",
-  ) as ("healthy" | "warning" | "critical")[];
-  const status =
-    statuses.length > 0
-      ? worstStatus(statuses)
-      : "healthy";
+  for (const d of diskTemps) {
+    if (d.celsius == null) continue;
+    if (d.celsius >= DISK_TEMP_CRIT_C) {
+      alerts.push({
+        level: "critical",
+        message: `Festplatte ${d.path} ${d.celsius}°C`,
+        recommendation: "Check cooling / airflow; replace failing drive if SMART warns",
+      });
+    } else if (d.celsius >= DISK_TEMP_WARN_C) {
+      alerts.push({
+        level: "warning",
+        message: `Festplatte ${d.path} ${d.celsius}°C`,
+      });
+    }
+  }
+
+  if (inventory.rebootRequired) {
+    alerts.push({
+      level: "warning",
+      message: "Systemneustart erforderlich (reboot-required)",
+      recommendation: "Schedule a reboot in the next maintenance window",
+    });
+  }
+  if (inventory.securityUpdates > 0) {
+    alerts.push({
+      level: "warning",
+      message: `${inventory.securityUpdates} security update(s) available (${inventory.updatesAvailable} total)`,
+      recommendation: "Apply security updates, then reboot if required",
+    });
+  } else if (inventory.updatesAvailable > 0) {
+    alerts.push({
+      level: "info",
+      message: `${inventory.updatesAvailable} package update(s) available`,
+    });
+  }
 
   await db.insert(metricsSnapshots).values({
     serverId,
@@ -239,6 +241,17 @@ export async function runServerHealthCheck(
       egressTxBytes: egress?.delta?.txBytes,
       egressWindowSec: egress?.delta?.seconds,
       egressIface: egress?.delta?.topTxIface,
+      hostname: inventory.hostname,
+      osPretty: inventory.osPretty,
+      kernel: inventory.kernel,
+      cpuModel: inventory.cpuModel,
+      systemTime: inventory.systemTime,
+      rebootRequired: inventory.rebootRequired,
+      updatesAvailable: inventory.updatesAvailable,
+      securityUpdates: inventory.securityUpdates,
+      filesystems,
+      diskTemps,
+      interfaces,
     },
     alerts,
   };

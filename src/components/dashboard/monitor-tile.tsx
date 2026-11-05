@@ -66,9 +66,9 @@ export function MonitorTile({
   details?: string[] | null;
 }) {
   const s = STATUS[severity] ?? STATUS.unknown;
-  const lines =
-    details?.filter((line) => line.trim()) ?? defaultLines(severity);
-  const manyLines = lines.length > 3;
+  const lines = (
+    details?.filter((line) => line.trim()) ?? defaultLines(severity)
+  ).slice(0, 2);
   const href = PLACEHOLDERS.has(module)
     ? null
     : getModulePageForAlert(module).href;
@@ -80,13 +80,11 @@ export function MonitorTile({
         <span className="monitor-cell-name">
           {MODULE_LABELS[module] ?? module}
         </span>
-        <div
-          className={`monitor-cell-details${manyLines ? " monitor-cell-details--many" : ""}`}
-        >
+        <div className="monitor-cell-chips">
           {lines.map((line, i) => (
             <span
               key={`${i}-${line}`}
-              className="monitor-cell-detail"
+              className="monitor-cell-chip"
               title={line}
             >
               {line}
@@ -95,6 +93,7 @@ export function MonitorTile({
         </div>
       </div>
       <span className={`monitor-cell-status monitor-cell-status-ring ${s.text}`}>
+        <span className="monitor-cell-status-core" aria-hidden />
         {s.label}
       </span>
     </>

@@ -28,6 +28,10 @@ import {
   crisisStageToWallTone,
   type CrisisStage,
 } from "@/lib/crisis/stages";
+import {
+  formatInventoryShort,
+  inventoryFromCheckData,
+} from "@/lib/checks/host-inventory";
 import { buildGlobeTints } from "@/lib/geo/attack-markers";
 import { MONITOR_MODULE_ORDER, MONITOR_PLACEHOLDER_MODULES } from "@/lib/module-labels";
 import { listActiveServers } from "@/lib/servers";
@@ -156,9 +160,16 @@ export default async function MonitorPage({
       ? formatUptime(overview.metrics.uptimeSeconds)
       : "—";
 
+  const inventory = inventoryFromCheckData(checkData.server_health ?? null);
+  const hostMeta = inventory ? formatInventoryShort(inventory) : null;
+
   const metricCards = buildMonitorMetricCards(
     overview?.metrics ?? null,
     uptimeFormatted,
+    {
+      kernel: inventory?.kernel,
+      osPretty: inventory?.osPretty,
+    },
   );
 
   const egressSrc =
@@ -221,6 +232,7 @@ export default async function MonitorPage({
           crisisStage={crisisStage}
           hostLabel={hostLabel}
           hostIp={hostIp}
+          hostMeta={hostMeta}
           checkMode={overview?.checkMode ?? "mock"}
           lastCheck={lastCheck}
           metricCards={metricCards}

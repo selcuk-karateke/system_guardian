@@ -27,6 +27,8 @@
   --m-cap-stat: 96px;
   --m-pad-x: 64px;
   --m-pad-y: 20px;
+  --m-section-gap: clamp(8px, 1vh, 14px);
+  --m-block-gap: clamp(6px, 0.75vmin, 12px);
   --m-cell-pad-y: 10px;
   --m-cell-pad-x: 16px;
   --m-radius-cell: 14px;
@@ -830,6 +832,7 @@
   height: 100dvh;
   display: grid;
   grid-template-rows: auto auto auto 1fr auto;
+  gap: 0;
   overflow: hidden;
 }
 
@@ -935,6 +938,14 @@
   margin-top: 2px;
 }
 
+.monitor-host-meta {
+  font-size: clamp(11px, 1.05vmin, var(--m-cap-sm));
+  color: rgb(148 163 184 / 75%);
+  font-family: var(--monitor-mono);
+  margin-top: 1px;
+  letter-spacing: 0.02em;
+}
+
 .monitor-top-right {
   display: flex;
   align-items: center;
@@ -1004,7 +1015,7 @@
 
 /* STATUS BAND — display type scales to available width (not full band) */
 .monitor-status-band {
-  margin: clamp(6px, 0.8vh, 12px) clamp(24px, 3vw, var(--m-pad-x)) 0;
+  margin: var(--m-section-gap) clamp(24px, 3vw, var(--m-pad-x)) 0;
   padding: clamp(12px, 1.6vh, 26px) clamp(20px, 2.5vw, 48px);
   border-radius: clamp(16px, 2vmin, 28px);
   display: flex;
@@ -1126,12 +1137,14 @@
 }
 
 .monitor-status-sub {
-  margin: 0.35em 0 0;
+  display: block;
+  margin: 0.45em 0 0;
   font-family: var(--monitor-mono);
   font-size: clamp(13px, 1.45vmin, 28px);
   color: rgb(148 163 184);
   letter-spacing: 0.04em;
   line-height: 1.35;
+  max-width: 100%;
 }
 
 .monitor-status-band--busy .monitor-status-sub {
@@ -1237,8 +1250,8 @@
 .monitor-metrics {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: clamp(8px, 1vmin, 16px);
-  padding: clamp(6px, 0.8vh, 14px) clamp(24px, 3vw, var(--m-pad-x));
+  gap: var(--m-block-gap);
+  padding: var(--m-section-gap) clamp(24px, 3vw, var(--m-pad-x));
   min-height: 0;
   /* Enough room for value + 2 detail lines — old 18vh/200px clipped on TV */
   max-height: min(22vh, var(--m-metrics-max, 260px));
@@ -1357,24 +1370,42 @@
 
 .monitor-stat-details {
   display: flex;
-  flex-direction: column;
-  gap: 0.1em;
-  margin-top: 0.2em;
-  font-family: var(--monitor-mono);
-  font-size: clamp(12px, 1.4vmin, var(--m-cap-metric));
-  font-weight: 500;
-  color: rgba(255, 255, 255, 0.72);
-  line-height: 1.2;
+  flex-wrap: wrap;
+  gap: clamp(4px, 0.45vmin, 8px);
+  margin-top: 0.35em;
   min-height: 0;
   flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
+  align-content: flex-start;
 }
 
 .monitor-stat-details > span {
+  font-family: var(--monitor-mono);
+  font-size: clamp(11px, 1.25vmin, var(--m-cap-sm));
+  font-weight: 500;
+  line-height: 1.2;
+  color: rgb(186 230 253 / 85%);
+  background: rgb(34 211 238 / 8%);
+  border: 1px solid rgb(34 211 238 / 18%);
+  border-radius: 999px;
+  padding: 0.15em 0.6em;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  max-width: 100%;
+}
+
+.monitor-stat--warn .monitor-stat-details > span {
+  color: rgb(253 230 138 / 90%);
+  background: rgb(251 191 36 / 10%);
+  border-color: rgb(251 191 36 / 25%);
+}
+
+.monitor-stat--crit .monitor-stat-details > span {
+  color: rgb(254 202 202 / 90%);
+  background: rgb(248 113 113 / 12%);
+  border-color: rgb(248 113 113 / 28%);
 }
 
 .monitor-stat--warn {
@@ -1387,46 +1418,198 @@
   box-shadow: 0 0 32px rgb(248 113 113 / 12%);
 }
 
-/* modules */
+/* modules — 4 visible rows, endless vertical loop */
+.monitor-grid-shell {
+  min-height: 0;
+  height: 100%;
+  padding: 0 clamp(24px, 3vw, var(--m-pad-x)) var(--m-section-gap);
+}
+
+.monitor-grid-shell[data-paused="1"] .monitor-grid-viewport {
+  cursor: default;
+}
+
+.monitor-grid-viewport {
+  position: relative;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  cursor: ns-resize;
+  touch-action: none;
+  overscroll-behavior: contain;
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    #000 4%,
+    #000 96%,
+    transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    #000 4%,
+    #000 96%,
+    transparent 100%
+  );
+}
+
+.monitor-grid-track {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  will-change: transform;
+  backface-visibility: hidden;
+}
+
+.monitor-grid-copy {
+  display: flex;
+  flex-direction: column;
+  gap: var(--m-block-gap);
+}
+
+.monitor-grid-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--m-block-gap);
+  min-width: 0;
+}
+
+.monitor-grid-stage-head,
+.monitor-grid-stage-divider {
+  display: flex;
+  align-items: center;
+  min-height: clamp(22px, 2.4vh, 32px);
+  flex-shrink: 0;
+}
+
+.monitor-grid-stage-divider {
+  margin-top: clamp(4px, 0.5vh, 8px);
+  padding-top: clamp(6px, 0.7vh, 10px);
+  border-top: 1px solid rgb(34 211 238 / 22%);
+}
+
+.monitor-grid-stage-divider-label {
+  font-family: var(--monitor-mono);
+  font-size: clamp(10px, 1.15vmin, 14px);
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: rgb(34 211 238 / 80%);
+  text-transform: uppercase;
+}
+
+.monitor-wall[data-status="warning"] .monitor-grid-stage-divider {
+  border-top-color: rgb(251 191 36 / 28%);
+}
+
+.monitor-wall[data-status="warning"] .monitor-grid-stage-divider-label {
+  color: rgb(251 191 36 / 85%);
+}
+
+.monitor-wall[data-status="critical"] .monitor-grid-stage-divider {
+  border-top-color: rgb(248 113 113 / 32%);
+}
+
+.monitor-wall[data-status="critical"] .monitor-grid-stage-divider-label {
+  color: rgb(248 113 113 / 88%);
+}
+
+/* Seam between loop copies */
+.monitor-grid-loop-divider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(10px, 1.4vmin, 20px);
+  height: clamp(28px, 3.2vh, 40px);
+  margin: var(--m-section-gap) 0;
+  flex-shrink: 0;
+  pointer-events: none;
+  box-sizing: border-box;
+}
+
+.monitor-grid-loop-divider-line {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgb(34 211 238 / 45%),
+    transparent
+  );
+  box-shadow: 0 0 10px rgb(34 211 238 / 25%);
+}
+
+.monitor-grid-loop-divider-label {
+  flex-shrink: 0;
+  font-family: var(--monitor-mono);
+  font-size: clamp(9px, 1.05vmin, 13px);
+  font-weight: 700;
+  letter-spacing: 0.28em;
+  color: rgb(34 211 238 / 75%);
+  text-shadow: 0 0 12px rgb(34 211 238 / 35%);
+  padding: 0.2em 0.55em;
+  border: 1px solid rgb(34 211 238 / 28%);
+  border-radius: 999px;
+  background: rgb(6 18 28 / 55%);
+}
+
+.monitor-wall[data-status="warning"] .monitor-grid-loop-divider-line {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgb(251 191 36 / 45%),
+    transparent
+  );
+  box-shadow: 0 0 10px rgb(251 191 36 / 22%);
+}
+
+.monitor-wall[data-status="warning"] .monitor-grid-loop-divider-label {
+  color: rgb(251 191 36 / 80%);
+  border-color: rgb(251 191 36 / 30%);
+  text-shadow: 0 0 12px rgb(251 191 36 / 30%);
+}
+
+.monitor-wall[data-status="critical"] .monitor-grid-loop-divider-line {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgb(248 113 113 / 50%),
+    transparent
+  );
+  box-shadow: 0 0 10px rgb(248 113 113 / 25%);
+}
+
+.monitor-wall[data-status="critical"] .monitor-grid-loop-divider-label {
+  color: rgb(248 113 113 / 85%);
+  border-color: rgb(248 113 113 / 35%);
+  text-shadow: 0 0 12px rgb(248 113 113 / 35%);
+}
+
 .monitor-grid {
   min-height: 0;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: clamp(6px, 0.7vmin, 12px);
-  padding: 0 clamp(24px, 3vw, var(--m-pad-x)) clamp(6px, 0.8vh, 10px);
-  align-content: stretch;
+  gap: var(--m-block-gap);
+  align-content: start;
+  box-sizing: border-box;
 }
 
-.monitor-col {
-  min-height: 0;
-  height: 100%;
-  display: grid;
-  gap: clamp(4px, 0.45vmin, 8px);
-  align-content: stretch;
+.monitor-grid--flat {
+  grid-auto-rows: minmax(clamp(56px, 7.5vh, 88px), auto);
 }
 
-.monitor-col--5 {
-  grid-template-rows: repeat(5, minmax(0, 1fr));
-}
-
-.monitor-col--6 {
-  grid-template-rows: repeat(6, minmax(0, 1fr));
-}
-
-.monitor-col--7 {
-  grid-template-rows: repeat(7, minmax(0, 1fr));
-}
-
-.monitor-col--8 {
-  grid-template-rows: repeat(8, minmax(0, 1fr));
+@media (prefers-reduced-motion: reduce) {
+  .monitor-grid-viewport {
+    mask-image: none;
+    -webkit-mask-image: none;
+  }
 }
 
 .monitor-cell {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: clamp(6px, 0.8vmin, 12px);
-  /* Muss schrumpfen — sonst überlagern sich 7–8 Zeilen */
+  gap: clamp(8px, 0.9vmin, 14px);
   min-height: 0;
   height: 100%;
   max-height: 100%;
@@ -1461,7 +1644,7 @@ a.monitor-cell-link:focus-visible {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: clamp(1px, 0.2vmin, 4px);
+  gap: clamp(3px, 0.35vmin, 6px);
   overflow: hidden;
 }
 
@@ -1474,51 +1657,53 @@ a.monitor-cell-link:focus-visible {
   white-space: nowrap;
   line-height: 1.1;
   flex-shrink: 0;
+  letter-spacing: 0.02em;
 }
 
-.monitor-cell-details {
+.monitor-cell-chips {
   display: flex;
-  flex-direction: column;
-  gap: 0;
+  flex-wrap: nowrap;
+  gap: clamp(3px, 0.4vmin, 6px);
   min-width: 0;
-  min-height: 0;
   overflow: hidden;
 }
 
-/* Bei dichter Spalte nur die erste Detailzeile — Rest per title/hover */
-.monitor-cell-details .monitor-cell-detail:nth-child(n + 2) {
-  display: none;
-}
-
-.monitor-cell-details--many {
-  gap: 0;
-}
-
-.monitor-cell-details--many .monitor-cell-detail {
-  font-size: clamp(9px, 1vmin, var(--m-cap-xs));
-  line-height: 1.1;
-}
-
-.monitor-cell-detail {
+.monitor-cell-chip {
+  flex: 0 1 auto;
+  max-width: 100%;
   font-family: var(--monitor-mono);
-  font-size: clamp(10px, 1.15vmin, var(--m-cap-sm));
-  color: rgba(255, 255, 255, 0.72);
-  line-height: 1.15;
-  min-width: 0;
+  font-size: clamp(9px, 1.05vmin, var(--m-cap-xs));
+  line-height: 1.2;
+  color: rgb(186 230 253 / 85%);
+  background: rgb(34 211 238 / 10%);
+  border: 1px solid rgb(34 211 238 / 22%);
+  border-radius: 999px;
+  padding: 0.12em 0.55em;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.monitor-cell--warning .monitor-cell-detail {
-  color: rgba(251, 191, 36, 0.88);
+.monitor-cell--warning .monitor-cell-chip {
+  color: rgb(253 230 138 / 92%);
+  background: rgb(251 191 36 / 12%);
+  border-color: rgb(251 191 36 / 28%);
 }
 
-.monitor-cell--critical .monitor-cell-detail {
-  color: rgba(248, 113, 113, 0.9);
+.monitor-cell--critical .monitor-cell-chip {
+  color: rgb(254 202 202 / 92%);
+  background: rgb(248 113 113 / 14%);
+  border-color: rgb(248 113 113 / 30%);
+}
+
+.monitor-cell--unknown .monitor-cell-chip {
+  color: rgb(148 163 184 / 80%);
+  background: rgb(148 163 184 / 8%);
+  border-color: rgb(148 163 184 / 18%);
 }
 
 .monitor-cell-status {
+  position: relative;
   flex-shrink: 0;
   font-family: var(--monitor-mono);
   font-size: clamp(9px, 1.1vmin, var(--m-cap-sm));
@@ -1526,6 +1711,7 @@ a.monitor-cell-link:focus-visible {
   letter-spacing: 0.08em;
   line-height: 1;
   text-align: center;
+  z-index: 1;
 }
 
 .monitor-cell-status-ring {
@@ -1533,16 +1719,26 @@ a.monitor-cell-link:focus-visible {
   align-items: center;
   justify-content: center;
   align-self: center;
-  width: clamp(28px, 3.2vmin, var(--m-cap-ring));
-  height: clamp(28px, 3.2vmin, var(--m-cap-ring));
+  width: clamp(30px, 3.4vmin, var(--m-cap-ring));
+  height: clamp(30px, 3.4vmin, var(--m-cap-ring));
   flex-shrink: 0;
   border-radius: 50%;
   border: 2px solid currentColor;
   /* Static glow — animated box-shadow pulses flicker on TVs */
   box-shadow:
-    0 0 12px currentColor,
-    inset 0 0 8px rgb(255 255 255 / 5%);
-  background: rgb(0 0 0 / 25%);
+    0 0 14px currentColor,
+    inset 0 0 10px rgb(255 255 255 / 6%);
+  background: rgb(0 0 0 / 35%);
+}
+
+.monitor-cell-status-core {
+  position: absolute;
+  width: 38%;
+  height: 38%;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.35;
+  pointer-events: none;
 }
 
 .monitor-cell--healthy {
@@ -1599,7 +1795,7 @@ a.monitor-cell-link:focus-visible {
 
 /* footer */
 .monitor-bottom {
-  margin: 0 clamp(24px, 3vw, var(--m-pad-x)) clamp(10px, 1.2vh, 20px);
+  margin: 0 clamp(24px, 3vw, var(--m-pad-x)) var(--m-section-gap);
   padding: clamp(12px, 1.4vh, 20px) clamp(18px, 2vmin, 32px);
   border-radius: clamp(12px, 1.4vmin, 18px);
   font-family: var(--monitor-sans);
@@ -1764,9 +1960,11 @@ a.monitor-cell-link:focus-visible {
  * Hiding those left only a bright static-ish globe — worse for OLED than day mode.
  */
 .monitor-tv-shell[data-night="1"] .monitor-waves,
+.monitor-tv-shell[data-night="1"] .monitor-grid-shell,
 .monitor-tv-shell[data-night="1"] .monitor-grid,
 .monitor-tv-shell[data-night="1"] .monitor-metrics,
 .monitor-tv-shell[data-night="1"] .monitor-host,
+.monitor-tv-shell[data-night="1"] .monitor-host-meta,
 .monitor-tv-shell[data-night="1"] .monitor-top-link,
 .monitor-tv-shell[data-night="1"] .monitor-reload-btn {
   display: none;
@@ -1917,7 +2115,16 @@ a.monitor-cell-link:focus-visible {
 .monitor-tv-shell[data-night="1"] .monitor-status-main {
   width: 100%;
   display: flex;
+  flex-direction: column;
+  align-items: center;
   justify-content: center;
+  gap: clamp(8px, 1vh, 14px);
+}
+
+.monitor-tv-shell[data-night="1"] .monitor-status-sub {
+  margin: 0;
+  max-width: 100%;
+  text-align: center;
 }
 
 .monitor-tv-shell[data-night="1"] .monitor-status-side {

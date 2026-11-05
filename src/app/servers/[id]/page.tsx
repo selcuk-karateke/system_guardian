@@ -5,7 +5,9 @@ import { AlertList } from "@/components/dashboard/alert-list";
 import { CrisisStageBadge } from "@/components/dashboard/crisis-stage-badge";
 import { TriggerChecks } from "@/components/dashboard/trigger-checks";
 import { MockDataBanner } from "@/components/dashboard/mock-data-banner";
+import { SystemInfoCard } from "@/components/dashboard/system-info-card";
 import { Badge } from "@/components/ui/badge";
+import { inventoryFromCheckData } from "@/lib/checks/host-inventory";
 import {
   getGlobalCrisisStage,
   getLatestCheckByModule,
@@ -36,6 +38,9 @@ export default async function ServerDetailPage({
   let backupsCheck:
     | Awaited<ReturnType<typeof getLatestCheckByModule>>
     | undefined;
+  let healthCheck:
+    | Awaited<ReturnType<typeof getLatestCheckByModule>>
+    | undefined;
   let dbError: string | null = null;
 
   try {
@@ -44,9 +49,15 @@ export default async function ServerDetailPage({
     recentAlerts = await getRecentAlerts(10, { serverId: id });
     logsCheck = (await getLatestCheckByModule("logs", id)) ?? undefined;
     backupsCheck = (await getLatestCheckByModule("backups", id)) ?? undefined;
+    healthCheck =
+      (await getLatestCheckByModule("server_health", id)) ?? undefined;
   } catch (e) {
     dbError = e instanceof Error ? e.message : "Database unavailable";
   }
+
+  const inventory = inventoryFromCheckData(
+    (healthCheck?.data as Record<string, unknown> | undefined) ?? null,
+  );
 
   return (
     <div className="space-y-8">
@@ -91,6 +102,11 @@ export default async function ServerDetailPage({
           <CardContent className="pt-6 text-amber-300">{dbError}</CardContent>
         </Card>
       )}
+
+      <SystemInfoCard
+        inventory={inventory}
+        uptimeSeconds={overview?.metrics?.uptimeSeconds}
+      />
 
       <Card>
         <CardHeader>

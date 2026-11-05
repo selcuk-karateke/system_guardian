@@ -3,6 +3,9 @@
 import { useRouter } from "next/navigation";
 import { startTransition, useEffect, useRef } from "react";
 
+/** Survives remounts — hard stop against refresh storms. */
+let lastMonitorRefreshAt = 0;
+
 export function MonitorAutoRefresh({
   children,
   intervalSec = 60,
@@ -15,13 +18,19 @@ export function MonitorAutoRefresh({
   routerRef.current = router;
 
   useEffect(() => {
-    const ms = Math.max(15, intervalSec) * 1000;
+    const sec = Number.isFinite(intervalSec) ? intervalSec : 60;
+    const ms = Math.max(15_000, Math.round(sec * 1000));
+
     const id = setInterval(() => {
-      // Non-urgent refresh — avoids hard UI flash every cycle (esp. 4K TV).
+      if (document.visibilityState !== "visible") return;
+      const now = Date.now();
+      if (now - lastMonitorRefreshAt < ms - 500) return;
+      lastMonitorRefreshAt = now;
       startTransition(() => {
         routerRef.current.refresh();
       });
     }, ms);
+
     return () => clearInterval(id);
   }, [intervalSec]);
 

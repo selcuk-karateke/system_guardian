@@ -134,8 +134,11 @@ export function BackgroundJobsOverlay() {
           refreshedJobIds.add(j.id);
           shouldRefresh = true;
         }
+        // Never refresh the monitor wall from the jobs pill (it has its own cadence).
+        const onMonitor = pathname.startsWith("/monitor");
         if (
           shouldRefresh &&
+          !onMonitor &&
           now - lastRouterRefreshAt >= REFRESH_COOLDOWN_MS
         ) {
           lastRouterRefreshAt = now;
@@ -157,7 +160,7 @@ export function BackgroundJobsOverlay() {
       if (timer) clearTimeout(timer);
       window.removeEventListener(JOBS_WAKE_EVENT, onWake);
     };
-  }, [hidden]);
+  }, [hidden, pathname]);
 
   if (hidden || jobs.length === 0) return null;
 

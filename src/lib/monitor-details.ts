@@ -49,6 +49,7 @@ function effectiveLoadPercent(
 export function buildMonitorMetricCards(
   m: MetricsRow | null | undefined,
   uptimeFormatted: string,
+  opts?: { kernel?: string | null; osPretty?: string | null },
 ): MonitorMetricCards {
   const ram = m?.ramPercent ?? null;
   const disk = m?.diskPercent ?? null;
@@ -91,6 +92,8 @@ export function buildMonitorMetricCards(
   if (disk != null) diskLines.push(`${disk}% used · ${100 - disk}% free`);
 
   const uptimeLines: string[] = [];
+  if (opts?.osPretty) uptimeLines.push(shortenLabel(opts.osPretty, 28));
+  else if (opts?.kernel) uptimeLines.push(shortenLabel(opts.kernel, 28));
   if (sec != null) uptimeLines.push(`${sec.toLocaleString("en-US")} sec`);
   if (sec != null && sec >= 86400) {
     uptimeLines.push(`${Math.floor(sec / 86400)}d since boot`);
@@ -453,10 +456,34 @@ function formatModuleDetailLinesFromData(
     }
     case "services": {
       const lines: string[] = [];
+      const rows = data.rows as
+        | {
+            label: string;
+            enabled: boolean;
+            running: boolean;
+            required?: boolean;
+            present?: boolean;
+          }[]
+        | undefined;
+      if (rows?.length) {
+        const running = rows.filter((r) => r.running).length;
+        lines.push(`${running}/${rows.length} laufen`);
+        for (const r of rows) {
+          if (r.required && !r.running) {
+            lines.push(`${r.label}: down ⚠`);
+          } else if (r.enabled && !r.running) {
+            lines.push(`${r.label}: enabled≠running`);
+          }
+        }
+        if (lines.length === 1) {
+          const highlight = rows.filter((r) => r.running).slice(0, 3);
+          for (const r of highlight) lines.push(`${r.label}: aktiv`);
+        }
+      }
       const watched = data.watched as
         | { label: string; state: string; ok: boolean }[]
         | undefined;
-      if (watched?.length) {
+      if (!rows?.length && watched?.length) {
         for (const w of watched) {
           lines.push(w.ok ? `${w.label}: aktiv` : `${w.label}: ${w.state} ⚠`);
         }
@@ -552,6 +579,16 @@ function formatModuleDetailLinesFromData(
       const cores = data.cpuCores as number | undefined;
       const eff = data.effectiveLoadPercent as number | undefined;
       const t = data.temperatureCelsius as number | undefined;
+      const kernel = data.kernel as string | undefined;
+      const fs = data.filesystems as
+        | { filesystem?: string; usePercent?: number }[]
+        | undefined;
+      const diskTemps = data.diskTemps as
+        | { path?: string; celsius?: number | null }[]
+        | undefined;
+      const ifaces = data.interfaces as
+        | { name?: string; linkUp?: boolean }[]
+        | undefined;
       const lines: string[] = [];
       if (load?.[0] && cores) {
         lines.push(`load ${formatLoadNumber(load[0])}/${cores}`);
@@ -560,6 +597,39 @@ function formatModuleDetailLinesFromData(
       }
       if (eff != null) lines.push(`${eff}% effective`);
       if (t != null) lines.push(`${t}°C`);
+      if (fs?.length) {
+        const hottest = [...fs].sort(
+          (a, b) => (b.usePercent ?? 0) - (a.usePercent ?? 0),
+        )[0];
+        if (hottest?.usePercent != null) {
+          lines.push(
+            `${fs.length} FS · max ${hottest.usePercent}%`,
+          );
+        }
+      }
+      const knownTemps = diskTemps?.filter((d) => d.celsius != null) ?? [];
+      if (knownTemps.length) {
+        const maxT = Math.max(...knownTemps.map((d) => d.celsius as number));
+        lines.push(`disk ${maxT}°C`);
+      }
+      if (ifaces?.length) {
+        const up = ifaces.filter((i) => i.linkUp && i.name !== "lo").length;
+        lines.push(`${up}/${ifaces.filter((i) => i.name !== "lo").length} nic up`);
+      }
+      if (data.rebootRequired === true) lines.push("reboot nötig");
+      else if (
+        typeof data.securityUpdates === "number" &&
+        data.securityUpdates > 0
+      ) {
+        lines.push(`${data.securityUpdates} sec-upd`);
+      } else if (
+        typeof data.updatesAvailable === "number" &&
+        data.updatesAvailable > 0
+      ) {
+        lines.push(`${data.updatesAvailable} upd`);
+      } else if (kernel) {
+        lines.push(shortenLabel(kernel, 22));
+      }
       return lines.length ? lines : null;
     }
     default:

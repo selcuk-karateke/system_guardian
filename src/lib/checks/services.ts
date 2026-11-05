@@ -2,20 +2,39 @@ import { getExpectedFailedUnits } from "@/lib/config";
 import { getSshClient } from "@/lib/ssh";
 import type { AlertInput, CheckResult } from "./types";
 
-/** Dienste, die auf dem Produktionsserver aktiv sein müssen. */
-const REQUIRED_SERVICES: { unit: string; label: string; alt?: string }[] = [
-  { unit: "docker", label: "Docker" },
-  { unit: "fail2ban", label: "fail2ban" },
-  { unit: "ssh", label: "SSH (OpenSSH)", alt: "sshd" },
+/**
+ * Host services inventory (Cockpit-style: enabled + running).
+ * `required: true` → alert when not active.
+ */
+export const SERVICE_CATALOG: {
+  unit: string;
+  label: string;
+  alt?: string[];
+  required?: boolean;
+}[] = [
+  { unit: "nfs-server", label: "NFS", alt: ["nfs-kernel-server"] },
+  { unit: "rsync", label: "RSync server", alt: ["rsyncd"] },
+  { unit: "smbd", label: "SMB/CIFS", alt: ["smb"] },
+  { unit: "ssh", label: "SSH", alt: ["sshd"], required: true },
+  { unit: "docker", label: "Docker", required: true },
+  { unit: "fail2ban", label: "fail2ban", required: true },
 ];
 
-const COLLECT_SERVICES_SCRIPT = `
-for u in docker fail2ban ssh sshd; do
+const UNIT_LIST = [
+  ...new Set(
+    SERVICE_CATALOG.flatMap((s) => [s.unit, ...(s.alt ?? [])]),
+  ),
+].join(" ");
+
+/** Collect enabled + active for catalog units, plus failed units. */
+export const COLLECT_SERVICES_SCRIPT = `
+for u in ${UNIT_LIST}; do
+  en=$(systemctl is-enabled "$u" 2>/dev/null || echo missing)
   st=$(systemctl is-active "$u" 2>/dev/null || echo missing)
-  printf 'unit\\t%s\\t%s\\n' "$u" "$st"
+  printf 'svc\\t%s\\t%s\\t%s\\n' "$u" "$en" "$st"
 done
-systemctl list-units --type=service --state=failed --no-legend --plain 2>/dev/null | head -20 | while IFS= read -r name; do
-  [ -n "$name" ] && printf 'failed\\t%s\\n' "$name"
+systemctl list-units --type=service --state=failed --no-legend --plain 2>/dev/null | head -20 | while IFS= read -r line; do
+  [ -n "$line" ] && printf 'failed\\t%s\\n' "$line"
 done
 `.trim();
 
@@ -29,6 +48,20 @@ export function parseFailedUnitName(line: string): string | null {
   return first && first !== "●" ? first : null;
 }
 
+export type ServiceRow = {
+  unit: string;
+  label: string;
+  /** Resolved unit name that matched (ssh vs sshd). */
+  resolvedUnit: string | null;
+  enabled: boolean;
+  running: boolean;
+  enableState: string;
+  activeState: string;
+  required: boolean;
+  /** Installed / known to systemd (not missing on both names). */
+  present: boolean;
+};
+
 export type WatchedService = {
   unit: string;
   label: string;
@@ -36,19 +69,33 @@ export type WatchedService = {
   ok: boolean;
 };
 
-function parseServicesOutput(stdout: string): {
-  unitStates: Record<string, string>;
+type UnitProbe = { enableState: string; activeState: string };
+
+export function parseServicesOutput(stdout: string): {
+  probes: Record<string, UnitProbe>;
   failedUnits: string[];
 } {
-  const unitStates: Record<string, string> = {};
+  const probes: Record<string, UnitProbe> = {};
   const failedUnits: string[] = [];
 
   for (const line of stdout.split("\n")) {
     const trimmed = line.trim();
     if (!trimmed) continue;
-    if (trimmed.startsWith("unit\t")) {
-      const [, unit, state] = trimmed.split("\t");
-      if (unit && state) unitStates[unit] = state;
+    if (trimmed.startsWith("svc\t")) {
+      const [, unit, enableState, activeState] = trimmed.split("\t");
+      if (unit && enableState && activeState) {
+        probes[unit] = { enableState, activeState };
+      }
+    } else if (trimmed.startsWith("unit\t")) {
+      // Legacy mock / old script: unit\tname\tactiveState
+      const [, unit, activeState] = trimmed.split("\t");
+      if (unit && activeState) {
+        probes[unit] = {
+          enableState:
+            activeState === "active" ? "enabled" : probes[unit]?.enableState ?? "unknown",
+          activeState,
+        };
+      }
     } else if (trimmed.startsWith("failed\t")) {
       const raw = trimmed.slice("failed\t".length);
       const name = parseFailedUnitName(raw) ?? raw;
@@ -56,27 +103,52 @@ function parseServicesOutput(stdout: string): {
     }
   }
 
-  return { unitStates, failedUnits };
+  return { probes, failedUnits };
 }
 
-function resolveRequiredState(
-  spec: (typeof REQUIRED_SERVICES)[number],
-  unitStates: Record<string, string>,
-): WatchedService {
-  const primary = unitStates[spec.unit];
-  const alt = spec.alt ? unitStates[spec.alt] : undefined;
-  const state =
-    primary === "active"
-      ? "active"
-      : alt === "active"
-        ? "active"
-        : (primary ?? alt ?? "missing");
-  return {
-    unit: spec.unit,
-    label: spec.label,
-    state,
-    ok: state === "active",
-  };
+function isEnabledState(state: string): boolean {
+  return state === "enabled" || state === "enabled-runtime" || state === "static";
+}
+
+function isRunningState(state: string): boolean {
+  return state === "active";
+}
+
+function isPresentState(en: string, st: string): boolean {
+  return en !== "missing" || (st !== "missing" && st !== "");
+}
+
+export function buildServiceRows(
+  probes: Record<string, UnitProbe>,
+): ServiceRow[] {
+  return SERVICE_CATALOG.map((spec) => {
+    const candidates = [spec.unit, ...(spec.alt ?? [])];
+    let best: UnitProbe | null = null;
+    let resolved: string | null = null;
+    for (const name of candidates) {
+      const p = probes[name];
+      if (!p) continue;
+      if (!best || isRunningState(p.activeState) || isEnabledState(p.enableState)) {
+        best = p;
+        resolved = name;
+        if (isRunningState(p.activeState)) break;
+      }
+    }
+    const enableState = best?.enableState ?? "missing";
+    const activeState = best?.activeState ?? "missing";
+    const present = best ? isPresentState(enableState, activeState) : false;
+    return {
+      unit: spec.unit,
+      label: spec.label,
+      resolvedUnit: resolved,
+      enabled: present && isEnabledState(enableState),
+      running: present && isRunningState(activeState),
+      enableState,
+      activeState,
+      required: Boolean(spec.required),
+      present,
+    };
+  });
 }
 
 export async function runServicesCheck(serverId: string): Promise<CheckResult> {
@@ -86,25 +158,51 @@ export async function runServicesCheck(serverId: string): Promise<CheckResult> {
   let status: CheckResult["status"] = "healthy";
 
   const { stdout } = await ssh.exec(COLLECT_SERVICES_SCRIPT);
-  const { unitStates, failedUnits: allFailed } = parseServicesOutput(stdout);
+  const { probes, failedUnits: allFailed } = parseServicesOutput(stdout);
   const expectedFailed = getExpectedFailedUnits();
   const failedUnits = allFailed.filter(
     (u) => !expectedFailed.some((e) => u === e || u.startsWith(`${e}.`)),
   );
   const ignoredFailed = allFailed.filter((u) => !failedUnits.includes(u));
-  const watched = REQUIRED_SERVICES.map((spec) =>
-    resolveRequiredState(spec, unitStates),
-  );
+  const rows = buildServiceRows(probes);
 
-  for (const svc of watched) {
-    if (svc.ok) continue;
-    const isDocker = svc.unit === "docker";
-    status = isDocker ? "critical" : status === "critical" ? "critical" : "warning";
+  // Back-compat for monitor tile / older UI
+  const watched: WatchedService[] = rows
+    .filter((r) => r.required)
+    .map((r) => ({
+      unit: r.unit,
+      label: r.label,
+      state: r.running ? "active" : r.activeState,
+      ok: r.running,
+    }));
+
+  for (const row of rows) {
+    if (!row.required) continue;
+    if (row.running) continue;
+    const isDocker = row.unit === "docker";
+    status = isDocker
+      ? "critical"
+      : status === "critical"
+        ? "critical"
+        : "warning";
     alerts.push({
       level: isDocker ? "critical" : "warning",
-      message: `${svc.label} läuft nicht (Status: ${svc.state})`,
-      recommendation: serviceRecommendation(svc.unit, svc.state),
+      message: `${row.label} läuft nicht (Status: ${row.activeState})`,
+      recommendation: serviceRecommendation(row.unit, row.activeState),
     });
+  }
+
+  // Optional service: enabled but crashed → warning
+  for (const row of rows) {
+    if (row.required || !row.present) continue;
+    if (row.enabled && !row.running) {
+      status = status === "critical" ? "critical" : "warning";
+      alerts.push({
+        level: "warning",
+        message: `${row.label} ist aktiviert, läuft aber nicht (${row.activeState})`,
+        recommendation: `systemctl status ${row.resolvedUnit ?? row.unit} && systemctl start ${row.resolvedUnit ?? row.unit}`,
+      });
+    }
   }
 
   if (failedUnits.length > 0) {
@@ -124,8 +222,9 @@ export async function runServicesCheck(serverId: string): Promise<CheckResult> {
     module: "services",
     status,
     data: {
+      rows,
       watched,
-      dockerActive: watched.find((w) => w.unit === "docker")?.ok ?? false,
+      dockerActive: rows.find((r) => r.unit === "docker")?.running ?? false,
       failedUnits,
       failedUnitNames: failedUnits,
       ignoredFailedUnits: ignoredFailed,

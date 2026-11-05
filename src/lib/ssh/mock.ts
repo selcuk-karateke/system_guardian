@@ -9,6 +9,14 @@ const FIXTURES: Record<string, string> = {
   eth0: 120000000 0 0 0 0 0 0 0 80000000 0 0 0 0 0 0
 `,
   nproc: "4\n",
+  "HOSTNAME=$(hostname": `HOSTNAME=terramaster
+KERNEL=6.12.113+deb13-amd64
+OS=Debian GNU/Linux 13 (trixie)
+CPU=Intel(R) Celeron(R) CPU J1800 @ 2.41GHz
+DATE=Thu Nov 5 21:26:16 2026
+REBOOT=0
+UPDATES=3;0
+`,
   "free -b": `               total        used        free      shared  buff/cache   available
 Mem:    16777216000  8388608000  4194304000   524288000  4194304000  7549747200
 Swap:    4294967296           0  4294967296
@@ -16,13 +24,31 @@ Swap:    4294967296           0  4294967296
   "df -hP": `Filesystem      Size  Used Avail Use% Mounted on
 /dev/md0        500G  200G  280G  42% /
 /dev/md1        2.0T  1.2T  700G  63% /data
+/dev/dm-0       9.1T  1.1T  8.0T  12% /mnt/storage
 tmpfs            32G   32G  1.8M 100% /tmp
 `,
   // legacy key — includes() still matches older commands
   "df -h": `Filesystem      Size  Used Avail Use% Mounted on
 /dev/md0        500G  200G  280G  42% /
 /dev/md1        2.0T  1.2T  700G  63% /data
+/dev/dm-0       9.1T  1.1T  8.0T  12% /mnt/storage
 tmpfs            32G   32G  1.8M 100% /tmp
+`,
+  SG_DISK_TEMP: `SG_DISK_TEMP
+DISK	nvme0n1	41
+DISK	nvme1n1	38
+DISK	sda	36
+DISK	sdb	34
+DISK	sdc	
+`,
+  SG_NET_IFACES: `SG_NET_IFACES
+IFACE	enp2s0	1500	up	1
+IFACE	lo	65536	unknown	1
+ADDR4	enp2s0	192.168.0.52/24
+ADDR6	enp2s0	2a02:8109:f681:100::4dff/128
+ADDR4	lo	127.0.0.1/8
+GW4	enp2s0	192.168.0.1
+GW6	enp2s0	fe80::1
 `,
   "cat /proc/mdstat": `Personalities : [raid1] [raid6] [raid5] [raid4] [raid0] [raid10] [linear] 
 md0 : active raid1 sda1[0] sdb1[1]
@@ -116,6 +142,17 @@ file\tcron.d\te2scrub_all\t30 3 * * 6 root test -e /usr/sbin/e2scrub_all && /usr
 file\tcrontab\tmain\tSHELL=/bin/sh PATH=... run-parts /etc/cron.hourly ...
 `,
   "crontab -l 2>/dev/null": "",
+  "for u in nfs-server": `svc\tnfs-server\tmissing\tmissing
+svc\tnfs-kernel-server\tdisabled\tinactive
+svc\trsync\tmissing\tmissing
+svc\trsyncd\tmissing\tmissing
+svc\tsmbd\tenabled\tactive
+svc\tsmb\tmissing\tmissing
+svc\tssh\tenabled\tactive
+svc\tsshd\tdisabled\tinactive
+svc\tdocker\tenabled\tactive
+svc\tfail2ban\tenabled\tactive
+`,
   "for u in docker fail2ban ssh sshd": `unit\tdocker\tactive
 unit\tfail2ban\tactive
 unit\tssh\tactive

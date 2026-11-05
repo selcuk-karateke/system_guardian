@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { BackgroundJob, JobKind } from "@/lib/jobs/types";
 import {
   CRISIS_STAGE_META,
@@ -62,8 +62,13 @@ function formatEgressLine(e: MonitorEgressInfo): string | null {
   return parts.join(" · ");
 }
 
+function jobsKey(jobs: BackgroundJob[]): string {
+  return jobs.map((j) => `${j.id}:${j.status}:${j.detail ?? ""}`).join("|");
+}
+
 function useLiveJobs(): BackgroundJob[] {
   const [jobs, setJobs] = useState<BackgroundJob[]>([]);
+  const keyRef = useRef("");
 
   useEffect(() => {
     let cancelled = false;
@@ -73,18 +78,24 @@ function useLiveJobs(): BackgroundJob[] {
       let active = false;
       try {
         const res = await fetch("/api/jobs", { cache: "no-store" });
-        if (!res.ok || cancelled) return;
-        const data = (await res.json()) as {
-          ok: boolean;
-          active?: boolean;
-          jobs: BackgroundJob[];
-        };
-        if (!data.ok || cancelled) return;
-        const live = data.jobs.filter(
-          (j) => j.status === "queued" || j.status === "running",
-        );
-        active = live.length > 0 || Boolean(data.active);
-        setJobs(live);
+        if (res.ok && !cancelled) {
+          const data = (await res.json()) as {
+            ok: boolean;
+            active?: boolean;
+            jobs: BackgroundJob[];
+          };
+          if (data.ok) {
+            const live = data.jobs.filter(
+              (j) => j.status === "queued" || j.status === "running",
+            );
+            active = live.length > 0 || Boolean(data.active);
+            const nextKey = jobsKey(live);
+            if (nextKey !== keyRef.current) {
+              keyRef.current = nextKey;
+              setJobs(live);
+            }
+          }
+        }
       } catch {
         /* ignore */
       } finally {

@@ -9,7 +9,10 @@ import {
   MonitorStatusBand,
   type MonitorEgressInfo,
 } from "./monitor-status-band";
-import { MonitorTile } from "./monitor-tile";
+import {
+  MonitorModuleGrid,
+  type MonitorModuleSection,
+} from "./monitor-module-grid";
 import type { GlobeTint } from "@/lib/geo/attack-markers";
 import type { MonitorMetricCards } from "@/lib/monitor-details";
 import {
@@ -18,44 +21,51 @@ import {
   type CrisisStage,
 } from "@/lib/crisis/stages";
 
-const COLUMNS = [
+/** Priority stages — most important first; dividers between stages while scrolling. */
+const MODULE_SECTIONS: readonly MonitorModuleSection[] = [
   {
+    id: "core",
+    label: "1 · CORE",
     modules: [
       "server_health",
       "raid",
       "backups",
-      "ports",
-      "logs",
-      "network",
-      "processes",
-      "services",
+      "database",
+      "docker",
+      "coolify",
     ],
   },
   {
+    id: "security",
+    label: "2 · SECURITY",
     modules: [
-      "docker",
-      "trivy",
-      "coolify",
-      "database",
+      "logins",
+      "ssh_keys",
+      "fim",
+      "scanner",
+      "users",
+      "security_posture",
+      "network",
+      "ports",
+    ],
+  },
+  {
+    id: "ops",
+    label: "3 · OPS",
+    modules: [
+      "services",
+      "processes",
+      "logs",
       "ssl",
       "website",
+      "trivy",
       "cron",
       "web_presence",
-    ],
-  },
-  {
-    modules: [
-      "fim",
-      "ssh_keys",
-      "users",
-      "logins",
-      "scanner",
-      "security_posture",
       "reserved",
       "reserved_b",
     ],
   },
-] as const;
+];
 
 type TileSeverity = CrisisStage | "ok" | "unknown";
 
@@ -63,6 +73,8 @@ type Props = {
   crisisStage: CrisisStage | null;
   hostLabel: string;
   hostIp: string;
+  /** Short inventory line under host (hostname · kernel · upd) */
+  hostMeta?: string | null;
   checkMode: string;
   lastCheck: Date | null;
   metricCards: MonitorMetricCards;
@@ -81,6 +93,7 @@ export function MonitorWall({
   crisisStage,
   hostLabel,
   hostIp,
+  hostMeta = null,
   checkMode,
   lastCheck,
   metricCards,
@@ -147,6 +160,9 @@ export function MonitorWall({
             <div className="monitor-host">
               {hostLabel} — {hostIp}
             </div>
+            {hostMeta ? (
+              <div className="monitor-host-meta">{hostMeta}</div>
+            ) : null}
           </div>
           <div className="monitor-top-right">
             <MonitorModeSwitch compact />
@@ -195,23 +211,13 @@ export function MonitorWall({
           />
         </section>
 
-        <main className="monitor-grid">
-          {COLUMNS.map((col, i) => (
-            <div
-              key={i}
-              className={`monitor-col monitor-col--${col.modules.length}`}
-            >
-              {col.modules.map((mod) => (
-                <MonitorTile
-                  key={mod}
-                  module={mod}
-                  severity={severityMap[mod] ?? "unknown"}
-                  details={moduleDetails[mod]}
-                />
-              ))}
-            </div>
-          ))}
-        </main>
+        <MonitorModuleGrid
+          sections={MODULE_SECTIONS}
+          severityMap={severityMap}
+          moduleDetails={moduleDetails}
+          visibleRows={4}
+          secondsPerRow={3.5}
+        />
 
         <footer className="monitor-glass monitor-bottom">
           <MonitorAlertTicker alerts={alerts} intervalMs={6000} />

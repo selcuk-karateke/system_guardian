@@ -1,5 +1,5 @@
 const MODULE_PAGE: Record<string, string> = {
-  server_health: "/infrastructure",
+  server_health: "/infrastructure#filesystems",
   raid: "/infrastructure",
   backups: "/infrastructure",
   logs: "/infrastructure",
@@ -7,7 +7,7 @@ const MODULE_PAGE: Record<string, string> = {
   website: "/infrastructure",
   ports: "/infrastructure",
   processes: "/infrastructure",
-  services: "/infrastructure",
+  services: "/infrastructure#services",
   docker: "/docker",
   coolify: "/docker",
   trivy: "/docker",
@@ -35,5 +35,6 @@ export function getModulePageForAlert(module: string): {
   label: string;
 } {
   const href = MODULE_PAGE[module] ?? "/security";
-  return { href, label: PAGE_LABELS[href] ?? "Sicherheit" };
+  const base = href.split("#")[0] ?? href;
+  return { href, label: PAGE_LABELS[base] ?? PAGE_LABELS[href] ?? "Sicherheit" };
 }
