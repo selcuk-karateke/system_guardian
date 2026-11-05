@@ -41,15 +41,18 @@ const KIND_LABEL: Record<RayKind, string> = {
   attack: "Attack",
 };
 
-/** Stub past the surface (CSS px) — short; same-size canvas clips long rays. */
+/** Stub past the surface (CSS px) — short; keep within RAY_PAD_FRAC. */
 const RAY_EXTEND_PX = 8;
 /** Great-circle attack → home samples + mid-arc lift above the surface. */
 const ARC_STEPS = 48;
-/** Tight bulge — oversized rays canvas caused visible arc/land offset on TVs. */
+/** Mid-arc lift — needs RAY_PAD_FRAC so limbs aren't canvas-clipped. */
 const ARC_BULGE = 0.1;
 const ARC_MAX = 14;
-/** Rays canvas matches land canvas (pad 0) — no inset/-28% sync bugs. */
-const RAY_PAD_FRAC = 0;
+/**
+ * Rays canvas pad vs land box (must match CSS inset on .monitor-hud-globe-rays).
+ * Bulge 0.1 @ GLOBE_SCALE 0.97 needs ~3.5% + stub room → 8%.
+ */
+const RAY_PAD_FRAC = 0.08;
 
 const WEB_CSS = "rgb(180 245 255)";
 const SESSION_CSS = "rgb(90 255 140)";
