@@ -10,9 +10,9 @@ import {
   isDockerCheckStale,
   refreshDockerInventory,
 } from "@/lib/docker/refresh";
-import { isCoolifyRedeployConfigured } from "@/lib/config";
 import { getLatestCheckByModule } from "@/lib/dashboard-data";
 import { resolveSelectedServer } from "@/lib/server-scope";
+import { isCoolifyRedeployConfiguredForServer } from "@/lib/servers-coolify";
 import { syncTrivyAlertsFromStore } from "@/lib/trivy/alerts";
 import {
   isContainerScanned,
@@ -100,6 +100,11 @@ export default async function DockerPage({
 
   const checkMode = (docker?.data as { checkMode?: string })?.checkMode ?? "mock";
   const isMock = checkMode === "mock";
+  const coolifyRedeployReady = selectedServerId
+    ? await isCoolifyRedeployConfiguredForServer(selectedServerId).catch(
+        () => false,
+      )
+    : false;
   const groups = buildDockerInventoryGroups(containers);
 
   const scanList = uniqueScanRecords(scansByKey);
@@ -192,7 +197,7 @@ export default async function DockerPage({
         checkMode={checkMode}
         scansByImage={scansByKey}
         serverId={selectedServerId || undefined}
-        coolifyRedeployReady={isCoolifyRedeployConfigured()}
+        coolifyRedeployReady={coolifyRedeployReady}
       />
 
       {Object.keys(coolifyServices).length > 0 && (

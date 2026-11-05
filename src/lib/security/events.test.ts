@@ -244,7 +244,7 @@ describe("alertInputFromFail2banBanSpikeEvent", () => {
       `fail2ban Ban-Spike: +${delta} Ereignisse in ${sinceLabel} (Total 50→200, 5 aktiv)`,
     );
     assert.match(alert.recommendation ?? "", /auth\.log/);
-    assert.match(alert.recommendation ?? "", /TRUSTED_LOGIN_IPS/);
+    assert.match(alert.recommendation ?? "", /Trusted Login IPs/);
   });
 });
 

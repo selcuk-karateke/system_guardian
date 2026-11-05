@@ -24,7 +24,10 @@ type Props = {
 
 export function MonitorAlertTicker({ alerts, intervalMs = 3000 }: Props) {
   const sorted = useMemo(
-    () => [...alerts].sort(compareCrisisAlerts),
+    () =>
+      [...alerts]
+        .filter((a) => a?.module && a?.level != null && a?.message != null)
+        .sort(compareCrisisAlerts),
     [alerts],
   );
 
@@ -56,7 +59,12 @@ export function MonitorAlertTicker({ alerts, intervalMs = 3000 }: Props) {
     return <span className="monitor-bottom-empty">No open alerts</span>;
   }
 
-  const current = sorted[index]!;
+  // Clamp before paint — after refresh, index can briefly exceed length.
+  const safeIndex = ((index % sorted.length) + sorted.length) % sorted.length;
+  const current = sorted[safeIndex];
+  if (!current) {
+    return <span className="monitor-bottom-empty">No open alerts</span>;
+  }
   const stage = resolveCrisisStage(current);
   const meta = CRISIS_STAGE_META[stage];
   const tone = crisisStageToWallTone(stage);
@@ -93,7 +101,7 @@ export function MonitorAlertTicker({ alerts, intervalMs = 3000 }: Props) {
             {showNav ? (
               <span className="monitor-bottom-counter">
                 {" "}
-                {index + 1}/{sorted.length}
+                {safeIndex + 1}/{sorted.length}
               </span>
             ) : null}
           </span>

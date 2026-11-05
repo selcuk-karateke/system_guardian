@@ -1,10 +1,6 @@
 import { db } from "@/db";
 import { changeEvents } from "@/db/schema";
-import {
-  getCoolifyApiToken,
-  getCoolifyApiUrl,
-  isCoolifyRedeployConfigured,
-} from "@/lib/config";
+import { resolveCoolifyApi } from "@/lib/servers-coolify";
 
 export type CoolifyRedeployResult = {
   ok: boolean;
@@ -31,18 +27,18 @@ export async function triggerCoolifyForceRedeploy(
   resourceUuid: string,
   reason = "manual",
 ): Promise<CoolifyRedeployResult> {
-  if (!isCoolifyRedeployConfigured()) {
+  const creds = await resolveCoolifyApi(serverId);
+  if (!creds) {
     return {
       ok: false,
       message:
-        "Coolify-API nicht konfiguriert — COOLIFY_API_URL + COOLIFY_API_TOKEN setzen",
+        "Coolify-API nicht konfiguriert — unter Einstellungen → Server URL + Token setzen",
     };
   }
   const invalid = validateCoolifyResourceUuid(resourceUuid);
   if (invalid) return { ok: false, message: invalid };
 
-  const base = getCoolifyApiUrl()!.replace(/\/$/, "");
-  const token = getCoolifyApiToken()!;
+  const base = creds.url.replace(/\/$/, "");
   const url = new URL(`${base}/api/v1/deploy`);
   url.searchParams.set("uuid", resourceUuid.trim());
   url.searchParams.set("force", "true");
@@ -53,7 +49,7 @@ export async function triggerCoolifyForceRedeploy(
     const res = await fetch(url.toString(), {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${token}`,
+        Authorization: `Bearer ${creds.token}`,
         Accept: "application/json",
       },
     });

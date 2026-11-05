@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  attachKeyIdentity,
   mergeActiveSessions,
+  parseAcceptedPublickeys,
   parseFailedAuthSources,
   parseWLines,
   parseWhoLines,
@@ -57,5 +59,28 @@ Jun  3 07:02:00 sshd[1001]: Failed password for test from 198.51.100.200 port 22
     assert.equal(sources[0].ip, "203.0.113.99");
     assert.equal(sources[0].count, 2);
     assert.equal(sources[1].count, 1);
+  });
+});
+
+describe("parseAcceptedPublickeys + attachKeyIdentity", () => {
+  it("keeps latest fingerprint per user+ip and attaches to sessions", () => {
+    const accepted = parseAcceptedPublickeys(`
+Jun  3 07:00:00 sshd[1]: Accepted publickey for deploy from 203.0.113.10 port 1 ssh2: RSA SHA256:OldKey
+Jun  3 08:00:00 sshd[2]: Accepted publickey for deploy from 203.0.113.10 port 2 ssh2: ED25519 SHA256:NewKeyAbc
+Jun  3 08:05:00 sshd[3]: Accepted publickey for root from 10.0.1.20 port 3 ssh2: ED25519 SHA256:RootKey
+`);
+    assert.equal(accepted.length, 2);
+    const deploy = accepted.find((a) => a.user === "deploy");
+    assert.equal(deploy?.fingerprint, "SHA256:NewKeyAbc");
+    assert.equal(deploy?.keyType, "ED25519");
+
+    const sessions = attachKeyIdentity(
+      parseWLines(
+        "deploy   pts/0    203.0.113.10    08:00    2:15   0.05s  0.01s  -bash\n",
+      ),
+      accepted,
+    );
+    assert.equal(sessions[0]!.keyFingerprint, "SHA256:NewKeyAbc");
+    assert.equal(sessions[0]!.keyType, "ED25519");
   });
 });

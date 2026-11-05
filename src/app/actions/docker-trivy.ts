@@ -11,11 +11,12 @@ import { db } from "@/db";
 import { alerts } from "@/db/schema";
 import { and, eq, isNull } from "drizzle-orm";
 import { refreshDockerInventory } from "@/lib/docker/refresh";
+import { enqueueBackgroundJob } from "@/lib/jobs/enqueue";
+import type { EnqueueResult } from "@/lib/jobs/types";
 import { getDefaultServerId } from "@/lib/servers";
 import { syncTrivyAlertsFromStore } from "@/lib/trivy/alerts";
 import { mockScanContainerImage, scanContainerImage } from "@/lib/trivy/scan";
 import { clearAllTrivyScans } from "@/lib/trivy/store";
-import type { TrivyScanResult } from "@/lib/trivy/types";
 
 function revalidateTrivyViews() {
   revalidatePath("/docker");
@@ -25,46 +26,63 @@ function revalidateTrivyViews() {
   revalidatePath("/security");
 }
 
+export type TrivyJobResult = EnqueueResult | { ok: false; message: string };
+
+/**
+ * Single-container Trivy scan — runs in background; overlay + refresh show result.
+ */
 export async function runContainerTrivyScan(
   containerName: string,
   imageRef: string,
   force = false,
   serverId?: string,
   coolifyUuid?: string | null,
-): Promise<TrivyScanResult> {
+): Promise<TrivyJobResult> {
   try {
     const id = serverId || (await getDefaultServerId());
+    return enqueueBackgroundJob(
+      {
+        kind: "trivy_scan",
+        label: "Trivy-Scan",
+        serverId: id,
+        detail: containerName,
+      },
+      async () => {
+        if (getCheckMode() === "ssh") {
+          await refreshDockerInventory(id).catch(() => null);
+        }
 
-    // After Coolify Dockerfile rebuild the container name suffix changes —
-    // pull fresh docker ps so remap + page refresh see the live name.
-    if (getCheckMode() === "ssh") {
-      await refreshDockerInventory(id).catch(() => null);
-    }
+        const result =
+          getCheckMode() === "mock"
+            ? await mockScanContainerImage(containerName, imageRef)
+            : await scanContainerImage(containerName, {
+                force,
+                serverId: id,
+                coolifyUuid,
+              });
 
-    const result =
-      getCheckMode() === "mock"
-        ? await mockScanContainerImage(containerName, imageRef)
-        : await scanContainerImage(containerName, {
-            force,
-            serverId: id,
-            coolifyUuid,
+        if (result.ok) {
+          await syncTrivyAlertsFromStore(id).catch((e) => {
+            console.warn(
+              "[trivy] alert sync failed:",
+              e instanceof Error ? e.message : e,
+            );
           });
+          revalidateTrivyViews();
+          const bits = [
+            result.cached ? "Cache" : "Scan ok",
+            `${result.record.durationMs}ms`,
+            `CRIT ${result.record.criticalCount}`,
+            `HIGH ${result.record.highCount}`,
+          ];
+          if (result.remappedFrom) bits.push("Name aktualisiert");
+          return `${containerName}: ${bits.join(" · ")}`;
+        }
 
-    if (result.ok) {
-      // Notify channels can throw (Telegram ECONNRESET) — scan result still valid.
-      await syncTrivyAlertsFromStore(id).catch((e) => {
-        console.warn(
-          "[trivy] alert sync failed:",
-          e instanceof Error ? e.message : e,
-        );
-      });
-      revalidateTrivyViews();
-    } else if (getCheckMode() === "ssh") {
-      // Still refresh list when name was stale so UI drops ghost rows.
-      revalidateTrivyViews();
-    }
-
-    return result;
+        if (getCheckMode() === "ssh") revalidateTrivyViews();
+        throw new Error(result.message);
+      },
+    );
   } catch (e) {
     const message =
       e instanceof Error ? e.message : "Trivy-Scan fehlgeschlagen";
@@ -72,7 +90,7 @@ export async function runContainerTrivyScan(
   }
 }
 
-/** Cached Findings → Dashboard-Warnungen (ohne neuen Scan). */
+/** Cached Findings → Dashboard-Warnungen (ohne neuen Scan). Fast — stays sync. */
 export async function syncTrivyAlertsAction(
   serverId?: string,
 ): Promise<{ ok: boolean; alertCount: number; message: string }> {
@@ -96,36 +114,37 @@ export async function syncTrivyAlertsAction(
 
 /**
  * Scannt eine Charge ungecachter/alter Images und schreibt Alerts.
- * Gleicher Budget-Pfad wie Security-Cron (TRIVY_SCAN_LIMIT).
  */
 export async function runTrivyBatchNowAction(
   serverId?: string,
-): Promise<{ ok: boolean; message: string }> {
+): Promise<TrivyJobResult> {
   try {
     const id = serverId || (await getDefaultServerId());
-    // Manual click: always scan, full budget (20) — cron stays at TRIVY_SCAN_LIMIT.
-    const result = await runCheckWithPersist(id, (sid) =>
-      runTrivyCheck(sid, { forceScan: true, scanLimit: 20 }),
+    return enqueueBackgroundJob(
+      { kind: "trivy_batch", label: "Trivy Batch-Scan", serverId: id },
+      async () => {
+        const result = await runCheckWithPersist(id, (sid) =>
+          runTrivyCheck(sid, { forceScan: true, scanLimit: 20 }),
+        );
+        revalidateTrivyViews();
+        const data = result.data as {
+          scannedThisRun?: number;
+          stillPending?: number;
+          scanErrors?: string[];
+        };
+        const scanned = Number(data.scannedThisRun ?? 0);
+        const pending = Number(data.stillPending ?? 0);
+        const errs = data.scanErrors?.length ?? 0;
+        let message =
+          pending > 0
+            ? `${scanned} neu gescannt · noch ${pending} offen → Scannen nochmal`
+            : scanned > 0
+              ? `${scanned} neu gescannt · alles drin`
+              : "Nichts Neues — alles schon gescannt";
+        if (errs > 0) message += ` · ${errs} Fehler`;
+        return message;
+      },
     );
-    revalidateTrivyViews();
-    const data = result.data as {
-      imagesWithFindings?: number;
-      scannedThisRun?: number;
-      stillPending?: number;
-      cachedImages?: number;
-      scanErrors?: string[];
-    };
-    const scanned = Number(data.scannedThisRun ?? 0);
-    const pending = Number(data.stillPending ?? 0);
-    const errs = data.scanErrors?.length ?? 0;
-    let message =
-      pending > 0
-        ? `${scanned} neu gescannt · noch ${pending} offen → Scannen nochmal`
-        : scanned > 0
-          ? `${scanned} neu gescannt · alles drin`
-          : "Nichts Neues — alles schon gescannt";
-    if (errs > 0) message += ` · ${errs} Fehler`;
-    return { ok: true, message };
   } catch (e) {
     return {
       ok: false,
@@ -136,7 +155,7 @@ export async function runTrivyBatchNowAction(
 
 /**
  * Scan-Cache komplett leeren + alle offenen Trivy-Alerts schließen.
- * Die Docker-Liste zeigt danach „nicht gescannt“ — erst „2 · Scannen“ füllt neu.
+ * Fast — stays sync.
  */
 export async function resetTrivyStateAction(
   serverId?: string,
@@ -166,7 +185,6 @@ export async function resetTrivyStateAction(
         .where(eq(alerts.id, row.id));
     }
 
-    // Empty store → no new alerts
     await syncTrivyAlertsFromStore(id);
     revalidateTrivyViews();
     return {

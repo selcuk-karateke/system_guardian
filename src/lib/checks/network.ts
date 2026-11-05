@@ -23,6 +23,7 @@ import {
   parsePidFromSsProcess,
   resolveContainersByPids,
 } from "./container-process";
+import { sampleHostEgress } from "./egress-traffic";
 import { runPortsCheck } from "./ports";
 import type { AlertInput, CheckResult } from "./types";
 
@@ -150,6 +151,14 @@ export async function runNetworkCheck(serverId: string): Promise<CheckResult> {
     if (status === "healthy") status = "warning";
   }
 
+  // Egress volume / rate — shared snapshot with server_health (15m cadence).
+  const egress = await sampleHostEgress(serverId, ssh).catch(() => null);
+  if (egress?.alerts.length) {
+    alerts.push(...egress.alerts);
+    if (egress.alerts.some((a) => a.level === "critical")) status = "critical";
+    else if (status === "healthy") status = "warning";
+  }
+
   return {
     ...portsResult,
     module: "network",
@@ -161,6 +170,10 @@ export async function runNetworkCheck(serverId: string): Promise<CheckResult> {
       suspiciousConnections: suspiciousConns.slice(0, 12),
       outboundEstablished: outboundEstablished.slice(0, 40),
       outboundCount: outboundEstablished.length,
+      egressTxMbps: egress?.delta?.txMbps,
+      egressTxBytes: egress?.delta?.txBytes,
+      egressWindowSec: egress?.delta?.seconds,
+      egressIface: egress?.delta?.topTxIface,
     },
     alerts,
   };

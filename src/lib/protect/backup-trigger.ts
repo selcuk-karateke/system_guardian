@@ -1,10 +1,7 @@
 import { db } from "@/db";
 import { changeEvents } from "@/db/schema";
-import {
-  getBackupTriggerCommand,
-  getCheckMode,
-  isBackupTriggerEnabled,
-} from "@/lib/config";
+import { getCheckMode } from "@/lib/config";
+import { resolveBackupConfig } from "@/lib/servers-backup";
 import { getSshClient } from "@/lib/ssh";
 
 /** Absolute path + safe chars only (no shell metacharacters). */
@@ -12,7 +9,7 @@ const SAFE_CMD = /^\/[a-zA-Z0-9._/\-]+(?:\s+\/[a-zA-Z0-9._/\-]+)*$/;
 
 export function validateBackupTriggerCommand(cmd: string): string | null {
   const trimmed = cmd.trim();
-  if (!trimmed) return "BACKUP_TRIGGER_COMMAND ist leer";
+  if (!trimmed) return "Backup-Trigger-Befehl ist leer";
   if (!SAFE_CMD.test(trimmed)) {
     return "Befehl muss absoluter Pfad ohne Shell-Metazeichen sein (z.B. /usr/local/bin/run-backup.sh)";
   }
@@ -27,18 +24,11 @@ export type BackupTriggerResult = {
 
 /**
  * Führt den konfigurierten Backup-Befehl auf dem SSH-Host aus.
- * Nur wenn BACKUP_TRIGGER_COMMAND gesetzt und syntaktisch safe ist.
+ * Nur wenn triggerCommand am Server gesetzt und syntaktisch safe ist.
  */
 export async function runBackupTrigger(
   serverId: string,
 ): Promise<BackupTriggerResult> {
-  if (!isBackupTriggerEnabled()) {
-    return {
-      ok: false,
-      message:
-        "Backup-Trigger deaktiviert — BACKUP_TRIGGER_COMMAND in .env setzen",
-    };
-  }
   if (getCheckMode() !== "ssh") {
     return {
       ok: false,
@@ -46,7 +36,14 @@ export async function runBackupTrigger(
     };
   }
 
-  const cmd = getBackupTriggerCommand();
+  const { triggerCommand: cmd } = await resolveBackupConfig(serverId);
+  if (!cmd) {
+    return {
+      ok: false,
+      message:
+        "Backup-Trigger deaktiviert — unter Einstellungen → Server Trigger-Befehl setzen",
+    };
+  }
   const invalid = validateBackupTriggerCommand(cmd);
   if (invalid) {
     return { ok: false, message: invalid };

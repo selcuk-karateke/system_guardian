@@ -1,3 +1,5 @@
+import { resolveDiscordCreds } from "./config";
+
 type DiscordSendOptions = {
   title?: string;
   color?: number;
@@ -20,8 +22,8 @@ export async function sendDiscord(
   text: string,
   options?: DiscordSendOptions,
 ): Promise<boolean> {
-  const url = process.env.DISCORD_WEBHOOK_URL?.trim();
-  if (!url) return false;
+  const creds = await resolveDiscordCreds();
+  if (!creds) return false;
 
   const trimmed = text.trim().slice(0, 4096);
   const body = options?.title
@@ -38,7 +40,7 @@ export async function sendDiscord(
     : { content: trimmed.slice(0, 2000) };
 
   try {
-    const res = await fetch(url, {
+    const res = await fetch(creds.webhookUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -54,9 +56,13 @@ export async function sendDiscordWithDetail(
   text: string,
   options?: DiscordSendOptions,
 ): Promise<{ ok: boolean; error?: string }> {
-  const url = process.env.DISCORD_WEBHOOK_URL?.trim();
-  if (!url) {
-    return { ok: false, error: "DISCORD_WEBHOOK_URL fehlt in .env.local" };
+  const creds = await resolveDiscordCreds();
+  if (!creds) {
+    return {
+      ok: false,
+      error:
+        "Discord nicht konfiguriert — unter Einstellungen → Benachrichtigungen setzen",
+    };
   }
 
   const ok = await sendDiscord(text, options);

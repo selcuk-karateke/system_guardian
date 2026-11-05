@@ -10,6 +10,16 @@ export type ActiveSession = {
   idle?: string;
   what?: string;
   trusted: boolean;
+  /** From latest Accepted publickey for this user+IP (auth.log). */
+  keyFingerprint?: string;
+  keyType?: string;
+};
+
+export type AcceptedPublickey = {
+  user: string;
+  ip: string;
+  keyType?: string;
+  fingerprint?: string;
 };
 
 export type FailedAuthSource = {
@@ -101,6 +111,51 @@ export function mergeActiveSessions(
   const fromW = parseWLines(wStdout);
   if (fromW.length > 0) return fromW;
   return parseWhoLines(whoStdout);
+}
+
+/**
+ * Parse OpenSSH Accepted publickey lines (newest last in file → we keep last match).
+ * Example: Accepted publickey for deploy from 1.2.3.4 port 22 ssh2: ED25519 SHA256:AbCd…
+ */
+export function parseAcceptedPublickeys(
+  authStdout: string,
+): AcceptedPublickey[] {
+  const byPair = new Map<string, AcceptedPublickey>();
+  for (const raw of authStdout.split("\n")) {
+    if (!raw.includes("Accepted publickey")) continue;
+    const m = raw.match(
+      /Accepted publickey for (\S+) from (\S+)(?:\s+port\s+\d+)?(?:\s+ssh2:\s+(\S+)(?:\s+(SHA256:[A-Za-z0-9+/=]+))?)?/i,
+    );
+    if (!m) continue;
+    const user = m[1]!;
+    const ip = extractIp(m[2]!) ?? m[2]!;
+    const entry: AcceptedPublickey = {
+      user,
+      ip,
+      keyType: m[3],
+      fingerprint: m[4],
+    };
+    byPair.set(`${user}|${ip}`, entry);
+  }
+  return [...byPair.values()];
+}
+
+/** Attach latest key fingerprint/type onto matching active sessions (same user+IP). */
+export function attachKeyIdentity(
+  sessions: ActiveSession[],
+  accepted: AcceptedPublickey[],
+): ActiveSession[] {
+  if (!accepted.length) return sessions;
+  const map = new Map(accepted.map((a) => [`${a.user}|${a.ip}`, a]));
+  return sessions.map((s) => {
+    const hit = map.get(`${s.user}|${s.from}`);
+    if (!hit) return s;
+    return {
+      ...s,
+      keyFingerprint: hit.fingerprint,
+      keyType: hit.keyType,
+    };
+  });
 }
 
 export function parseFailedAuthSources(authStdout: string): FailedAuthSource[] {

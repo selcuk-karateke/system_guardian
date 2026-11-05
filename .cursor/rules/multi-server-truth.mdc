@@ -5,25 +5,29 @@ alwaysApply: true
 
 # Multi-server vs ENV (current truth)
 
-## Fact (Slice 1 done)
+## In DB (no ENV fallback)
 
-- Per-server SSH: `servers.ssh_*` + encrypted key/password; `await getSshClient(serverId)`.
-- Global `SSH_*` = fallback + one-time seed into oldest active server (`ensurePrimaryServerSshFromEnv`).
-- Still **global env** (not Slice 1): Coolify API, backup trigger paths, most thresholds, Telegram, etc.
-- Do not claim Coolify/backup are per-server until a later slice.
+- **SSH** per server: `servers.ssh_*` encrypted; `await getSshClient(serverId)`.
+- **Coolify API** per server: `resolveCoolifyApi(serverId)`.
+- **Backup** paths / monitoring / trigger: `resolveBackupConfig(serverId)`.
+- **Notifications**: `settings` via `src/lib/notifications/config.ts`.
+- **Thresholds + Trusted IPs**: `settings` keys `runtime.thresholds` / `runtime.trusted` via `ensureRuntimeConfig()`.
+
+## Still global env (ok)
+
+- Deploy: `DATABASE_URL`, `CRON_SECRET`, `CHECK_MODE`, `AUTH_*`, `API_SECRET`, `APP_URL`
+- Ops allowlists not yet migrated: `EXPECTED_*`, `FIM_PATHS`, `KNOWN_PORTS`, `BLOCKED_REMOTE_IPS`, `INCIDENT_*`, Trivy/Monitor knobs, `AUTO_BLOCK_*`, process/shell trust patterns
 
 ## Do not
 
-- Add more global env knobs that belong on a server row (Coolify URL/token, backup cmd per host).
-- Half-migrate (UI without wiring `getSshClient(serverId)`).
-- Mass-edit unrelated docs/markdown while touching this.
+- Re-introduce ENV fallbacks for SSH/Coolify/Backup/Notify/Thresholds/Trusted IPs.
 - Call `getSshClient()` without `serverId`.
+- Mass-edit unrelated docs while touching this.
 
-## Later slices (only when user asks)
+## Later (only when user asks)
 
-1. Coolify API URL/token per server (or per app).
-2. Backup paths / trigger per server.
-3. Deprecate global `SSH_*` once all rows have secrets.
+1. Migrate remaining allowlists (`EXPECTED_*`, `FIM_PATHS`, `KNOWN_PORTS`, …) into settings UI.
+2. Metrics agent (realtime) — separate track.
 
 ## Default when unsure
 

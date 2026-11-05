@@ -1,5 +1,9 @@
+"use client";
+
 import Link from "next/link";
-import { MonitorGlobe } from "./monitor-globe";
+import { useRef } from "react";
+import { MonitorGlobe, type MonitorGlobeHandle } from "./monitor-globe";
+import { MonitorLiveActionSuffix } from "./monitor-live-action";
 import { MonitorModeSwitch } from "./monitor-mode-switch";
 import type { GlobeTint } from "@/lib/geo/attack-markers";
 
@@ -24,6 +28,8 @@ export function MonitorGlobeStage({
   webMarkers = [],
   homeMarker = null,
 }: Props) {
+  const globeRef = useRef<MonitorGlobeHandle>(null);
+
   return (
     <div className="monitor-wall monitor-wall--globe" data-status={globalStatus}>
       {/* BG wash only — globe outside so .monitor-bg opacity cannot dim it */}
@@ -34,6 +40,7 @@ export function MonitorGlobeStage({
         <div className="monitor-hud-grid" />
         <div className="monitor-hud-rings monitor-hud-rings--focus">
           <MonitorGlobe
+            ref={globeRef}
             status={globalStatus}
             interactive
             attackMarkers={attackMarkers}
@@ -54,15 +61,23 @@ export function MonitorGlobeStage({
             <div className="monitor-brand">
               <strong>Globus</strong>
               {checkMode === "ssh" ? " · LIVE" : ""}
+              <MonitorLiveActionSuffix />
             </div>
             <div className="monitor-host">
               {hostLabel} — {hostIp}
             </div>
             <p className="monitor-globe-hint">
-              Ziehen · Scroll/Pinch zoom · Attack-Arcs → Home · Hover
+              Ziehen · Scroll/Pinch zoom · Attack → Home · Hover
             </p>
           </div>
           <div className="monitor-top-right">
+            <button
+              type="button"
+              className="monitor-globe-reset"
+              onClick={() => globeRef.current?.resetView()}
+            >
+              Reset
+            </button>
             <MonitorModeSwitch compact />
             <Link href="/" className="monitor-top-link">
               Dashboard

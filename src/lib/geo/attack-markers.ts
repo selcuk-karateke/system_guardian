@@ -9,6 +9,8 @@ export type GlobeTint = {
   freshness: number;
   hits?: number;
   country?: string;
+  /** Human label (FQDN, project name, host) for hover tips */
+  label?: string;
 };
 
 /** @deprecated use GlobeTint */
@@ -29,6 +31,7 @@ type WebVisitorRow = {
   ip?: string;
   hits?: number;
   uaClass?: string;
+  host?: string;
 };
 
 type GeoHit = { ll: [number, number]; country?: string };
@@ -164,6 +167,28 @@ function lookupCached(ip: string): GeoHit | null {
   return geoCache.get(ip) ?? null;
 }
 
+/**
+ * Deterministic land position when ip-api fails/offline.
+ * Keeps attack/session/web markers visible instead of dropping them.
+ */
+export function approximateGeoFromIp(ip: string): GeoHit {
+  let h = 2166136261;
+  for (let i = 0; i < ip.length; i++) {
+    h ^= ip.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  const u = (h >>> 0) / 0xffffffff;
+  const v = ((h * 2654435761) >>> 0) / 0xffffffff;
+  // Bias away from poles; spread across oceans/land for visibility
+  const lat = -55 + u * 110;
+  const lon = -170 + v * 340;
+  return { ll: [lat, lon], country: "?" };
+}
+
+function resolveGeo(ip: string): GeoHit {
+  return lookupCached(ip) ?? approximateGeoFromIp(ip);
+}
+
 function collectAttackCounts(
   logins: Record<string, unknown>,
 ): Map<string, number> {
@@ -204,16 +229,20 @@ function collectSessionIps(
 
 function collectWebVisitors(
   web: Record<string, unknown> | undefined,
-): { ip: string; hits: number }[] {
+): { ip: string; hits: number; host?: string }[] {
   const visitors = (web?.visitors as WebVisitorRow[] | undefined) ?? [];
-  const out: { ip: string; hits: number }[] = [];
+  const out: { ip: string; hits: number; host?: string }[] = [];
   const seen = new Set<string>();
   for (const v of visitors) {
     const ip = v.ip?.trim();
     if (!ip || !isPublicV4(ip) || seen.has(ip)) continue;
     if (v.uaClass === "bot") continue;
     seen.add(ip);
-    out.push({ ip, hits: Math.max(1, v.hits ?? 1) });
+    out.push({
+      ip,
+      hits: Math.max(1, v.hits ?? 1),
+      host: typeof v.host === "string" ? v.host : undefined,
+    });
   }
   return out;
 }
@@ -264,8 +293,7 @@ export async function buildGlobeTints(
       (a, b) => b[1] - a[1],
     )) {
       if (attacks.length >= 48) break;
-      const geo = lookupCached(ip);
-      if (!geo) continue;
+      const geo = resolveGeo(ip);
       const freshness = freshnessForIp(ip, now);
       const hitBright = brightnessFromHits(count, maxCount);
       attacks.push({
@@ -275,6 +303,7 @@ export async function buildGlobeTints(
         freshness,
         weight: Math.min(1, hitBright * (0.35 + 0.65 * freshness)),
         country: geo.country,
+        label: ip,
       });
     }
   }
@@ -282,14 +311,14 @@ export async function buildGlobeTints(
   const sessions: GlobeTint[] = [];
   for (const s of sessionIps) {
     if (sessions.length >= 24) break;
-    const geo = lookupCached(s.ip);
-    if (!geo) continue;
+    const geo = resolveGeo(s.ip);
     sessions.push({
       id: s.ip,
       location: geo.ll,
       freshness: 1,
       weight: s.trusted ? 1 : 0.78,
       country: geo.country,
+      label: s.ip,
     });
   }
 
@@ -298,8 +327,7 @@ export async function buildGlobeTints(
     const maxHits = Math.max(...webIps.map((w) => w.hits));
     for (const w of webIps) {
       if (web.length >= 36) break;
-      const geo = lookupCached(w.ip);
-      if (!geo) continue;
+      const geo = resolveGeo(w.ip);
       web.push({
         id: w.ip,
         location: geo.ll,
@@ -308,6 +336,7 @@ export async function buildGlobeTints(
         // Keep traffic quieter than sessions/attacks
         weight: 0.2 + brightnessFromHits(w.hits, maxHits) * 0.35,
         country: geo.country,
+        label: w.host || w.ip,
       });
     }
   }
@@ -321,6 +350,7 @@ export async function buildGlobeTints(
       freshness: 1,
       weight: 1,
       country: geo.country,
+      label: homeIp,
     };
   } else {
     home = {
@@ -329,6 +359,7 @@ export async function buildGlobeTints(
       freshness: 1,
       weight: 0.92,
       country: DEFAULT_HOME_GEO.country,
+      label: "Home",
     };
   }
 

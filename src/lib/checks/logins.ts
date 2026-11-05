@@ -15,7 +15,9 @@ import {
 } from "@/lib/security/events";
 import { getSshClient } from "@/lib/ssh";
 import {
+  attachKeyIdentity,
   mergeActiveSessions,
+  parseAcceptedPublickeys,
   parseFailedAuthSources,
 } from "./session-presence";
 import type { AlertInput, CheckResult } from "./types";
@@ -64,7 +66,10 @@ export async function runLoginsCheck(serverId: string): Promise<CheckResult> {
     failedAuthSources.filter((s) => !s.trusted).map((s) => s.ip),
   );
 
-  const activeSessions = mergeActiveSessions(who.stdout, wOut.stdout);
+  const activeSessions = attachKeyIdentity(
+    mergeActiveSessions(who.stdout, wOut.stdout),
+    parseAcceptedPublickeys(auth.stdout),
+  );
   const sshEstablished = ss22.stdout
     .split("\n")
     .map((l) => l.trim())
@@ -112,7 +117,7 @@ export async function runLoginsCheck(serverId: string): Promise<CheckResult> {
       level: "warning",
       message: `Neuer Root-Login von unbekannter IP: ${newUntrustedLogins.map(formatRootLoginAlertDetail).join("; ")}`,
       recommendation:
-        "In TRUSTED_LOGIN_IPS eintragen wenn bekannt, sonst last/auth.log prüfen",
+        "Unter Einstellungen → Schwellen/IPs als Trusted Login eintragen, sonst last/auth.log prüfen",
     });
   }
 

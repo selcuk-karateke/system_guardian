@@ -43,6 +43,17 @@ describe("buildGlobeTints", () => {
     assert.ok(tints.attacks[0]!.weight >= tints.attacks[1]!.weight);
   });
 
+  it("keeps attacks when geo API would miss (approx fallback)", async () => {
+    resetGlobeFreshnessForTests();
+    const tints = await buildGlobeTints({
+      logins: {
+        failedAuthSources: [{ ip: "8.8.8.8", count: 5, trusted: false }],
+        fail2ban: { bannedIps: ["1.2.3.4"] },
+      },
+    });
+    assert.equal(tints.attacks.length, 2);
+  });
+
   it("buildAttackMarkers returns attacks only", async () => {
     resetGlobeFreshnessForTests();
     const markers = await buildAttackMarkers({

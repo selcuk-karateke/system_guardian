@@ -1,16 +1,93 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import {
   discordColorForLevel,
   sendDiscordWithDetail,
 } from "@/lib/notifications/discord";
 import { sendEmail } from "@/lib/notifications/email";
 import { sendTelegramWithDetail } from "@/lib/notifications/telegram";
+import {
+  updateDiscordSettings,
+  updateSmtpSettings,
+  updateTelegramSettings,
+} from "@/lib/notifications/config";
 
 export type TestNotificationResult = {
   ok: boolean;
   message: string;
 };
+
+export type NotificationSettingsResult = {
+  ok: boolean;
+  message: string;
+};
+
+function revalidateNotificationViews() {
+  revalidatePath("/settings");
+  revalidatePath("/notifications");
+}
+
+export async function updateTelegramSettingsAction(
+  formData: FormData,
+): Promise<NotificationSettingsResult> {
+  try {
+    await updateTelegramSettings({
+      chatId: String(formData.get("chatId") ?? ""),
+      botToken: String(formData.get("botToken") ?? ""),
+      clearToken: formData.get("clearToken") === "on",
+    });
+    revalidateNotificationViews();
+    return { ok: true, message: "Telegram gespeichert" };
+  } catch (e) {
+    return {
+      ok: false,
+      message: e instanceof Error ? e.message : "Telegram speichern fehlgeschlagen",
+    };
+  }
+}
+
+export async function updateDiscordSettingsAction(
+  formData: FormData,
+): Promise<NotificationSettingsResult> {
+  try {
+    await updateDiscordSettings({
+      webhookUrl: String(formData.get("webhookUrl") ?? ""),
+      clearWebhook: formData.get("clearWebhook") === "on",
+    });
+    revalidateNotificationViews();
+    return { ok: true, message: "Discord gespeichert" };
+  } catch (e) {
+    return {
+      ok: false,
+      message: e instanceof Error ? e.message : "Discord speichern fehlgeschlagen",
+    };
+  }
+}
+
+export async function updateSmtpSettingsAction(
+  formData: FormData,
+): Promise<NotificationSettingsResult> {
+  try {
+    const portRaw = String(formData.get("port") ?? "").trim();
+    await updateSmtpSettings({
+      host: String(formData.get("host") ?? ""),
+      port: portRaw ? parseInt(portRaw, 10) : 587,
+      user: String(formData.get("user") ?? ""),
+      pass: String(formData.get("pass") ?? ""),
+      from: String(formData.get("from") ?? ""),
+      to: String(formData.get("to") ?? ""),
+      clearPass: formData.get("clearPass") === "on",
+    });
+    revalidateNotificationViews();
+    return { ok: true, message: "SMTP gespeichert" };
+  } catch (e) {
+    return {
+      ok: false,
+      message: e instanceof Error ? e.message : "SMTP speichern fehlgeschlagen",
+    };
+  }
+}
 
 export async function testTelegramNotification(): Promise<TestNotificationResult> {
   const result = await sendTelegramWithDetail(

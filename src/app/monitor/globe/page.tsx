@@ -13,7 +13,7 @@ export default async function MonitorGlobePage({
   const view = await loadMonitorGlobeView(sp.server);
 
   return (
-    <MonitorAutoRefresh intervalSec={30}>
+    <MonitorAutoRefresh intervalSec={60}>
       <div className="px-4 pt-3 flex justify-end">
         <Suspense fallback={null}>
           <ServerSelect

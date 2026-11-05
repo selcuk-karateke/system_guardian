@@ -197,7 +197,7 @@ export function alertInputFromFail2banBanSpikeEvent(
     level: "warning",
     message: String(event.metadata.reason ?? event.raw),
     recommendation:
-      "auth.log auf koordinierte SSH-Angriffe prüfen; Jail-Filter/Ban-Zeit kontrollieren; TRUSTED_LOGIN_IPS nur für bekannte Admins",
+      "auth.log auf koordinierte SSH-Angriffe prüfen; Jail-Filter/Ban-Zeit kontrollieren; Trusted Login IPs nur für bekannte Admins",
   };
 }
 

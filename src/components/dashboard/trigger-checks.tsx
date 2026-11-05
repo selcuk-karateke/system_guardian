@@ -1,13 +1,13 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import {
   triggerAllChecks,
   triggerSecurityChecks,
   triggerServerChecks,
 } from "@/app/actions/trigger-checks";
 import { Button } from "@/components/ui/button";
+import { wakeBackgroundJobsOverlay } from "@/lib/jobs/wake-client";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -15,16 +15,18 @@ type Props = {
 };
 
 export function TriggerChecks({ variant = "default" }: Props) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
 
-  function run(fn: () => Promise<{ ok: boolean; message: string }>) {
+  function run(
+    label: string,
+    fn: () => Promise<{ ok: boolean; message: string }>,
+  ) {
     setMessage(null);
     startTransition(async () => {
       const result = await fn();
       setMessage(result.message);
-      if (result.ok) router.refresh();
+      if (result.ok) wakeBackgroundJobsOverlay({ label });
     });
   }
 
@@ -48,7 +50,7 @@ export function TriggerChecks({ variant = "default" }: Props) {
           variant="outline"
           className={btnClass}
           disabled={pending}
-          onClick={() => run(triggerServerChecks)}
+          onClick={() => run("Server-Checks", triggerServerChecks)}
         >
           {pending ? "Läuft…" : "Server-Checks"}
         </Button>
@@ -57,7 +59,7 @@ export function TriggerChecks({ variant = "default" }: Props) {
           variant="outline"
           className={btnClass}
           disabled={pending}
-          onClick={() => run(triggerSecurityChecks)}
+          onClick={() => run("Security-Checks", triggerSecurityChecks)}
         >
           Security-Checks
         </Button>
@@ -66,7 +68,7 @@ export function TriggerChecks({ variant = "default" }: Props) {
           variant={variant === "compact" ? "outline" : "default"}
           className={cn(btnClass, variant === "compact" && "border-sky-800/60 text-sky-400/90 hover:bg-sky-500/10")}
           disabled={pending}
-          onClick={() => run(triggerAllChecks)}
+          onClick={() => run("Alle Checks", triggerAllChecks)}
         >
           Alle Checks jetzt
         </Button>

@@ -3,6 +3,11 @@ import type { SshClient, SshExecResult } from "./types";
 const FIXTURES: Record<string, string> = {
   uptime: " 09:00:00 up 45 days,  3:22,  2 users,  load average: 0.52, 0.48, 0.45\n",
   "cat /proc/loadavg": "0.52 0.48 0.45 2/412 12345\n",
+  "cat /proc/net/dev": `Inter-|   Receive                                                |  Transmit
+ face |bytes    packets errs drop fifo frame compressed multicast|bytes    packets errs drop fifo compressed
+    lo: 1000 0 0 0 0 0 0 0 1000 0 0 0 0 0 0
+  eth0: 120000000 0 0 0 0 0 0 0 80000000 0 0 0 0 0 0
+`,
   nproc: "4\n",
   "free -b": `               total        used        free      shared  buff/cache   available
 Mem:    16777216000  8388608000  4194304000   524288000  4194304000  7549747200
@@ -70,7 +75,7 @@ deploy   pts/2        203.0.113.10     Mon Jun  1 10:00 - 11:00  (01:00)
   "grep -E 'Failed password|Accepted password|Accepted publickey' /var/log/auth.log": `Jun  3 07:00:00 sshd[999]: Failed password for invalid user admin from 203.0.113.99 port 22
 Jun  3 07:01:00 sshd[1000]: Failed password for invalid user root from 203.0.113.99 port 22
 Jun  3 07:02:00 sshd[1001]: Failed password for invalid user test from 198.51.100.200 port 22
-Jun  3 08:00:00 sshd[1002]: Accepted publickey for deploy from 203.0.113.10 port 52100
+Jun  3 08:00:00 sshd[1002]: Accepted publickey for deploy from 203.0.113.10 port 52100 ssh2: ED25519 SHA256:MockFingerprintDeployKey01
 `,
   "grep -i 'Failed password' /var/log/auth.log 2>/dev/null | tail -20": "Jun  3 07:00:00 sshd[999]: Failed password for invalid user admin from 203.0.113.99 port 22\n",
   who: `deploy   pts/0        2026-06-03 08:00 (203.0.113.10)

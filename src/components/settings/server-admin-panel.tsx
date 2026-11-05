@@ -6,6 +6,8 @@ import {
   alignServerWithSshHostAction,
   createServerAction,
   deactivateServerAction,
+  updateServerBackupAction,
+  updateServerCoolifyAction,
   updateServerSshAction,
 } from "@/app/actions/servers";
 import { Button } from "@/components/ui/button";
@@ -20,6 +22,12 @@ export type ServerAdminRow = {
   sshPort: number | null;
   hasKey: boolean;
   hasPassword: boolean;
+  coolifyApiUrl: string | null;
+  hasCoolifyToken: boolean;
+  backupPaths: string | null;
+  backupMonitoringDir: string | null;
+  backupTriggerCommand: string | null;
+  hasBackupTrigger: boolean;
 };
 
 const fieldClass =
@@ -80,6 +88,30 @@ export function ServerAdminPanel({
     });
   }
 
+  function onSaveCoolify(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    setMessage(null);
+    startTransition(async () => {
+      const result = await updateServerCoolifyAction(formData);
+      setIsError(!result.ok);
+      setMessage(result.message);
+      if (result.ok) router.refresh();
+    });
+  }
+
+  function onSaveBackup(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    setMessage(null);
+    startTransition(async () => {
+      const result = await updateServerBackupAction(formData);
+      setIsError(!result.ok);
+      setMessage(result.message);
+      if (result.ok) router.refresh();
+    });
+  }
+
   function onDeactivate(id: string, name: string) {
     if (!confirm(`Server „${name}“ wirklich deaktivieren?`)) return;
     setMessage(null);
@@ -106,19 +138,39 @@ export function ServerAdminPanel({
                   {s.ipv4 ?? s.host} · {s.sshUser ?? "root"}:
                   {s.sshPort ?? 22} · Profil {s.monitorProfile}
                 </p>
-                <p className="text-xs mt-1">
-                  SSH:{" "}
-                  {s.hasKey || s.hasPassword ? (
-                    <span className="text-emerald-400">
-                      {s.hasKey ? "Key" : ""}
-                      {s.hasKey && s.hasPassword ? "+" : ""}
-                      {s.hasPassword ? "Passwort" : ""} in DB
-                    </span>
-                  ) : (
-                    <span className="text-amber-400">
-                      kein Secret — Env-Fallback möglich
-                    </span>
-                  )}
+                <p className="text-xs mt-1 text-zinc-400 space-x-2">
+                  <span>
+                    SSH:{" "}
+                    {s.hasKey || s.hasPassword ? (
+                      <span className="text-emerald-400">
+                        {s.hasKey ? "Key" : ""}
+                        {s.hasKey && s.hasPassword ? "+" : ""}
+                        {s.hasPassword ? "Passwort" : ""}
+                      </span>
+                    ) : (
+                      <span className="text-amber-400">offen</span>
+                    )}
+                  </span>
+                  <span>·</span>
+                  <span>
+                    Coolify:{" "}
+                    {s.coolifyApiUrl && s.hasCoolifyToken ? (
+                      <span className="text-emerald-400">API</span>
+                    ) : (
+                      <span className="text-zinc-500">—</span>
+                    )}
+                  </span>
+                  <span>·</span>
+                  <span>
+                    Backup:{" "}
+                    {s.hasBackupTrigger ? (
+                      <span className="text-emerald-400">Trigger</span>
+                    ) : s.backupPaths ? (
+                      <span className="text-zinc-300">Pfade</span>
+                    ) : (
+                      <span className="text-zinc-500">—</span>
+                    )}
+                  </span>
                 </p>
               </div>
               {mismatchesSsh(s) && (
@@ -149,7 +201,7 @@ export function ServerAdminPanel({
                 disabled={pending}
                 onClick={() => setEditId(editId === s.id ? null : s.id)}
               >
-                {editId === s.id ? "Schließen" : "SSH"}
+                {editId === s.id ? "Schließen" : "Bearbeiten"}
               </Button>
               <Button
                 type="button"
@@ -164,73 +216,172 @@ export function ServerAdminPanel({
             </div>
 
             {editId === s.id && (
-              <form onSubmit={onSaveSsh} className="grid gap-3 sm:grid-cols-2 border-t border-zinc-800 pt-3">
-                <input type="hidden" name="serverId" value={s.id} />
-                <label className="space-y-1 text-xs text-zinc-400">
-                  Host
-                  <input
-                    name="host"
-                    defaultValue={s.host}
-                    className={fieldClass}
-                  />
-                </label>
-                <label className="space-y-1 text-xs text-zinc-400">
-                  IPv4
-                  <input
-                    name="ipv4"
-                    defaultValue={s.ipv4 ?? ""}
-                    className={fieldClass}
-                  />
-                </label>
-                <label className="space-y-1 text-xs text-zinc-400">
-                  SSH User
-                  <input
-                    name="sshUser"
-                    defaultValue={s.sshUser ?? "root"}
-                    className={fieldClass}
-                  />
-                </label>
-                <label className="space-y-1 text-xs text-zinc-400">
-                  SSH Port
-                  <input
-                    name="sshPort"
-                    type="number"
-                    defaultValue={s.sshPort ?? 22}
-                    className={fieldClass}
-                  />
-                </label>
-                <label className="space-y-1 text-xs text-zinc-400 sm:col-span-2">
-                  Private Key (leer = unverändert)
-                  <textarea
-                    name="privateKey"
-                    rows={3}
-                    placeholder={s.hasKey ? "•••• gespeichert" : "-----BEGIN …"}
-                    className={fieldClass + " font-mono text-xs"}
-                  />
-                </label>
-                <label className="space-y-1 text-xs text-zinc-400 sm:col-span-2">
-                  Passwort (optional, leer = unverändert)
-                  <input
-                    name="password"
-                    type="password"
-                    autoComplete="new-password"
-                    className={fieldClass}
-                  />
-                </label>
-                <label className="flex items-center gap-2 text-xs text-zinc-400">
-                  <input type="checkbox" name="clearPrivateKey" />
-                  Key löschen
-                </label>
-                <label className="flex items-center gap-2 text-xs text-zinc-400">
-                  <input type="checkbox" name="clearPassword" />
-                  Passwort löschen
-                </label>
-                <div className="sm:col-span-2">
-                  <Button type="submit" size="sm" disabled={pending}>
-                    {pending ? "…" : "SSH speichern"}
-                  </Button>
-                </div>
-              </form>
+              <div className="space-y-5 border-t border-zinc-800 pt-3">
+                <form
+                  onSubmit={onSaveSsh}
+                  className="grid gap-3 sm:grid-cols-2"
+                >
+                  <p className="sm:col-span-2 text-xs font-medium text-zinc-300">
+                    SSH
+                  </p>
+                  <input type="hidden" name="serverId" value={s.id} />
+                  <label className="space-y-1 text-xs text-zinc-400">
+                    Host
+                    <input
+                      name="host"
+                      defaultValue={s.host}
+                      className={fieldClass}
+                    />
+                  </label>
+                  <label className="space-y-1 text-xs text-zinc-400">
+                    IPv4
+                    <input
+                      name="ipv4"
+                      defaultValue={s.ipv4 ?? ""}
+                      className={fieldClass}
+                    />
+                  </label>
+                  <label className="space-y-1 text-xs text-zinc-400">
+                    SSH User
+                    <input
+                      name="sshUser"
+                      defaultValue={s.sshUser ?? "root"}
+                      className={fieldClass}
+                    />
+                  </label>
+                  <label className="space-y-1 text-xs text-zinc-400">
+                    SSH Port
+                    <input
+                      name="sshPort"
+                      type="number"
+                      defaultValue={s.sshPort ?? 22}
+                      className={fieldClass}
+                    />
+                  </label>
+                  <label className="space-y-1 text-xs text-zinc-400 sm:col-span-2">
+                    Private Key (leer = unverändert)
+                    <textarea
+                      name="privateKey"
+                      rows={3}
+                      placeholder={
+                        s.hasKey ? "•••• gespeichert" : "-----BEGIN …"
+                      }
+                      className={fieldClass + " font-mono text-xs"}
+                    />
+                  </label>
+                  <label className="space-y-1 text-xs text-zinc-400 sm:col-span-2">
+                    Passwort (optional, leer = unverändert)
+                    <input
+                      name="password"
+                      type="password"
+                      autoComplete="new-password"
+                      className={fieldClass}
+                    />
+                  </label>
+                  <label className="flex items-center gap-2 text-xs text-zinc-400">
+                    <input type="checkbox" name="clearPrivateKey" />
+                    Key löschen
+                  </label>
+                  <label className="flex items-center gap-2 text-xs text-zinc-400">
+                    <input type="checkbox" name="clearPassword" />
+                    Passwort löschen
+                  </label>
+                  <div className="sm:col-span-2">
+                    <Button type="submit" size="sm" disabled={pending}>
+                      {pending ? "…" : "SSH speichern"}
+                    </Button>
+                  </div>
+                </form>
+
+                <form
+                  onSubmit={onSaveCoolify}
+                  className="grid gap-3 sm:grid-cols-2 border-t border-zinc-800 pt-4"
+                >
+                  <p className="sm:col-span-2 text-xs font-medium text-zinc-300">
+                    Coolify API
+                  </p>
+                  <input type="hidden" name="serverId" value={s.id} />
+                  <label className="space-y-1 text-xs text-zinc-400 sm:col-span-2">
+                    Panel-URL
+                    <input
+                      name="coolifyApiUrl"
+                      defaultValue={s.coolifyApiUrl ?? ""}
+                      placeholder="https://coolify.example.com"
+                      className={fieldClass}
+                    />
+                  </label>
+                  <label className="space-y-1 text-xs text-zinc-400 sm:col-span-2">
+                    API-Token (Deploy-Recht, leer = unverändert)
+                    <input
+                      name="coolifyApiToken"
+                      type="password"
+                      autoComplete="new-password"
+                      placeholder={
+                        s.hasCoolifyToken ? "•••• gespeichert" : "Token"
+                      }
+                      className={fieldClass}
+                    />
+                  </label>
+                  <label className="flex items-center gap-2 text-xs text-zinc-400 sm:col-span-2">
+                    <input type="checkbox" name="clearCoolifyToken" />
+                    Token löschen
+                  </label>
+                  <div className="sm:col-span-2">
+                    <Button type="submit" size="sm" disabled={pending}>
+                      {pending ? "…" : "Coolify speichern"}
+                    </Button>
+                  </div>
+                </form>
+
+                <form
+                  onSubmit={onSaveBackup}
+                  className="grid gap-3 sm:grid-cols-2 border-t border-zinc-800 pt-4"
+                >
+                  <p className="sm:col-span-2 text-xs font-medium text-zinc-300">
+                    Backup
+                  </p>
+                  <input type="hidden" name="serverId" value={s.id} />
+                  <label className="space-y-1 text-xs text-zinc-400 sm:col-span-2">
+                    Pfade (kommagetrennt)
+                    <input
+                      name="backupPaths"
+                      defaultValue={
+                        s.backupPaths ??
+                        "/backups/daily,/backups/monthly,/data/coolify/backups"
+                      }
+                      className={fieldClass + " font-mono text-xs"}
+                    />
+                  </label>
+                  <label className="space-y-1 text-xs text-zinc-400 sm:col-span-2">
+                    Monitoring-Dir (status.json)
+                    <input
+                      name="backupMonitoringDir"
+                      defaultValue={
+                        s.backupMonitoringDir ?? "/backups/monitoring"
+                      }
+                      className={fieldClass + " font-mono text-xs"}
+                    />
+                  </label>
+                  <label className="space-y-1 text-xs text-zinc-400 sm:col-span-2">
+                    Trigger-Befehl (absoluter Pfad, leer = aus)
+                    <input
+                      name="backupTriggerCommand"
+                      defaultValue={s.backupTriggerCommand ?? ""}
+                      placeholder="/usr/local/bin/run-backup.sh"
+                      className={fieldClass + " font-mono text-xs"}
+                    />
+                  </label>
+                  <label className="flex items-center gap-2 text-xs text-zinc-400 sm:col-span-2">
+                    <input type="checkbox" name="clearBackupTrigger" />
+                    Trigger löschen
+                  </label>
+                  <div className="sm:col-span-2">
+                    <Button type="submit" size="sm" disabled={pending}>
+                      {pending ? "…" : "Backup speichern"}
+                    </Button>
+                  </div>
+                </form>
+              </div>
             )}
           </li>
         ))}
@@ -239,7 +390,10 @@ export function ServerAdminPanel({
         )}
       </ul>
 
-      <form onSubmit={onCreate} className="space-y-3 border-t border-zinc-800 pt-4">
+      <form
+        onSubmit={onCreate}
+        className="space-y-3 border-t border-zinc-800 pt-4"
+      >
         <p className="text-sm font-medium text-zinc-200">Neuen Server anlegen</p>
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="space-y-1 text-xs text-zinc-400">
@@ -266,7 +420,11 @@ export function ServerAdminPanel({
           </label>
           <label className="space-y-1 text-xs text-zinc-400">
             Monitoring-Profil
-            <select name="monitorProfile" defaultValue="host" className={fieldClass}>
+            <select
+              name="monitorProfile"
+              defaultValue="host"
+              className={fieldClass}
+            >
               <option value="host">host — voller Host</option>
               <option value="container">container — App-Fokus</option>
               <option value="full">full — alles</option>
@@ -278,7 +436,12 @@ export function ServerAdminPanel({
           </label>
           <label className="space-y-1 text-xs text-zinc-400">
             SSH Port
-            <input name="sshPort" type="number" defaultValue={22} className={fieldClass} />
+            <input
+              name="sshPort"
+              type="number"
+              defaultValue={22}
+              className={fieldClass}
+            />
           </label>
           <label className="space-y-1 text-xs text-zinc-400 sm:col-span-2">
             Private Key
@@ -291,10 +454,9 @@ export function ServerAdminPanel({
           </label>
         </div>
         <p className="text-xs text-zinc-500">
-          SSH-Secrets werden verschlüsselt in der DB gespeichert (
-          <code className="text-zinc-400">AUTH_SECRET</code>). Globale{" "}
-          <code className="text-zinc-400">SSH_*</code> bleiben Fallback / Seed für
-          den ersten Server.
+          Secrets verschlüsselt in der DB (
+          <code className="text-zinc-400">AUTH_SECRET</code>). Coolify/Backup
+          danach unter Bearbeiten setzen.
         </p>
         <Button type="submit" size="sm" disabled={pending}>
           {pending ? "Speichern…" : "Server anlegen"}
@@ -302,7 +464,9 @@ export function ServerAdminPanel({
       </form>
 
       {message && (
-        <p className={`text-sm ${isError ? "text-amber-400" : "text-emerald-400"}`}>
+        <p
+          className={`text-sm ${isError ? "text-amber-400" : "text-emerald-400"}`}
+        >
           {message}
         </p>
       )}

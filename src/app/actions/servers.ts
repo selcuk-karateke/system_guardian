@@ -7,8 +7,11 @@ import {
   listActiveServers,
   updateServerInventory,
 } from "@/lib/servers";
+import { updateServerBackup } from "@/lib/servers-backup";
+import { updateServerCoolify } from "@/lib/servers-coolify";
 import { updateServerSsh } from "@/lib/servers-ssh";
 import type { MonitorProfile } from "@/lib/monitor-profiles";
+import { validateBackupTriggerCommand } from "@/lib/protect/backup-trigger";
 
 export type ServerActionResult = {
   ok: boolean;
@@ -106,6 +109,79 @@ export async function updateServerSshAction(
     return {
       ok: false,
       message: e instanceof Error ? e.message : "SSH speichern fehlgeschlagen",
+    };
+  }
+}
+
+/** Per-server Coolify API URL + token (token encrypted). */
+export async function updateServerCoolifyAction(
+  formData: FormData,
+): Promise<ServerActionResult> {
+  const serverId = String(formData.get("serverId") ?? "");
+  if (!serverId) return { ok: false, message: "serverId fehlt" };
+
+  const apiUrl = String(formData.get("coolifyApiUrl") ?? "");
+  const apiToken = String(formData.get("coolifyApiToken") ?? "");
+  const clearToken = formData.get("clearCoolifyToken") === "on";
+
+  try {
+    const row = await updateServerCoolify(serverId, {
+      apiUrl,
+      apiToken: apiToken.trim() || undefined,
+      clearToken,
+    });
+    if (!row) return { ok: false, message: "Server nicht gefunden" };
+    revalidateServerViews();
+    return {
+      ok: true,
+      message: `Coolify für „${row.name}“ gespeichert`,
+      id: row.id,
+    };
+  } catch (e) {
+    return {
+      ok: false,
+      message:
+        e instanceof Error ? e.message : "Coolify speichern fehlgeschlagen",
+    };
+  }
+}
+
+/** Per-server backup paths / monitoring dir / trigger. */
+export async function updateServerBackupAction(
+  formData: FormData,
+): Promise<ServerActionResult> {
+  const serverId = String(formData.get("serverId") ?? "");
+  if (!serverId) return { ok: false, message: "serverId fehlt" };
+
+  const paths = String(formData.get("backupPaths") ?? "");
+  const monitoringDir = String(formData.get("backupMonitoringDir") ?? "");
+  const triggerCommand = String(formData.get("backupTriggerCommand") ?? "");
+  const clearTrigger = formData.get("clearBackupTrigger") === "on";
+
+  if (triggerCommand.trim() && !clearTrigger) {
+    const invalid = validateBackupTriggerCommand(triggerCommand);
+    if (invalid) return { ok: false, message: invalid };
+  }
+
+  try {
+    const row = await updateServerBackup(serverId, {
+      paths,
+      monitoringDir,
+      triggerCommand: clearTrigger ? null : triggerCommand,
+      clearTrigger,
+    });
+    if (!row) return { ok: false, message: "Server nicht gefunden" };
+    revalidateServerViews();
+    return {
+      ok: true,
+      message: `Backup-Config für „${row.name}“ gespeichert`,
+      id: row.id,
+    };
+  } catch (e) {
+    return {
+      ok: false,
+      message:
+        e instanceof Error ? e.message : "Backup-Config speichern fehlgeschlagen",
     };
   }
 }

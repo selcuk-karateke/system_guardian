@@ -206,7 +206,7 @@ function buildAlertExplanation(alert: AlertReportInput): string | null {
       "  last -n 20 | grep root",
       "  journalctl -u ssh -n 20  # oder auth.log falls vorhanden",
       "",
-      "Wenn du das warst: IP in .env.local TRUSTED_LOGIN_IPS eintragen.",
+      "Wenn du das warst: IP unter Einstellungen → Trusted Login IPs eintragen.",
     ].join("\n");
   }
 
@@ -226,7 +226,7 @@ function buildAlertExplanation(alert: AlertReportInput): string | null {
       "  last -n 15",
       "  journalctl -u ssh -n 20  # falls kein /var/log/auth.log",
       "",
-      "Bekannte Admin-IP: TRUSTED_LOGIN_IPS oder TRUSTED_OUTBOUND_IPS.",
+      "Bekannte Admin-IP: Einstellungen → Trusted Login/Outbound IPs.",
     ].join("\n");
   }
 

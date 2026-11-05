@@ -10,6 +10,7 @@ import {
 import { triggerDockerRefresh } from "@/app/actions/trigger-checks";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { wakeBackgroundJobsOverlay } from "@/lib/jobs/wake-client";
 
 type Props = {
   serverId?: string;
@@ -115,7 +116,9 @@ export function DockerToolbar({
               startTransition(async () => {
                 const r = await triggerDockerRefresh(serverId);
                 setNote(r.message);
-                if (r.ok) router.refresh();
+                if (r.ok) {
+                  wakeBackgroundJobsOverlay({ label: "Docker-Inventar" });
+                }
               });
             }}
           >
@@ -129,14 +132,16 @@ export function DockerToolbar({
             title={
               !sshOk
                 ? "Braucht CHECK_MODE=ssh"
-                : "Bis zu 20 Images ohne Scan. Mehrfach klicken bis nichts mehr offen ist."
+                : "Bis zu 20 Images ohne Scan. Läuft im Hintergrund — Overlay unten rechts."
             }
             onClick={() => {
               setNote(null);
               startTransition(async () => {
                 const r = await runTrivyBatchNowAction(serverId);
                 setNote(r.message);
-                if (r.ok) router.refresh();
+                if (r.ok) {
+                  wakeBackgroundJobsOverlay({ label: "Trivy Batch-Scan" });
+                }
               });
             }}
           >

@@ -1,17 +1,17 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { NotificationTestPanel } from "@/components/settings/notification-test-panel";
+import { NotificationSettingsPanel } from "@/components/settings/notification-settings-panel";
 import { ProtectPanel } from "@/components/settings/protect-panel";
+import { RuntimeConfigPanel } from "@/components/settings/runtime-config-panel";
 import { ServerAdminPanel } from "@/components/settings/server-admin-panel";
+import { getProtectStatusAction } from "@/app/actions/protect";
 import { getDomains } from "@/lib/dashboard-data";
-import { getNotificationChannelStatus } from "@/lib/notifications/status";
+import { getNotificationPublicStatus } from "@/lib/notifications/status";
+import { getCheckMode } from "@/lib/config";
 import {
-  getBackupTriggerCommand,
-  getCheckMode,
-  getCoolifyApiUrl,
-  isAutoBlockEnabled,
-  isBackupTriggerEnabled,
-  isCoolifyRedeployConfigured,
-} from "@/lib/config";
+  DEFAULT_THRESHOLDS,
+  ensureRuntimeConfig,
+  getRuntimeConfigSnapshot,
+} from "@/lib/runtime-config";
 import { listServersSshStatus } from "@/lib/servers-ssh";
 
 export default async function SettingsPage() {
@@ -24,10 +24,30 @@ export default async function SettingsPage() {
     /* empty */
   }
 
-  const notificationStatus = getNotificationChannelStatus();
+  await ensureRuntimeConfig().catch(() => null);
+  const runtime = getRuntimeConfigSnapshot();
+
+  const [notificationStatus, protect] = await Promise.all([
+    getNotificationPublicStatus().catch(() => ({
+      telegram: false,
+      discord: false,
+      email: false,
+      telegramChatId: null,
+      smtpHost: null,
+      smtpTo: null,
+      hasDiscordWebhook: false,
+    })),
+    getProtectStatusAction().catch(() => ({
+      autoBlockEnabled: false,
+      backupTriggerEnabled: false,
+      backupTriggerCommand: null,
+      coolifyRedeployConfigured: false,
+      coolifyApiUrl: null,
+    })),
+  ]);
+
   const checkMode = getCheckMode();
-  const sshHost = process.env.SSH_HOST ?? null;
-  const backupCmd = getBackupTriggerCommand();
+  const sshHost = null;
 
   return (
     <div className="space-y-6">
@@ -39,11 +59,11 @@ export default async function SettingsPage() {
         </CardHeader>
         <CardContent>
           <ProtectPanel
-            autoBlockEnabled={isAutoBlockEnabled()}
-            backupTriggerEnabled={isBackupTriggerEnabled()}
-            backupTriggerCommand={backupCmd || null}
-            coolifyRedeployConfigured={isCoolifyRedeployConfigured()}
-            coolifyApiUrl={getCoolifyApiUrl()}
+            autoBlockEnabled={protect.autoBlockEnabled}
+            backupTriggerEnabled={protect.backupTriggerEnabled}
+            backupTriggerCommand={protect.backupTriggerCommand}
+            coolifyRedeployConfigured={protect.coolifyRedeployConfigured}
+            coolifyApiUrl={protect.coolifyApiUrl}
             checkMode={checkMode}
           />
         </CardContent>
@@ -58,6 +78,18 @@ export default async function SettingsPage() {
             servers={serverRows}
             sshHost={sshHost}
             checkMode={checkMode}
+          />
+        </CardContent>
+      </Card>
+
+      <Card id="runtime">
+        <CardHeader>
+          <CardTitle>Schwellen & Trusted IPs</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <RuntimeConfigPanel
+            thresholds={runtime.thresholds ?? { ...DEFAULT_THRESHOLDS }}
+            trusted={runtime.trusted}
           />
         </CardContent>
       </Card>
@@ -89,7 +121,7 @@ export default async function SettingsPage() {
           <CardTitle>Benachrichtigungen</CardTitle>
         </CardHeader>
         <CardContent>
-          <NotificationTestPanel status={notificationStatus} />
+          <NotificationSettingsPanel status={notificationStatus} />
         </CardContent>
       </Card>
 
@@ -118,6 +150,14 @@ export default async function SettingsPage() {
             Festes Incident-Fenster nur mit{" "}
             <code>INCIDENT_USE_FIXED_WINDOW=true</code> + INCIDENT_LOG_SINCE/UNTIL
             in .env.local.
+          </p>
+          <p className="text-xs pt-2 border-t border-zinc-800">
+            Nur noch Deploy-Runtime in ENV:{" "}
+            <code className="text-zinc-300">DATABASE_URL</code>,{" "}
+            <code className="text-zinc-300">CRON_SECRET</code>,{" "}
+            <code className="text-zinc-300">CHECK_MODE</code>,{" "}
+            <code className="text-zinc-300">AUTH_*</code>. Alles andere in der DB
+            (Server / Schwellen / Benachrichtigungen).
           </p>
         </CardContent>
       </Card>

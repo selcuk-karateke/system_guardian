@@ -1,44 +1,63 @@
 import type { CheckStatus } from "@/lib/checks/types";
+import {
+  DEFAULT_THRESHOLDS,
+  getCachedThreshold,
+  getCachedTrustedLoginIps,
+  getCachedTrustedOutboundIps,
+} from "@/lib/runtime-config";
 
 export function getCheckMode(): "mock" | "ssh" {
   return process.env.CHECK_MODE === "ssh" ? "ssh" : "mock";
 }
 
+/** Thresholds from DB settings (runtime-config cache). */
 export function getThreshold(name: string, fallback: number): number {
-  const envKey = `THRESHOLD_${name.toUpperCase()}`;
-  const val = process.env[envKey];
-  if (val) return parseInt(val, 10);
-  return fallback;
+  return getCachedThreshold(name, fallback);
 }
 
 export const THRESHOLDS = {
-  cpuWarning: () => getThreshold("CPU_WARNING", 80),
-  cpuCritical: () => getThreshold("CPU_CRITICAL", 95),
-  ramWarning: () => getThreshold("RAM_WARNING", 85),
-  ramCritical: () => getThreshold("RAM_CRITICAL", 95),
-  diskWarning: () => getThreshold("DISK_WARNING", 85),
-  diskCritical: () => getThreshold("DISK_CRITICAL", 95),
-  processCpuWarning: () => getThreshold("PROCESS_CPU_WARNING", 90),
-  dockerCpuWarning: () => getThreshold("DOCKER_CPU_WARNING", 85),
-  dockerMemWarning: () => getThreshold("DOCKER_MEM_WARNING", 90),
+  cpuWarning: () =>
+    getThreshold("CPU_WARNING", DEFAULT_THRESHOLDS.CPU_WARNING),
+  cpuCritical: () =>
+    getThreshold("CPU_CRITICAL", DEFAULT_THRESHOLDS.CPU_CRITICAL),
+  ramWarning: () =>
+    getThreshold("RAM_WARNING", DEFAULT_THRESHOLDS.RAM_WARNING),
+  ramCritical: () =>
+    getThreshold("RAM_CRITICAL", DEFAULT_THRESHOLDS.RAM_CRITICAL),
+  diskWarning: () =>
+    getThreshold("DISK_WARNING", DEFAULT_THRESHOLDS.DISK_WARNING),
+  diskCritical: () =>
+    getThreshold("DISK_CRITICAL", DEFAULT_THRESHOLDS.DISK_CRITICAL),
+  processCpuWarning: () =>
+    getThreshold("PROCESS_CPU_WARNING", DEFAULT_THRESHOLDS.PROCESS_CPU_WARNING),
+  dockerCpuWarning: () =>
+    getThreshold("DOCKER_CPU_WARNING", DEFAULT_THRESHOLDS.DOCKER_CPU_WARNING),
+  dockerMemWarning: () =>
+    getThreshold("DOCKER_MEM_WARNING", DEFAULT_THRESHOLDS.DOCKER_MEM_WARNING),
+  egressMbpsWarning: () =>
+    getThreshold("EGRESS_MBPS_WARNING", DEFAULT_THRESHOLDS.EGRESS_MBPS_WARNING),
+  egressMbpsCritical: () =>
+    getThreshold(
+      "EGRESS_MBPS_CRITICAL",
+      DEFAULT_THRESHOLDS.EGRESS_MBPS_CRITICAL,
+    ),
+  egressMbWarning: () =>
+    getThreshold("EGRESS_MB_WARNING", DEFAULT_THRESHOLDS.EGRESS_MB_WARNING),
+  egressMbCritical: () =>
+    getThreshold("EGRESS_MB_CRITICAL", DEFAULT_THRESHOLDS.EGRESS_MB_CRITICAL),
 };
 
+/** @deprecated Paths live on the server row — resolveBackupConfig(serverId). */
 export function getBackupPaths(): string[] {
-  const raw =
-    process.env.BACKUP_PATHS ??
-    "/backups/daily,/backups/monthly,/data/coolify/backups";
-  return raw.split(",").map((p) => p.trim()).filter(Boolean);
+  return "/backups/daily,/backups/monthly,/data/coolify/backups"
+    .split(",")
+    .map((p) => p.trim())
+    .filter(Boolean);
 }
 
-/** Root/SSH login IPs that do not trigger logins warnings */
+/** Root/SSH login IPs (DB settings via runtime-config). */
 export function getTrustedLoginIps(): Set<string> {
-  const raw = process.env.TRUSTED_LOGIN_IPS ?? "";
-  return new Set(
-    raw
-      .split(",")
-      .map((ip) => ip.trim())
-      .filter(Boolean),
-  );
+  return new Set(getCachedTrustedLoginIps());
 }
 
 /** Login-IP vertrauenswürdig (explizit oder internes 10.0.1.* wie bei Outbound). */
@@ -47,14 +66,9 @@ export function isTrustedLoginIp(ip: string): boolean {
   return /^10\.0\.1\.\d{1,3}$/.test(ip);
 }
 
-/** Outbound peers that must not raise network baseline WARNs (merged with login IPs) */
+/** Outbound peers (merged with login IPs) from DB settings. */
 export function getTrustedOutboundIps(): Set<string> {
-  const raw = process.env.TRUSTED_OUTBOUND_IPS ?? "";
-  const extra = raw
-    .split(",")
-    .map((ip) => ip.trim())
-    .filter(Boolean);
-  return new Set([...getTrustedLoginIps(), ...extra]);
+  return new Set(getCachedTrustedOutboundIps());
 }
 
 /** True if ss connection key / alert text involves a trusted or internal peer */
@@ -129,16 +143,15 @@ export function parseDockerExitedCode(status: string): number | null {
 
 /** Critical if newest backup across all paths is older than this (days). */
 export function getBackupMaxAgeDays(): number {
-  const v = process.env.BACKUP_MAX_AGE_DAYS;
-  return v ? parseInt(v, 10) : 7;
+  return getThreshold(
+    "BACKUP_MAX_AGE_DAYS",
+    DEFAULT_THRESHOLDS.BACKUP_MAX_AGE_DAYS,
+  );
 }
 
-/**
- * Dir with status.json + backup-health.json from hetzner_backup.sh.
- * Empty disables monitoring JSON checks.
- */
+/** @deprecated Prefer resolveBackupConfig(serverId). */
 export function getBackupMonitoringDir(): string {
-  return (process.env.BACKUP_MONITORING_DIR ?? "/backups/monitoring").trim();
+  return "/backups/monitoring";
 }
 
 /**
@@ -146,27 +159,29 @@ export function getBackupMonitoringDir(): string {
  * Daily cron 01:00 → default 36h catches a missed night.
  */
 export function getBackupRunMaxAgeHours(): number {
-  const v = process.env.BACKUP_RUN_MAX_AGE_HOURS;
-  const n = v ? parseInt(v, 10) : 36;
-  return Number.isFinite(n) && n > 0 ? n : 36;
+  const n = getThreshold(
+    "BACKUP_RUN_MAX_AGE_HOURS",
+    DEFAULT_THRESHOLDS.BACKUP_RUN_MAX_AGE_HOURS,
+  );
+  return n > 0 ? n : DEFAULT_THRESHOLDS.BACKUP_RUN_MAX_AGE_HOURS;
 }
 
 /** Warning if best backup is smaller than this (bytes); 0-byte is always critical. */
 export function getBackupMinSizeWarningBytes(): number {
-  const v = process.env.BACKUP_MIN_SIZE_WARNING_BYTES;
-  return v ? parseInt(v, 10) : 10 * 1024 * 1024;
+  return getThreshold(
+    "BACKUP_MIN_SIZE_WARNING_BYTES",
+    DEFAULT_THRESHOLDS.BACKUP_MIN_SIZE_WARNING_BYTES,
+  );
 }
 
-/**
- * Optional absolute path on SSH host to start a backup job (Settings → Schutz).
- * Empty = disabled. No shell metacharacters — see validateBackupTriggerCommand.
- */
+/** @deprecated Prefer resolveBackupConfig(serverId). */
 export function getBackupTriggerCommand(): string {
-  return (process.env.BACKUP_TRIGGER_COMMAND ?? "").trim();
+  return "";
 }
 
+/** @deprecated Prefer resolveBackupConfig(serverId).triggerCommand. */
 export function isBackupTriggerEnabled(): boolean {
-  return getBackupTriggerCommand().length > 0;
+  return false;
 }
 
 /**
@@ -182,28 +197,19 @@ export function getAutoBlockJail(): string {
   return /^[a-zA-Z0-9_-]+$/.test(jail) ? jail : "sshd";
 }
 
-/** Coolify panel URL, e.g. https://coolify.example.com (no trailing path). */
+/** @deprecated Prefer resolveCoolifyApi(serverId). */
 export function getCoolifyApiUrl(): string | null {
-  const raw = (process.env.COOLIFY_API_URL ?? "").trim().replace(/\/$/, "");
-  if (!raw) return null;
-  try {
-    const u = new URL(raw);
-    if (u.protocol !== "http:" && u.protocol !== "https:") return null;
-    return raw;
-  } catch {
-    return null;
-  }
+  return null;
 }
 
-/** API token with deploy permission (Keys & Tokens in Coolify). */
+/** @deprecated Prefer resolveCoolifyApi(serverId). */
 export function getCoolifyApiToken(): string | null {
-  const t = (process.env.COOLIFY_API_TOKEN ?? "").trim();
-  return t || null;
+  return null;
 }
 
-/** Force-Rebuild-Button / API — braucht URL + Token. */
+/** @deprecated Prefer isCoolifyRedeployConfiguredForServer(serverId). */
 export function isCoolifyRedeployConfigured(): boolean {
-  return Boolean(getCoolifyApiUrl() && getCoolifyApiToken());
+  return false;
 }
 
 /** Security-Cron: Trivy-Batch für ungecachte/alte Images (default an). */

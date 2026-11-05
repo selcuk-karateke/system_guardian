@@ -72,11 +72,13 @@ export function buildMonitorMetricCards(
     cpuLines.push(`temp ${m.temperatureCelsius}°C`);
   }
 
+  // Keep the hero value short — "2.26 / 16" ellipsizes to "2.26 / …" on TV cards
   let cpuDisplay: string | null = null;
-  if (load1 && cores) {
-    cpuDisplay = `${formatLoadNumber(load1)} / ${cores}`;
-  } else if (load1) {
+  if (load1) {
     cpuDisplay = formatLoadNumber(load1);
+  }
+  if (cores != null) {
+    cpuLines.unshift(`${cores} cores`);
   }
 
   const ramLines: string[] = [];
@@ -532,12 +534,18 @@ function formatModuleDetailLinesFromData(
       });
     }
     case "network": {
+      const lines: string[] = [];
       const sus = (data.suspiciousConnections as string[] | undefined)?.length;
-      if (sus != null && sus > 0) return [`${sus} suspicious conn`];
+      if (sus != null && sus > 0) lines.push(`${sus} suspicious conn`);
+      const tx = data.egressTxMbps as number | undefined;
+      if (tx != null && Number.isFinite(tx)) {
+        lines.push(`↑ ${tx.toFixed(1)} Mbit/s`);
+      }
       const n = data.listenerCount as number | undefined;
       const pub = (data.publicPorts as string[] | undefined)?.length;
-      if (n != null && pub != null) return [`${n} listener`, `${pub} public`];
-      return n != null ? [`${n} listener`] : null;
+      if (n != null && pub != null) lines.push(`${n} listener`, `${pub} public`);
+      else if (n != null) lines.push(`${n} listener`);
+      return lines.length ? lines : null;
     }
     case "server_health": {
       const load = data.loadAvg as string[] | undefined;

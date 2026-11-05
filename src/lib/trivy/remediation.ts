@@ -270,7 +270,7 @@ export function buildTrivyRecommendation(
   parts.push(...plan.steps);
   if (plan.redeployHelpsAlone) {
     parts.push(
-      "Guardian: Coolify Force-Rebuild (wenn COOLIFY_API_* gesetzt) — zieht neue Base-Layer",
+      "Guardian: Coolify Force-Rebuild (wenn Server-Coolify-API gesetzt) — zieht neue Base-Layer",
     );
   } else if (plan.kind === "app_deps" || plan.kind === "mixed") {
     parts.push(

@@ -1,10 +1,16 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+} from "react";
 import type { GlobeTint } from "@/lib/geo/attack-markers";
 import {
   attackToXyz,
   sampleLandPoints,
+  SPOT_RADIUS_RAD,
   tintLandColors,
   type TintLayer,
 } from "@/lib/geo/globe-land";
@@ -21,6 +27,11 @@ type Props = {
   interactive?: boolean;
 };
 
+export type MonitorGlobeHandle = {
+  /** Zoom 1 + home-facing orientation + resume auto-spin. */
+  resetView: () => void;
+};
+
 type RayKind = "web" | "session" | "home" | "attack";
 
 const KIND_LABEL: Record<RayKind, string> = {
@@ -30,20 +41,32 @@ const KIND_LABEL: Record<RayKind, string> = {
   attack: "Attack",
 };
 
-/** Stub past the surface (CSS px) — short ray, not infinite. */
-const RAY_EXTEND_PX = 12;
+/** Stub past the surface (CSS px) — short; same-size canvas clips long rays. */
+const RAY_EXTEND_PX = 8;
 /** Great-circle attack → home samples + mid-arc lift above the surface. */
 const ARC_STEPS = 48;
-const ARC_BULGE = 0.22;
+/** Tight bulge — oversized rays canvas caused visible arc/land offset on TVs. */
+const ARC_BULGE = 0.1;
 const ARC_MAX = 14;
-/** Extra paint margin on the rays canvas so arcs aren't clipped at the square edge. */
-const RAY_PAD_FRAC = 0.28;
+/** Rays canvas matches land canvas (pad 0) — no inset/-28% sync bugs. */
+const RAY_PAD_FRAC = 0;
 
 const WEB_CSS = "rgb(180 245 255)";
 const SESSION_CSS = "rgb(90 255 140)";
 const HOME_CSS = "rgb(255 230 90)";
 const ATTACK_CSS = "rgb(255 95 75)";
 const RIPPLE_RGB: [number, number, number] = [1, 0.55, 0.25];
+const WEB_RGB: [number, number, number] = [0.7, 0.96, 1];
+const SESSION_RGB: [number, number, number] = [0.35, 1, 0.55];
+const HOME_RGB: [number, number, number] = [1, 0.9, 0.35];
+const ATTACK_RGB: [number, number, number] = [1, 0.37, 0.29];
+
+function markSpotRgb(kind: RayKind): [number, number, number] {
+  if (kind === "attack") return ATTACK_RGB;
+  if (kind === "session") return SESSION_RGB;
+  if (kind === "home") return HOME_RGB;
+  return WEB_RGB;
+}
 
 /** One look for screensaver, night, and standalone — no per-view dimming. */
 const PALETTE: Record<
@@ -323,6 +346,8 @@ function projectTips(
     const len = Math.hypot(x, y);
     const dx = len < 1e-4 ? 0 : x / len;
     const dy = len < 1e-4 ? -1 : -y / len;
+    // Hit both surface spot center and stub tip — easier region picking
+    out.push({ mark, tipX: sx, tipY: sy, z });
     out.push({
       mark,
       tipX: sx + dx * RAY_EXTEND_PX,
@@ -337,7 +362,7 @@ function nearestTip(
   tips: ProjectedTip[],
   mx: number,
   my: number,
-  maxDist = 28,
+  maxDist = 36,
 ): ProjectedTip | null {
   let best: ProjectedTip | null = null;
   let bestD = maxDist;
@@ -353,10 +378,11 @@ function nearestTip(
 
 function formatHover(mark: RayMark): string {
   const t = mark.tint;
+  const title = t.label && t.label !== t.id ? t.label : t.id;
   const hits = t.hits != null ? ` · ${t.hits} hits` : "";
-  const country = t.country ? ` · ${t.country}` : "";
+  const country = t.country && t.country !== "?" ? ` · ${t.country}` : "";
   const fresh = Math.round(t.freshness * 100);
-  return `${KIND_LABEL[mark.kind]} · ${t.id}${country}${hits} · ${fresh}% fresh`;
+  return `${KIND_LABEL[mark.kind]} · ${title}${country}${hits} · ${fresh}% fresh`;
 }
 
 /** Unit-sphere slerp for great-circle attack arcs. */
@@ -384,10 +410,10 @@ function slerpUnit(
 }
 
 function arcDepthFade(z: number): number {
-  // Soft limb fade — hard z>0 cuts left visible gaps on the silhouette.
-  if (z <= -0.18) return 0;
+  // Soft limb fade — keep slight back-side so arcs aren't chopped mid-path.
+  if (z <= -0.12) return 0;
   if (z >= 0.22) return 1;
-  return (z + 0.18) / 0.4;
+  return (z + 0.12) / 0.34;
 }
 
 /**
@@ -402,8 +428,6 @@ function drawAttackArcs(
   pad: number,
   home: RayMark,
   attacks: RayMark[],
-  now: number,
-  reducedMotion: boolean,
   hoverId: string | null,
 ): void {
   if (!attacks.length) return;
@@ -450,57 +474,24 @@ function drawAttackArcs(
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
     ctx.strokeStyle = hot ? ATTACK_CSS : mark.color;
-    ctx.shadowColor = ATTACK_CSS;
-
-    // Glow pass
-    ctx.lineWidth = hot ? 5 : 3.2;
     ctx.shadowBlur = 0;
-    for (let i = 0; i < pts.length - 1; i++) {
-      const a = pts[i]!;
-      const b = pts[i + 1]!;
-      const fade = (arcDepthFade(a.z) + arcDepthFade(b.z)) * 0.5;
-      if (fade < 0.03) continue;
-      ctx.globalAlpha = baseAlpha * 0.2 * fade;
-      ctx.beginPath();
-      ctx.moveTo(a.sx, a.sy);
-      ctx.lineTo(b.sx, b.sy);
-      ctx.stroke();
-    }
+    ctx.shadowColor = "transparent";
 
-    // Core stroke — continuous on the front, fades behind
     ctx.lineWidth = hot ? 2.4 : 1.55;
-    ctx.shadowBlur = hot ? 16 : 8;
     for (let i = 0; i < pts.length - 1; i++) {
       const a = pts[i]!;
       const b = pts[i + 1]!;
       const fade = (arcDepthFade(a.z) + arcDepthFade(b.z)) * 0.5;
-      if (fade < 0.03) continue;
-      ctx.globalAlpha = baseAlpha * 0.82 * fade;
+      if (fade < 0.04) continue;
+      ctx.globalAlpha = baseAlpha * 0.88 * fade;
       ctx.beginPath();
       ctx.moveTo(a.sx, a.sy);
       ctx.lineTo(b.sx, b.sy);
       ctx.stroke();
     }
-
-    if (!reducedMotion) {
-      const travel =
-        (now * 0.00028 + (mark.tint.id.charCodeAt(0) % 17) * 0.05) % 1;
-      const ti = Math.min(ARC_STEPS, Math.floor(travel * ARC_STEPS));
-      const p = pts[ti]!;
-      const fade = p ? arcDepthFade(p.z) : 0;
-      if (p && fade > 0.2) {
-        ctx.globalAlpha = baseAlpha * fade;
-        ctx.fillStyle = ATTACK_CSS;
-        ctx.shadowColor = ATTACK_CSS;
-        ctx.shadowBlur = 12;
-        ctx.beginPath();
-        ctx.arc(p.sx, p.sy, hot ? 3.2 : 2.2, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-    ctx.shadowBlur = 0;
   }
   ctx.globalAlpha = 1;
+  ctx.shadowBlur = 0;
 }
 
 /**
@@ -514,13 +505,11 @@ function drawRayStubs(
   dpr: number,
   scale: number,
   marks: RayMark[],
-  now: number,
-  reducedMotion: boolean,
   hoverId: string | null = null,
 ): void {
   const pad = css * RAY_PAD_FRAC;
   const full = css + pad * 2;
-  const w = Math.max(1, Math.floor(full * dpr));
+  const w = Math.max(1, Math.round(full * dpr));
   if (ctx.canvas.width !== w || ctx.canvas.height !== w) {
     ctx.canvas.width = w;
     ctx.canvas.height = w;
@@ -532,30 +521,12 @@ function drawRayStubs(
   const home = marks.find((m) => m.kind === "home");
   const attacks = marks.filter((m) => m.kind === "attack");
   if (home) {
-    drawAttackArcs(
-      ctx,
-      rot,
-      css,
-      scale,
-      pad,
-      home,
-      attacks,
-      now,
-      reducedMotion,
-      hoverId,
-    );
+    drawAttackArcs(ctx, rot, css, scale, pad, home, attacks, hoverId);
   }
 
   const cx = pad + css / 2;
   const cy = pad + css / 2;
   const R = (css / 2) * scale;
-  const pulse = reducedMotion
-    ? 1
-    : 0.55 + 0.45 * (0.5 + 0.5 * Math.sin(now * 0.0062));
-  const hoverPulse = reducedMotion
-    ? 1
-    : 0.7 + 0.3 * (0.5 + 0.5 * Math.sin(now * 0.011));
-
   for (const mark of marks) {
     const [x0, y0, z0] = attackToXyz(
       mark.tint.location[0],
@@ -572,11 +543,11 @@ function drawRayStubs(
     const hot = hoverId != null && mark.tint.id === hoverId;
     const dim = hoverId != null && !hot ? 0.28 : 1;
 
+    // Static alpha — pulsing stubs flicker on LED/OLED TVs
     const alpha =
       Math.min(1, Math.max(0.7, mark.tint.weight)) *
       (0.75 + 0.25 * mark.tint.freshness) *
-      (mark.pulse ? pulse : 1) *
-      (hot ? hoverPulse : 1) *
+      (hot ? 1 : 0.92) *
       dim;
 
     const extend = hot ? RAY_EXTEND_PX + 10 : RAY_EXTEND_PX;
@@ -586,48 +557,42 @@ function drawRayStubs(
     ctx.globalAlpha = alpha;
     ctx.strokeStyle = mark.color;
     ctx.fillStyle = mark.color;
-    ctx.shadowColor = mark.color;
-    ctx.shadowBlur = hot ? 22 : mark.pulse ? 14 : 6;
-    ctx.lineWidth = hot ? 3.8 : mark.pulse ? 3.1 : 2.2;
+    ctx.shadowBlur = 0;
+    ctx.lineWidth = hot ? 3.4 : mark.pulse ? 2.6 : 2.0;
     ctx.lineCap = "round";
     ctx.beginPath();
     ctx.moveTo(sx, sy);
     ctx.lineTo(x2, y2);
     ctx.stroke();
     ctx.beginPath();
-    ctx.arc(x2, y2, hot ? 4.2 : mark.pulse ? 3.1 : 2.2, 0, Math.PI * 2);
+    ctx.arc(x2, y2, hot ? 3.8 : mark.pulse ? 2.8 : 2.0, 0, Math.PI * 2);
     ctx.fill();
-
-    if (hot && !reducedMotion) {
-      const ringT = (now % 900) / 900;
-      ctx.globalAlpha = alpha * (1 - ringT) * 0.85;
-      ctx.lineWidth = 2;
-      ctx.shadowBlur = 18;
-      ctx.beginPath();
-      ctx.arc(x2, y2, 4 + ringT * 18, 0, Math.PI * 2);
-      ctx.stroke();
-    }
-    ctx.shadowBlur = 0;
   }
   ctx.globalAlpha = 1;
+  ctx.shadowBlur = 0;
 }
 
 /**
  * Land-dot globe sized to the outermost HUD ring.
  * Overlays: attack→home great-circle arcs + short radial stubs.
  */
-export function MonitorGlobe({
-  status,
-  attackMarkers = [],
-  sessionMarkers = [],
-  webMarkers = [],
-  homeMarker = null,
-  interactive = false,
-}: Props) {
+export const MonitorGlobe = forwardRef<MonitorGlobeHandle, Props>(
+  function MonitorGlobe(
+    {
+      status,
+      attackMarkers = [],
+      sessionMarkers = [],
+      webMarkers = [],
+      homeMarker = null,
+      interactive = false,
+    },
+    ref,
+  ) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rayRef = useRef<HTMLCanvasElement>(null);
   const tipRef = useRef<HTMLDivElement>(null);
+  const resetViewRef = useRef<() => void>(() => {});
   const statusRef = useRef(status);
   const attacksRef = useRef(attackMarkers);
   const sessionsRef = useRef(sessionMarkers);
@@ -641,6 +606,10 @@ export function MonitorGlobe({
   homeRef.current = homeMarker;
   interactiveRef.current = interactive;
 
+  useImperativeHandle(ref, () => ({
+    resetView: () => resetViewRef.current(),
+  }));
+
   useEffect(() => {
     const canvas = canvasRef.current;
     const rayCanvas = rayRef.current;
@@ -650,9 +619,14 @@ export function MonitorGlobe({
 
     const gl = canvas.getContext("webgl", {
       alpha: true,
-      antialias: true,
-      premultipliedAlpha: false,
+      // Antialias at 4K is costly and can shimmer on TVs
+      antialias: false,
+      // Premultiplied composites correctly; false can paint opaque white slabs on TVs
+      premultipliedAlpha: true,
+      powerPreference: "high-performance",
     });
+    // Don't let CSS/JS set --globe-glow into unsupported color-mix paths
+    wrap?.style.removeProperty("--globe-glow");
     const rayCtx = rayCanvas.getContext("2d");
     if (!gl || !rayCtx) return;
 
@@ -678,11 +652,12 @@ export function MonitorGlobe({
     let positions = new Float32Array(0);
     let colors = new Float32Array(0);
     let count = 0;
-    let phi = phiTowardTints([
+    const phi0 = phiTowardTints([
       homeMarker,
       ...sessionMarkers,
       ...attackMarkers,
     ]);
+    let phi = phi0;
     const theta0 = 0.22;
     // Interactive mode accumulates view-space orbit on `rot` (not Euler).
     rotMat(phi, theta0, rot);
@@ -706,6 +681,9 @@ export function MonitorGlobe({
     let pinchStartDist = 0;
     let pinchStartZoom = 1;
     const activePtrs = new Map<number, { x: number; y: number }>();
+    /** Zoom host = rings box so HUD circles scale with the globe. */
+    const zoomHost =
+      (wrap?.closest(".monitor-hud-rings") as HTMLElement | null) ?? wrap;
 
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
     const DRAG_SENS = 0.005;
@@ -713,9 +691,11 @@ export function MonitorGlobe({
     const clampZoom = (z: number) =>
       Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z));
 
-    /** CSS zoom — keeps WebGL inside the canvas so land dots aren't clipped. */
+    /** CSS zoom on rings container — globe + decorative circles stay locked. */
     const applyZoomCss = () => {
-      wrap?.style.setProperty("--globe-zoom", String(zoom));
+      zoomHost?.style.setProperty("--globe-zoom", String(zoom));
+      // Legacy cleanup if an older session set zoom on the globe node.
+      wrap?.style.removeProperty("--globe-zoom");
     };
     applyZoomCss();
 
@@ -759,6 +739,20 @@ export function MonitorGlobe({
       tipEl.dataset.show = "0";
       lastTipId = "";
     };
+
+    const resetView = () => {
+      zoom = 1;
+      applyZoomCss();
+      phi = phi0;
+      rotMat(phi0, theta0, rot);
+      autoSpin = true;
+      if (resumeTimer) {
+        clearTimeout(resumeTimer);
+        resumeTimer = null;
+      }
+      hideTip();
+    };
+    resetViewRef.current = resetView;
 
     const showTip = (hit: ProjectedTip, css: number) => {
       if (!tipEl) return;
@@ -872,10 +866,15 @@ export function MonitorGlobe({
       wrap?.addEventListener("wheel", onWheel, { passive: false });
     }
 
+    let lastCss = 0;
     const syncSize = () => {
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      const css = canvas.offsetWidth || 1;
-      const px = Math.max(1, Math.floor(css * dpr));
+      // Cap DPR — 4K×2 wrecks fill-rate; snap css to avoid 1px resize thrash/flicker
+      const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+      const raw = canvas.clientWidth || canvas.offsetWidth || 1;
+      const css =
+        lastCss > 0 && Math.abs(raw - lastCss) < 1.5 ? lastCss : Math.round(raw);
+      lastCss = css;
+      const px = Math.max(1, Math.round(css * dpr));
       if (canvas.width !== px || canvas.height !== px) {
         canvas.width = px;
         canvas.height = px;
@@ -903,11 +902,41 @@ export function MonitorGlobe({
       if (ripples.length > 12) ripples.splice(0, ripples.length - 12);
     };
 
-    /** Land base + optional ban ripples only — marks are ray stubs, not spots. */
-    const paintLand = (now: number) => {
+    /**
+     * Land base + marker spot patches (hoverable regions) + ban ripples.
+     * Rays stay as stubs; spots tint the land dots around each mark.
+     */
+    const paintLand = (now: number, hoverId: string | null = null) => {
       if (!count) return;
       const p = PALETTE[statusRef.current];
       const layers: TintLayer[] = [];
+
+      const marks = collectRays(
+        webRef.current,
+        sessionsRef.current,
+        homeRef.current,
+        attacksRef.current,
+      );
+      for (const mark of marks) {
+        const [x, y, z] = attackToXyz(
+          mark.tint.location[0],
+          mark.tint.location[1],
+        );
+        const hot = hoverId != null && mark.tint.id === hoverId;
+        const dim = hoverId != null && !hot;
+        const w =
+          Math.min(1, Math.max(0.45, mark.tint.weight)) *
+          (0.55 + 0.45 * mark.tint.freshness) *
+          (hot ? 1.35 : dim ? 0.35 : 0.85);
+        layers.push({
+          centers: new Float32Array([x, y, z]),
+          weights: new Float32Array([w]),
+          rgb: markSpotRgb(mark.kind),
+          mode: "spot",
+          radiusRad: hot ? SPOT_RADIUS_RAD * 1.55 : SPOT_RADIUS_RAD,
+        });
+      }
+
       for (const rip of ripples) {
         const age = (now - rip.t0) / RIPPLE_MS;
         if (age < 0 || age > 1) continue;
@@ -924,30 +953,28 @@ export function MonitorGlobe({
       tintLandColors(positions, colors, p.base, layers);
       gl.bindBuffer(gl.ARRAY_BUFFER, colBuf);
       gl.bufferData(gl.ARRAY_BUFFER, colors, gl.DYNAMIC_DRAW);
-      canvas.style.setProperty("--globe-glow", p.glow);
       lastDataKey = `${tintKey(
         attacksRef.current,
         sessionsRef.current,
         webRef.current,
         homeRef.current,
-      )}#${statusRef.current}`;
+      )}#${statusRef.current}#${hoverId ?? ""}`;
     };
 
-    const tick = () => {
+    let lastFrameAt = 0;
+    // Wall/TV: 30fps is enough and cuts OLED compositing flicker hard
+    const minFrameMs = interactive ? 0 : 1000 / 30;
+
+    const tick = (frameTime = performance.now()) => {
       if (destroyed) return;
+      raf = requestAnimationFrame(tick);
+      if (frameTime - lastFrameAt < minFrameMs) return;
+      lastFrameAt = frameTime;
+
       const { css, dpr } = syncSize();
-      const now = performance.now();
+      const now = frameTime;
 
       syncRipples(now);
-      const nextKey = `${tintKey(
-        attacksRef.current,
-        sessionsRef.current,
-        webRef.current,
-        homeRef.current,
-      )}#${statusRef.current}`;
-      if (nextKey !== lastDataKey || ripples.length > 0) {
-        paintLand(now);
-      }
 
       const canInteract = interactiveRef.current;
       if (!reduced.matches && (!canInteract || (autoSpin && !dragging))) {
@@ -955,9 +982,42 @@ export function MonitorGlobe({
           // Spin around screen-vertical axis (stays upright after pitch).
           orbitBy(0.0024, 0);
         } else {
-          phi += 0.0024;
+          // Wall/TV: slower spin → fewer perceived frame seams
+          phi += 0.0012;
           rotMat(phi, theta0, rot);
         }
+      }
+
+      const marks = collectRays(
+        webRef.current,
+        sessionsRef.current,
+        homeRef.current,
+        attacksRef.current,
+      );
+
+      let hoverId: string | null = null;
+      if (canInteract && !dragging && !pinching && pointerCssX >= 0) {
+        const hit = nearestTip(
+          projectTips(rot, css, marks, GLOBE_SCALE),
+          pointerCssX,
+          pointerCssY,
+        );
+        if (hit) {
+          hoverId = hit.mark.tint.id;
+          showTip(hit, css);
+        } else {
+          hideTip();
+        }
+      }
+
+      const nextKey = `${tintKey(
+        attacksRef.current,
+        sessionsRef.current,
+        webRef.current,
+        homeRef.current,
+      )}#${statusRef.current}#${hoverId ?? ""}`;
+      if (nextKey !== lastDataKey || ripples.length > 0) {
+        paintLand(now, hoverId);
       }
 
       gl.enable(gl.BLEND);
@@ -984,43 +1044,7 @@ export function MonitorGlobe({
 
       if (count > 0) gl.drawArrays(gl.POINTS, 0, count);
 
-      const marks = collectRays(
-        webRef.current,
-        sessionsRef.current,
-        homeRef.current,
-        attacksRef.current,
-      );
-
-      let hoverId: string | null = null;
-      if (canInteract && !dragging && !pinching && pointerCssX >= 0) {
-        const hit = nearestTip(
-          projectTips(rot, css, marks, GLOBE_SCALE),
-          pointerCssX,
-          pointerCssY,
-        );
-        if (hit) {
-          hoverId = hit.mark.tint.id;
-          showTip(hit, css);
-        } else {
-          hideTip();
-        }
-      }
-
-      drawRayStubs(
-        rayCtx,
-        rot,
-        css,
-        dpr,
-        GLOBE_SCALE,
-        marks,
-        now,
-        reduced.matches,
-        hoverId,
-      );
-
-      canvas.classList.add("monitor-hud-globe-canvas--ready");
-      rayCanvas.classList.add("monitor-hud-globe-rays--ready");
-      raf = requestAnimationFrame(tick);
+      drawRayStubs(rayCtx, rot, css, dpr, GLOBE_SCALE, marks, hoverId);
     };
 
     void (async () => {
@@ -1043,6 +1067,9 @@ export function MonitorGlobe({
       destroyed = true;
       cancelAnimationFrame(raf);
       if (resumeTimer) clearTimeout(resumeTimer);
+      resetViewRef.current = () => {};
+      zoomHost?.style.removeProperty("--globe-zoom");
+      wrap?.style.removeProperty("--globe-zoom");
       wrap?.removeEventListener("pointerdown", onPointerDown);
       wrap?.removeEventListener("pointermove", onPointerMove);
       wrap?.removeEventListener("pointerup", onPointerUp);
@@ -1075,4 +1102,5 @@ export function MonitorGlobe({
       )}
     </div>
   );
-}
+  },
+);

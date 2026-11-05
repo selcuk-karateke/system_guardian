@@ -14,6 +14,23 @@
   --warn: #fbbf24;
   --crit: #f87171;
 
+  /* Type/spacing ceilings — raised on QHD/4K so vmin can grow past 1080p caps */
+  --m-cap-2xs: 14px;
+  --m-cap-xs: 16px;
+  --m-cap-sm: 18px;
+  --m-cap-md: 24px;
+  --m-cap-cell: 28px;
+  --m-cap-metric: 34px;
+  --m-cap-badge: 44px;
+  --m-cap-clock: 56px;
+  --m-cap-ring: 48px;
+  --m-cap-stat: 96px;
+  --m-pad-x: 64px;
+  --m-pad-y: 20px;
+  --m-cell-pad-y: 10px;
+  --m-cell-pad-x: 16px;
+  --m-radius-cell: 14px;
+
   position: fixed;
   inset: 0;
   height: 100dvh;
@@ -148,7 +165,10 @@
   top: 46%;
   width: min(85vmin, 78vw);
   aspect-ratio: 1;
-  transform: translate(-50%, -50%);
+  /* Zoom scales globe + HUD rings together (set by interactive globe). */
+  --globe-zoom: 1;
+  transform: translate(-50%, -50%) scale(var(--globe-zoom));
+  transform-origin: center center;
   /* Children opt in (globe); decorative rings stay non-interactive */
   pointer-events: none;
 }
@@ -163,12 +183,45 @@
   top: 50%;
   width: 84%;
   height: 84%;
-  --globe-zoom: 1;
-  transform: translate(-50%, -50%) scale(var(--globe-zoom));
+  transform: translate(-50%, -50%);
   transform-origin: center center;
   /* Decorative BG / screensaver — never capture input */
   pointer-events: none;
   /* no overflow:hidden — ray stubs must stick out past the surface */
+}
+
+/* Soft round halo — no color-mix (spotty on TV Chromium), no canvas box-shadow */
+.monitor-hud-globe::after {
+  content: "";
+  position: absolute;
+  inset: -4%;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgb(56 226 255 / 18%) 0%,
+    rgb(56 226 255 / 6%) 40%,
+    transparent 68%
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+
+.monitor-wall[data-status="warning"] .monitor-hud-globe::after {
+  background: radial-gradient(
+    circle,
+    rgb(251 191 36 / 16%) 0%,
+    rgb(251 191 36 / 5%) 40%,
+    transparent 68%
+  );
+}
+
+.monitor-wall[data-status="critical"] .monitor-hud-globe::after {
+  background: radial-gradient(
+    circle,
+    rgb(248 113 113 / 16%) 0%,
+    rgb(248 113 113 / 5%) 40%,
+    transparent 68%
+  );
 }
 
 .monitor-hud-globe[data-interactive="1"] {
@@ -176,8 +229,6 @@
   cursor: grab;
   touch-action: none;
   z-index: 2;
-  /* Allow CSS zoom to paint outside the ring box */
-  will-change: transform;
 }
 
 /* Standalone: don't clip the CSS-zoomed sphere (hud was overflow:hidden) */
@@ -192,6 +243,31 @@
 .monitor-hud-rings--focus {
   width: min(92vmin, 86vw);
   top: 50%;
+  will-change: transform;
+}
+
+.monitor-globe-reset {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  padding: 0.35em 0.75em;
+  border: 1px solid rgb(34 211 238 / 25%);
+  border-radius: 999px;
+  background: rgb(34 211 238 / 8%);
+  color: var(--hud-cyan);
+  font-family: var(--monitor-sans);
+  font-size: clamp(11px, 1.1vmin, var(--m-cap-sm));
+  line-height: 1;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.monitor-globe-reset:hover {
+  background: rgb(34 211 238 / 16%);
+  border-color: rgb(34 211 238 / 45%);
 }
 
 /* Standalone Globus: full-opacity stage + brighter wash */
@@ -367,56 +443,35 @@
 .monitor-hud-globe-rays {
   position: absolute;
   inset: 0;
+  z-index: 1;
   width: 100%;
   height: 100%;
   display: block;
-  opacity: 0;
-  transform: scale(0.92);
-  filter: blur(6px);
-  transition:
-    opacity 0.85s cubic-bezier(0.2, 0.75, 0.2, 1),
-    transform 0.95s cubic-bezier(0.16, 1, 0.3, 1),
-    filter 0.85s cubic-bezier(0.2, 0.75, 0.2, 1);
-}
-
-.monitor-hud-globe-canvas--ready,
-.monitor-hud-globe-rays--ready {
+  background: transparent;
+  /* No blur/scale intro — that white shaking slab on TV boot */
   opacity: 1;
-  transform: scale(1);
-  filter: blur(0)
-    drop-shadow(0 0 28px var(--globe-glow, rgb(56 226 255 / 70%)))
-    drop-shadow(0 0 72px var(--globe-glow, rgb(34 211 238 / 45%)));
+  filter: none;
+  transform: none;
 }
 
 .monitor-hud-globe-rays {
-  /* Larger than land canvas so attack arcs aren't square-clipped mid-flight */
-  inset: -28%;
-  width: auto;
-  height: auto;
+  /* Same box as land canvas — oversized inset caused arcs to drift off the globe */
+  inset: 0;
+  width: 100%;
+  height: 100%;
   z-index: 1;
-  transition-delay: 120ms;
-  overflow: visible;
-}
-
-.monitor-hud-globe-rays--ready {
-  transition-delay: 120ms;
-  filter: blur(0);
 }
 
 @media (prefers-reduced-motion: reduce) {
   .monitor-globe-tip,
-  .monitor-mode-btn,
-  .monitor-hud-globe-canvas,
-  .monitor-hud-globe-rays {
+  .monitor-mode-btn {
     transition: opacity 0.2s ease !important;
     animation: none !important;
     filter: none !important;
     transform: none !important;
   }
 
-  .monitor-globe-tip[data-show="1"],
-  .monitor-hud-globe-canvas--ready,
-  .monitor-hud-globe-rays--ready {
+  .monitor-globe-tip[data-show="1"] {
     opacity: 1;
   }
 }
@@ -780,11 +835,14 @@
 
 .monitor-glass {
   position: relative;
-  background: rgba(10, 12, 22, 0.28);
+  /* Solid dark fill — never rely on backdrop-filter (TVs often paint it as a white slab) */
+  background: rgba(10, 12, 22, 0.82);
   border: 1px solid var(--glass-edge);
   box-shadow:
     0 20px 60px rgba(0, 0, 0, 0.35),
     inset 0 1px 0 var(--glass-shine);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .monitor-glass::before,
@@ -794,18 +852,8 @@
   width: clamp(10px, 1.2vmin, 18px);
   height: clamp(10px, 1.2vmin, 18px);
   pointer-events: none;
+  /* Static — opacity pulse flickers on LED/OLED TVs */
   opacity: 0.55;
-  animation: monitor-corner-pulse 3.5s ease-in-out infinite;
-}
-
-@keyframes monitor-corner-pulse {
-  0%,
-  100% {
-    opacity: 0.45;
-  }
-  50% {
-    opacity: 0.85;
-  }
 }
 
 .monitor-glass::before {
@@ -834,16 +882,29 @@
   opacity: 0.5;
 }
 
-@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .monitor-glass {
-    background: linear-gradient(
-      145deg,
-      rgba(255, 255, 255, 0.14) 0%,
-      rgba(255, 255, 255, 0.05) 100%
-    );
-    backdrop-filter: blur(40px) saturate(160%);
-    -webkit-backdrop-filter: blur(40px) saturate(160%);
-  }
+/* No backdrop-filter anywhere on the wall — smart-TV Chromium draws it as opaque white */
+
+/* Drop animated chrome (flicker on LED/OLED) */
+.monitor-hud-ring,
+.monitor-hud-ring--1,
+.monitor-hud-ring--2,
+.monitor-hud-ring--3,
+.monitor-stat-ring-tick,
+.monitor-hud-scan,
+.monitor-aurora,
+.monitor-hud-grid,
+.monitor-wave,
+.monitor-bg {
+  animation: none !important;
+}
+
+.monitor-hud-scan {
+  opacity: 0;
+}
+
+.monitor-aurora {
+  filter: none;
+  opacity: 0.18;
 }
 
 /* header */
@@ -851,13 +912,13 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: clamp(10px, 1.2vh, 20px) clamp(24px, 3vw, 64px);
+  padding: clamp(10px, 1.2vh, var(--m-pad-y)) clamp(24px, 3vw, var(--m-pad-x));
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .monitor-brand {
   font-family: var(--monitor-sans);
-  font-size: clamp(14px, 1.4vmin, 26px);
+  font-size: clamp(14px, 1.4vmin, var(--m-cap-md));
   color: var(--muted);
 }
 
@@ -868,7 +929,7 @@
 }
 
 .monitor-host {
-  font-size: clamp(12px, 1.2vmin, 22px);
+  font-size: clamp(12px, 1.2vmin, var(--m-cap-md));
   color: var(--muted);
   font-family: var(--monitor-mono);
   margin-top: 2px;
@@ -882,7 +943,7 @@
 
 .monitor-clock {
   font-family: var(--monitor-mono);
-  font-size: clamp(24px, 3vmin, 56px);
+  font-size: clamp(24px, 3vmin, var(--m-cap-clock));
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.04em;
@@ -891,7 +952,7 @@
 }
 
 .monitor-top-link {
-  font-size: clamp(11px, 1.1vmin, 18px);
+  font-size: clamp(11px, 1.1vmin, var(--m-cap-sm));
   color: var(--muted);
   text-decoration: none;
 }
@@ -906,7 +967,7 @@
   background: rgb(34 211 238 / 8%);
   color: var(--hud-cyan);
   font-family: var(--monitor-sans);
-  font-size: clamp(11px, 1.1vmin, 18px);
+  font-size: clamp(11px, 1.1vmin, var(--m-cap-sm));
   line-height: 1;
   cursor: pointer;
   transition:
@@ -943,7 +1004,7 @@
 
 /* STATUS BAND — display type scales to available width (not full band) */
 .monitor-status-band {
-  margin: clamp(6px, 0.8vh, 12px) clamp(24px, 3vw, 64px) 0;
+  margin: clamp(6px, 0.8vh, 12px) clamp(24px, 3vw, var(--m-pad-x)) 0;
   padding: clamp(12px, 1.6vh, 26px) clamp(20px, 2.5vw, 48px);
   border-radius: clamp(16px, 2vmin, 28px);
   display: flex;
@@ -997,36 +1058,17 @@
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
-  animation: monitor-display-glow 4.5s ease-in-out infinite;
-}
-
-.monitor-status-sub {
-  margin-top: 0.35rem;
-  font-size: clamp(0.7rem, 1.2cqi, 0.95rem);
-  letter-spacing: 0.04em;
-  color: rgb(161 161 170);
-}
-
-@keyframes monitor-display-glow {
-  0%,
-  100% {
-    filter: brightness(1);
-  }
-  50% {
-    filter: brightness(1.12);
-  }
+  /* No brightness pulse — TV compositors flicker on animated filters */
 }
 
 .monitor-display--healthy {
   color: var(--hud-cyan);
-  text-shadow:
-    0 0 60px rgb(34 211 238 / 45%),
-    0 0 100px rgb(74 222 128 / 25%);
+  text-shadow: 0 0 24px rgb(34 211 238 / 28%);
 }
 
 .monitor-display--warning {
   color: var(--warn);
-  text-shadow: 0 0 80px rgba(251, 191, 36, 0.45);
+  text-shadow: 0 0 28px rgba(251, 191, 36, 0.28);
 }
 
 .monitor-display--critical {
@@ -1050,7 +1092,7 @@
   padding: 0.35em 0.85em;
   border-radius: 999px;
   font-family: var(--monitor-mono);
-  font-size: clamp(18px, 2.2vmin, 44px);
+  font-size: clamp(18px, 2.2vmin, var(--m-cap-badge));
   font-weight: 700;
   border: 1px solid;
 }
@@ -1073,6 +1115,117 @@
   border-color: rgba(248, 113, 113, 0.45);
 }
 
+/* Live job replaces ROUTINE → SCAN/CHECK in the hero (no extra badge) */
+.monitor-status-band--busy {
+  border-color: rgba(34, 211, 238, 0.42);
+}
+
+.monitor-display--busy {
+  color: rgb(103 232 249);
+  text-shadow: 0 0 28px rgb(34 211 238 / 35%);
+}
+
+.monitor-status-sub {
+  margin: 0.35em 0 0;
+  font-family: var(--monitor-mono);
+  font-size: clamp(13px, 1.45vmin, 28px);
+  color: rgb(148 163 184);
+  letter-spacing: 0.04em;
+  line-height: 1.35;
+}
+
+.monitor-status-band--busy .monitor-status-sub {
+  color: rgb(186 230 253);
+}
+
+/* Glyph scramble ticker (live job blurb) */
+.monitor-glyph-ticker-wrap {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  vertical-align: baseline;
+}
+
+.monitor-glyph-ticker {
+  display: inline-block;
+  color: rgb(226 232 240);
+  text-shadow:
+    0 0 10px rgba(34, 211, 238, 0.45),
+    0 0 4px rgba(74, 222, 128, 0.35);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.monitor-glyph-ticker > span {
+  display: inline-block;
+  transform: translateX(0.55em) scale(0.92);
+  transition: transform 0.5s cubic-bezier(0.2, 0.75, 0.2, 1);
+  will-change: transform, opacity;
+}
+
+.monitor-glyph-ticker > span.is-space {
+  transform: none;
+  width: 0.35em;
+}
+
+.monitor-glyph-ticker > span.done {
+  color: rgb(134 239 172);
+  text-shadow:
+    0 0 12px rgba(74, 222, 128, 0.55),
+    0 0 4px rgba(34, 211, 238, 0.35);
+  transform: translateX(0) scale(1);
+}
+
+.monitor-glyph-ticker-scan {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(
+    transparent 0%,
+    rgba(6, 18, 14, 0.45) 50%
+  );
+  background-size: 100% 2px;
+  opacity: 0.55;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .monitor-glyph-ticker > span {
+    transform: none;
+    transition: none;
+  }
+
+  .monitor-glyph-ticker-scan {
+    display: none;
+  }
+}
+
+.monitor-live-action {
+  color: rgb(103 232 249);
+  letter-spacing: 0.08em;
+}
+
+.monitor-status-egress {
+  margin-top: 0.35em;
+  font-size: clamp(13px, 1.4vmin, 26px);
+  font-family: var(--monitor-mono);
+  color: rgb(148 163 184);
+  letter-spacing: 0.02em;
+}
+
+.monitor-status-egress--muted {
+  color: rgb(82 92 112);
+}
+
+.monitor-status-egress--hot {
+  color: rgb(251 191 36);
+  text-shadow: 0 0 18px rgba(251, 191, 36, 0.25);
+}
+
+.monitor-status-band--egress-hot {
+  border-color: rgba(251, 191, 36, 0.35);
+}
+
 .monitor-status-meta {
   margin-top: 0.5em;
   font-size: clamp(12px, 1.3vmin, 24px);
@@ -1085,10 +1238,10 @@
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: clamp(8px, 1vmin, 16px);
-  padding: clamp(6px, 0.8vh, 14px) clamp(24px, 3vw, 64px);
+  padding: clamp(6px, 0.8vh, 14px) clamp(24px, 3vw, var(--m-pad-x));
   min-height: 0;
-  /* Platz an Modul-Grid abgeben (8 Kacheln/Spalte) */
-  max-height: min(18vh, 200px);
+  /* Enough room for value + 2 detail lines — old 18vh/200px clipped on TV */
+  max-height: min(22vh, var(--m-metrics-max, 260px));
 }
 
 .monitor-stat {
@@ -1099,7 +1252,7 @@
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
-  gap: 0.35em;
+  gap: 0.25em;
   overflow: hidden;
 }
 
@@ -1127,8 +1280,8 @@
 
 .monitor-stat-ring {
   flex-shrink: 0;
-  width: clamp(52px, 7vmin, 96px);
-  height: clamp(52px, 7vmin, 96px);
+  width: clamp(52px, 7vmin, var(--m-cap-stat));
+  height: clamp(52px, 7vmin, var(--m-cap-stat));
 }
 
 .monitor-stat-ring-track {
@@ -1151,37 +1304,23 @@
   stroke-width: 5;
   stroke-linecap: round;
   transition: stroke-dasharray 0.5s ease;
-  animation: monitor-ring-pulse 2.8s ease-in-out infinite;
-}
-
-@keyframes monitor-ring-pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.7;
-  }
 }
 
 .monitor-stat-ring-fill--ok {
   stroke: var(--ok);
-  filter: drop-shadow(0 0 6px rgb(74 222 128 / 55%));
 }
 
 .monitor-stat-ring-fill--warn {
   stroke: var(--warn);
-  filter: drop-shadow(0 0 6px rgb(251 191 36 / 50%));
 }
 
 .monitor-stat-ring-fill--crit {
   stroke: var(--crit);
-  filter: drop-shadow(0 0 8px rgb(248 113 113 / 55%));
 }
 
 .monitor-stat-label {
   font-family: var(--monitor-mono);
-  font-size: clamp(12px, 1.35vmin, 24px);
+  font-size: clamp(12px, 1.35vmin, var(--m-cap-md));
   font-weight: 600;
   letter-spacing: 0.16em;
   text-transform: uppercase;
@@ -1190,19 +1329,19 @@
 
 .monitor-stat-value {
   font-family: var(--monitor-mono);
-  font-size: min(9vmin, 11vh, 88px);
+  font-size: min(7.5vmin, 9vh, var(--m-cap-stat-value, 72px));
   font-weight: 700;
-  line-height: 1;
+  line-height: 1.05;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.02em;
   max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  /* Prefer wrapping over "2.26 / …" ellipsis on narrow cards */
+  overflow: visible;
   text-shadow: 0 0 20px rgb(34 211 238 / 15%);
 }
 
 .monitor-stat-value--text {
-  font-size: min(7vmin, 8vh, 64px);
+  font-size: min(6.5vmin, 7.5vh, var(--m-cap-stat-text, 56px));
   letter-spacing: 0.01em;
   white-space: nowrap;
 }
@@ -1219,14 +1358,23 @@
 .monitor-stat-details {
   display: flex;
   flex-direction: column;
-  gap: 0.15em;
-  margin-top: 0.35em;
+  gap: 0.1em;
+  margin-top: 0.2em;
   font-family: var(--monitor-mono);
-  font-size: clamp(14px, 1.75vmin, 34px);
+  font-size: clamp(12px, 1.4vmin, var(--m-cap-metric));
   font-weight: 500;
   color: rgba(255, 255, 255, 0.72);
-  line-height: 1.25;
-  min-height: 1.25em;
+  line-height: 1.2;
+  min-height: 0;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.monitor-stat-details > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .monitor-stat--warn {
@@ -1245,7 +1393,7 @@
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: clamp(6px, 0.7vmin, 12px);
-  padding: 0 clamp(24px, 3vw, 64px) clamp(6px, 0.8vh, 10px);
+  padding: 0 clamp(24px, 3vw, var(--m-pad-x)) clamp(6px, 0.8vh, 10px);
   align-content: stretch;
 }
 
@@ -1283,8 +1431,9 @@
   height: 100%;
   max-height: 100%;
   overflow: hidden;
-  padding: clamp(4px, 0.55vh, 10px) clamp(8px, 1.2vmin, 16px);
-  border-radius: clamp(8px, 0.9vmin, 14px);
+  padding: clamp(6px, 0.7vh, var(--m-cell-pad-y))
+    clamp(10px, 1.4vmin, var(--m-cell-pad-x));
+  border-radius: clamp(8px, 0.9vmin, var(--m-radius-cell));
 }
 
 a.monitor-cell-link {
@@ -1318,7 +1467,7 @@ a.monitor-cell-link:focus-visible {
 
 .monitor-cell-name {
   font-family: var(--monitor-sans);
-  font-size: clamp(12px, 1.55vmin, 28px);
+  font-size: clamp(12px, 1.55vmin, var(--m-cap-cell));
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1346,13 +1495,13 @@ a.monitor-cell-link:focus-visible {
 }
 
 .monitor-cell-details--many .monitor-cell-detail {
-  font-size: clamp(9px, 1vmin, 16px);
+  font-size: clamp(9px, 1vmin, var(--m-cap-xs));
   line-height: 1.1;
 }
 
 .monitor-cell-detail {
   font-family: var(--monitor-mono);
-  font-size: clamp(10px, 1.15vmin, 18px);
+  font-size: clamp(10px, 1.15vmin, var(--m-cap-sm));
   color: rgba(255, 255, 255, 0.72);
   line-height: 1.15;
   min-width: 0;
@@ -1372,7 +1521,7 @@ a.monitor-cell-link:focus-visible {
 .monitor-cell-status {
   flex-shrink: 0;
   font-family: var(--monitor-mono);
-  font-size: clamp(9px, 1.1vmin, 18px);
+  font-size: clamp(9px, 1.1vmin, var(--m-cap-sm));
   font-weight: 700;
   letter-spacing: 0.08em;
   line-height: 1;
@@ -1383,30 +1532,17 @@ a.monitor-cell-link:focus-visible {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: clamp(28px, 3.2vmin, 48px);
-  height: clamp(28px, 3.2vmin, 48px);
+  align-self: center;
+  width: clamp(28px, 3.2vmin, var(--m-cap-ring));
+  height: clamp(28px, 3.2vmin, var(--m-cap-ring));
   flex-shrink: 0;
   border-radius: 50%;
   border: 2px solid currentColor;
+  /* Static glow — animated box-shadow pulses flicker on TVs */
   box-shadow:
-    0 0 16px currentColor,
-    inset 0 0 12px rgb(255 255 255 / 6%);
+    0 0 12px currentColor,
+    inset 0 0 8px rgb(255 255 255 / 5%);
   background: rgb(0 0 0 / 25%);
-  animation: monitor-status-ring-pulse 3.2s ease-in-out infinite;
-}
-
-@keyframes monitor-status-ring-pulse {
-  0%,
-  100% {
-    box-shadow:
-      0 0 14px currentColor,
-      inset 0 0 10px rgb(255 255 255 / 5%);
-  }
-  50% {
-    box-shadow:
-      0 0 26px currentColor,
-      inset 0 0 16px rgb(255 255 255 / 8%);
-  }
 }
 
 .monitor-cell--healthy {
@@ -1463,11 +1599,11 @@ a.monitor-cell-link:focus-visible {
 
 /* footer */
 .monitor-bottom {
-  margin: 0 clamp(24px, 3vw, 64px) clamp(10px, 1.2vh, 20px);
+  margin: 0 clamp(24px, 3vw, var(--m-pad-x)) clamp(10px, 1.2vh, 20px);
   padding: clamp(12px, 1.4vh, 20px) clamp(18px, 2vmin, 32px);
   border-radius: clamp(12px, 1.4vmin, 18px);
   font-family: var(--monitor-sans);
-  font-size: clamp(15px, 1.6vmin, 30px);
+  font-size: clamp(15px, 1.6vmin, var(--m-cap-metric));
   font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1887,5 +2023,99 @@ a.monitor-cell-link:focus-visible {
   .monitor-display,
   .monitor-cell-status {
     text-shadow: none;
+  }
+}
+
+/*
+ * TV flicker: kill short opacity/shadow pulses (PWM + 4K compositing).
+ * Slow ambient motion (aurora / rings spin / waves) stays.
+ */
+.monitor-wall .monitor-cell-status-ring,
+.monitor-wall .monitor-stat-ring-fill,
+.monitor-wall .monitor-glass::before,
+.monitor-wall .monitor-glass::after,
+.monitor-wall .monitor-display {
+  animation: none;
+}
+
+.monitor-wall .monitor-display {
+  filter: none;
+}
+
+.monitor-wall .monitor-cell-status-ring {
+  box-shadow:
+    0 0 16px currentColor,
+    inset 0 0 12px rgb(255 255 255 / 6%);
+}
+
+.monitor-bottom-row {
+  transition:
+    color 0.45s ease,
+    border-color 0.45s ease,
+    background 0.45s ease;
+}
+
+.monitor-bottom-text,
+.monitor-bottom-link {
+  transition: opacity 0.35s ease;
+}
+
+/* QHD — lift 1080p ceilings so vmin can grow */
+@media (min-width: 2560px) {
+  .monitor-wall {
+    --m-cap-2xs: 20px;
+    --m-cap-xs: 22px;
+    --m-cap-sm: 26px;
+    --m-cap-md: 34px;
+    --m-cap-cell: 40px;
+    --m-cap-metric: 44px;
+    --m-cap-badge: 56px;
+    --m-cap-clock: 80px;
+    --m-cap-ring: 64px;
+    --m-cap-stat: 120px;
+    --m-cap-stat-value: 96px;
+    --m-cap-stat-text: 72px;
+    --m-pad-x: 80px;
+    --m-pad-y: 28px;
+    --m-cell-pad-y: 14px;
+    --m-cell-pad-x: 22px;
+    --m-radius-cell: 18px;
+    --m-metrics-max: 320px;
+  }
+
+  .monitor-display {
+    font-size: min(18cqi, 11vh, 180px);
+  }
+}
+
+/* 4K TV — readable from sofa distance */
+@media (min-width: 3840px) {
+  .monitor-wall {
+    --m-cap-2xs: 26px;
+    --m-cap-xs: 28px;
+    --m-cap-sm: 34px;
+    --m-cap-md: 44px;
+    --m-cap-cell: 52px;
+    --m-cap-metric: 56px;
+    --m-cap-badge: 72px;
+    --m-cap-clock: 104px;
+    --m-cap-ring: 80px;
+    --m-cap-stat: 140px;
+    --m-cap-stat-value: 120px;
+    --m-cap-stat-text: 88px;
+    --m-pad-x: 96px;
+    --m-pad-y: 36px;
+    --m-cell-pad-y: 18px;
+    --m-cell-pad-x: 28px;
+    --m-radius-cell: 22px;
+    --m-metrics-max: 400px;
+  }
+
+  .monitor-display {
+    font-size: min(18cqi, 12vh, 220px);
+  }
+
+  .monitor-status-sub {
+    font-size: clamp(0.85rem, 1.3cqi, 1.5rem);
   }
 }

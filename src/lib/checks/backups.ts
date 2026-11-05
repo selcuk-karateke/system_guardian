@@ -1,8 +1,6 @@
 import {
   getBackupMaxAgeDays,
   getBackupMinSizeWarningBytes,
-  getBackupMonitoringDir,
-  getBackupPaths,
   getBackupRunMaxAgeHours,
 } from "@/lib/config";
 import {
@@ -11,6 +9,7 @@ import {
   backupSmallRecommendation,
   backupStaleRecommendation,
 } from "@/lib/protect/playbooks";
+import { resolveBackupConfig } from "@/lib/servers-backup";
 import { getSshClient } from "@/lib/ssh";
 import { evaluateBackupMonitoring } from "./backup-monitoring";
 import type { AlertInput, CheckResult } from "./types";
@@ -204,12 +203,14 @@ function monitoringPayload(
   };
 }
 
-async function fetchBackupMonitoring(serverId: string): Promise<{
+async function fetchBackupMonitoring(
+  serverId: string,
+  dir: string,
+): Promise<{
   statusRaw: string;
   healthRaw: string;
   dir: string;
 } | null> {
-  const dir = getBackupMonitoringDir();
   if (!dir) return null;
   const ssh = await getSshClient(serverId);
   const q = shellQuote(dir);
@@ -225,7 +226,8 @@ async function fetchBackupMonitoring(serverId: string): Promise<{
 }
 
 export async function runBackupsCheck(serverId: string): Promise<CheckResult> {
-  const configuredPaths = getBackupPaths();
+  const backupCfg = await resolveBackupConfig(serverId);
+  const configuredPaths = backupCfg.paths;
   const paths = await expandBackupPaths(serverId, configuredPaths);
   const maxAgeDays = getBackupMaxAgeDays();
   const minWarningBytes = getBackupMinSizeWarningBytes();
@@ -233,7 +235,10 @@ export async function runBackupsCheck(serverId: string): Promise<CheckResult> {
   const alerts: AlertInput[] = [];
   const pathResults: Record<string, unknown> = {};
 
-  const monFetch = await fetchBackupMonitoring(serverId).catch(() => null);
+  const monFetch = await fetchBackupMonitoring(
+    serverId,
+    backupCfg.monitoringDir,
+  ).catch(() => null);
   const monitoring = monFetch
     ? evaluateBackupMonitoring({
         statusRaw: monFetch.statusRaw,
@@ -256,8 +261,8 @@ export async function runBackupsCheck(serverId: string): Promise<CheckResult> {
       alerts: [
         {
           level: "critical",
-          message: "No backup paths resolved from BACKUP_PATHS",
-          recommendation: `Check BACKUP_PATHS (${configuredPaths.join(", ")})`,
+          message: "No backup paths resolved for this server",
+          recommendation: `Einstellungen → Server → Backup-Pfade prüfen (${configuredPaths.join(", ") || "leer"})`,
         },
         ...alerts,
       ],
@@ -294,7 +299,7 @@ export async function runBackupsCheck(serverId: string): Promise<CheckResult> {
       alerts.push({
         level: "warning",
         message: `No backup files in ${scan.path}`,
-        recommendation: "Confirm path exists or add to BACKUP_PATHS",
+        recommendation: "Pfad prüfen oder unter Einstellungen → Server ergänzen",
       });
     }
   }

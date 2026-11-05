@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { AppShell } from "@/components/dashboard/app-shell";
+import { BackgroundJobsOverlay } from "@/components/jobs/background-jobs-overlay";
 import "./globals.css";
 import "./dashboard.css";
 
@@ -31,6 +32,7 @@ export default function RootLayout({
     >
       <body className="h-full overflow-hidden bg-zinc-950 text-zinc-100">
         <AppShell>{children}</AppShell>
+        <BackgroundJobsOverlay />
       </body>
     </html>
   );

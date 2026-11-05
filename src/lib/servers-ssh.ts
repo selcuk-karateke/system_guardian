@@ -145,14 +145,30 @@ export async function listServersSshStatus() {
       sshPort: servers.sshPort,
       sshPrivateKeyEnc: servers.sshPrivateKeyEnc,
       sshPasswordEnc: servers.sshPasswordEnc,
+      coolifyApiUrl: servers.coolifyApiUrl,
+      coolifyApiTokenEnc: servers.coolifyApiTokenEnc,
+      backupPaths: servers.backupPaths,
+      backupMonitoringDir: servers.backupMonitoringDir,
+      backupTriggerCommand: servers.backupTriggerCommand,
     })
     .from(servers)
     .where(eq(servers.isActive, true))
     .orderBy(desc(servers.createdAt));
 
-  return rows.map(({ sshPrivateKeyEnc, sshPasswordEnc, ...r }) => ({
-    ...r,
-    hasKey: Boolean(sshPrivateKeyEnc),
-    hasPassword: Boolean(sshPasswordEnc),
-  }));
+  return rows.map(
+    ({
+      sshPrivateKeyEnc,
+      sshPasswordEnc,
+      coolifyApiTokenEnc,
+      backupTriggerCommand,
+      ...r
+    }) => ({
+      ...r,
+      hasKey: Boolean(sshPrivateKeyEnc),
+      hasPassword: Boolean(sshPasswordEnc),
+      hasCoolifyToken: Boolean(coolifyApiTokenEnc),
+      hasBackupTrigger: Boolean(backupTriggerCommand?.trim()),
+      backupTriggerCommand: backupTriggerCommand?.trim() || null,
+    }),
+  );
 }

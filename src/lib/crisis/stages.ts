@@ -56,9 +56,10 @@ const UNKNOWN_ROOT_RE =
  * Order: explicit S1 → S2 → S3 → default S4.
  */
 export function resolveCrisisStage(alert: CrisisAlertLike): CrisisStage {
-  const module = alert.module.trim().toLowerCase();
-  const level = alert.level.trim().toLowerCase();
-  const message = alert.message;
+  if (!alert?.module || alert.level == null) return 4;
+  const module = String(alert.module).trim().toLowerCase();
+  const level = String(alert.level).trim().toLowerCase();
+  const message = alert.message ?? "";
 
   if (STAGE1_MSG_RE.test(message)) return 1;
   if (module === "logins" && UNKNOWN_ROOT_RE.test(message)) return 1;
@@ -68,6 +69,14 @@ export function resolveCrisisStage(alert: CrisisAlertLike): CrisisStage {
       module === "ssh_keys" ||
       module === "security_posture" ||
       module === "scanner")
+  ) {
+    return 1;
+  }
+  // Volume exfil (egress spike) — same urgency as keyword S1
+  if (
+    level === "critical" &&
+    (module === "network" || module === "server_health") &&
+    /egress|datenabfluss|exfil/i.test(message)
   ) {
     return 1;
   }

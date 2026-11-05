@@ -4,6 +4,7 @@ import {
   profileAllowsModule,
   type MonitorProfile,
 } from "@/lib/monitor-profiles";
+import { ensureRuntimeConfig } from "@/lib/runtime-config";
 import { getServerById } from "@/lib/servers";
 import type { CheckResult, CheckRunner } from "./types";
 import { runBackupsCheck } from "./backups";
@@ -74,6 +75,7 @@ function filterChecks(
 export async function runServerCheckBatch(
   serverId: string,
 ): Promise<CheckResult[]> {
+  await ensureRuntimeConfig().catch(() => null);
   const profile = await resolveProfile(serverId);
   const results: CheckResult[] = [];
   for (const { run } of filterChecks(SERVER_CHECKS, profile)) {
@@ -85,6 +87,7 @@ export async function runServerCheckBatch(
 export async function runSecurityCheckBatch(
   serverId: string,
 ): Promise<CheckResult[]> {
+  await ensureRuntimeConfig().catch(() => null);
   const profile = await resolveProfile(serverId);
   const results: CheckResult[] = [];
   for (const { run } of filterChecks(SECURITY_CHECKS, profile)) {

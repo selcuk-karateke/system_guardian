@@ -5,11 +5,14 @@ import { MonitorGlobe } from "./monitor-globe";
 import { MonitorHeroMetric } from "./monitor-metric";
 import { MonitorModeSwitch } from "./monitor-mode-switch";
 import { MonitorReloadButton } from "./monitor-reload-button";
+import {
+  MonitorStatusBand,
+  type MonitorEgressInfo,
+} from "./monitor-status-band";
 import { MonitorTile } from "./monitor-tile";
 import type { GlobeTint } from "@/lib/geo/attack-markers";
 import type { MonitorMetricCards } from "@/lib/monitor-details";
 import {
-  CRISIS_STAGE_META,
   crisisStageHeroLabel,
   crisisStageToWallTone,
   type CrisisStage,
@@ -71,6 +74,7 @@ type Props = {
   sessionMarkers?: GlobeTint[];
   webMarkers?: GlobeTint[];
   homeMarker?: GlobeTint | null;
+  egress?: MonitorEgressInfo | null;
 };
 
 export function MonitorWall({
@@ -88,6 +92,7 @@ export function MonitorWall({
   sessionMarkers = [],
   webMarkers = [],
   homeMarker = null,
+  egress = null,
 }: Props) {
   const wallTone = crisisStageToWallTone(crisisStage);
   const hero = crisisStageHeroLabel(crisisStage);
@@ -153,36 +158,14 @@ export function MonitorWall({
           </div>
         </header>
 
-        <section
-          className={`monitor-glass monitor-status-band monitor-status-band--${wallTone}`}
-        >
-          <div className="monitor-status-main">
-            <p className={`monitor-display monitor-display--${wallTone}`}>
-              {hero}
-            </p>
-            {crisisStage != null && (
-              <p className="monitor-status-sub">
-                {CRISIS_STAGE_META[crisisStage].blurb}
-              </p>
-            )}
-          </div>
-          <div className="monitor-status-side">
-            <div className="monitor-badges">
-              <span className="monitor-badge monitor-badge--ok">
-                {counts.ok} OK
-              </span>
-              <span className="monitor-badge monitor-badge--warn">
-                {counts.s4 + counts.s3} S3–4
-              </span>
-              <span className="monitor-badge monitor-badge--crit">
-                {counts.s2 + counts.s1} S1–2
-              </span>
-            </div>
-            <p className="monitor-status-meta">
-              {lastCheck ? lastCheck.toLocaleString("en-US") : "—"} · 30s
-            </p>
-          </div>
-        </section>
+        <MonitorStatusBand
+          wallTone={wallTone}
+          crisisStage={crisisStage}
+          hero={hero}
+          counts={counts}
+          lastCheck={lastCheck}
+          egress={egress}
+        />
 
         <section className="monitor-metrics">
           <MonitorHeroMetric
@@ -231,7 +214,7 @@ export function MonitorWall({
         </main>
 
         <footer className="monitor-glass monitor-bottom">
-          <MonitorAlertTicker alerts={alerts} intervalMs={3000} />
+          <MonitorAlertTicker alerts={alerts} intervalMs={6000} />
         </footer>
       </div>
     </div>

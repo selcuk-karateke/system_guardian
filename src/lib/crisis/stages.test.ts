@@ -31,6 +31,18 @@ describe("resolveCrisisStage", () => {
     );
   });
 
+  it("maps critical egress / Datenabfluss to S1", () => {
+    assert.equal(
+      resolveCrisisStage({
+        module: "network",
+        level: "critical",
+        message:
+          "Möglicher Datenabfluss: Egress 180.0 Mbit/s · 3.0 GB in 15 Min · eth0",
+      }),
+      1,
+    );
+  });
+
   it("maps FIM critical to S1", () => {
     assert.equal(
       resolveCrisisStage({

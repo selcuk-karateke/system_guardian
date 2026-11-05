@@ -91,7 +91,7 @@ export function SshPresenceCard({ data }: { data: LoginsPresenceData | undefined
         <section className="space-y-2">
           <h3 className="text-sm font-medium text-zinc-200">Aktive Sessions</h3>
           <MiniTable
-            headers={["Benutzer", "Von", "TTY", "Idle", "Was", "Trust"]}
+            headers={["Benutzer", "Von", "Key", "TTY", "Idle", "Was", "Trust"]}
             empty="Keine aktiven Sessions (who/w leer)."
             rows={sessions.map((s) => [
               <span key="u" className="font-mono text-zinc-100">
@@ -99,6 +99,19 @@ export function SshPresenceCard({ data }: { data: LoginsPresenceData | undefined
               </span>,
               <span key="f" className="font-mono">
                 {s.fromMasked}
+              </span>,
+              <span
+                key="k"
+                className="font-mono text-zinc-400 max-w-[10rem] truncate inline-block"
+                title={
+                  s.keyFingerprint
+                    ? `${s.keyType ?? "key"} ${s.keyFingerprint}`
+                    : undefined
+                }
+              >
+                {s.keyFingerprint
+                  ? `${s.keyType ? `${s.keyType} · ` : ""}${s.keyFingerprint.replace(/^SHA256:/, "").slice(0, 12)}…`
+                  : "—"}
               </span>,
               s.tty,
               s.idle ?? "—",

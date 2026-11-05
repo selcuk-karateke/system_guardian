@@ -1,12 +1,12 @@
 "use client";
 
 import { Fragment, useEffect, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { runContainerTrivyScan } from "@/app/actions/docker-trivy";
 import { triggerCoolifyRedeployAction } from "@/app/actions/protect";
 import { CollapsibleSection } from "@/components/dashboard/collapsible-section";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { wakeBackgroundJobsOverlay } from "@/lib/jobs/wake-client";
 import type { DockerInventoryGroup } from "@/lib/docker/inventory";
 import {
   findScanForContainer,
@@ -67,7 +67,6 @@ export function DockerInventoryPanel({
   serverId,
   coolifyRedeployReady = false,
 }: Props) {
-  const router = useRouter();
   const [scansByImage, setScansByImage] = useState(initialScans);
   const [activeScan, setActiveScan] = useState<string | null>(null);
   const [activeRedeploy, setActiveRedeploy] = useState<string | null>(null);
@@ -77,7 +76,7 @@ export function DockerInventoryPanel({
   );
   const [pending, startTransition] = useTransition();
 
-  // Batch-Scan / Reset → router.refresh() liefert neue Props — State muss mit.
+  // Overlay refresh / page props update → keep local scan map in sync.
   useEffect(() => {
     setScansByImage(initialScans);
   }, [initialScans]);
@@ -120,33 +119,17 @@ export function DockerInventoryPanel({
         if (!result.ok) {
           setStatus(containerName, { kind: "error", text: result.message });
           setExpanded(containerName);
-          router.refresh();
           return;
         }
-        setScansByImage((prev) => ({
-          ...prev,
-          [imageRef]: result.record,
-          [result.record.imageRef]: result.record,
-          [result.record.imageDigest]: result.record,
-        }));
-        const liveKey = result.record.containerName;
-        const plan = buildRemediationPlan(result.record.findings);
-        const bits = [
-          result.cached ? "Cache" : "Scan ok",
-          `${result.record.durationMs}ms`,
-          `CRIT ${result.record.criticalCount}`,
-          `HIGH ${result.record.highCount}`,
-        ];
-        if (result.remappedFrom) bits.push("Name aktualisiert");
-        setStatus(liveKey, {
-          kind: "ok",
-          text: bits.join(" · "),
+        setStatus(containerName, {
+          kind: "info",
+          text: result.message,
         });
-        if (liveKey !== containerName) setStatus(containerName, null);
-        setExpanded(liveKey);
-        // Keep primary action in status only via detail panel, not prose dump.
-        void plan;
-        router.refresh();
+        setExpanded(containerName);
+        wakeBackgroundJobsOverlay({
+          label: "Trivy-Scan",
+          detail: containerName,
+        });
       } catch (e) {
         setActiveScan(null);
         setStatus(containerName, {
@@ -170,12 +153,15 @@ export function DockerInventoryPanel({
         setActiveRedeploy(null);
         setStatus(containerName, {
           kind: result.ok ? "info" : "error",
-          text: result.ok
-            ? "Deploy gestartet — hilft nur mit neuem Image (Lockfile-Commit). Dann Scan Neu."
-            : result.message,
+          text: result.message,
         });
         setExpanded(containerName);
-        router.refresh();
+        if (result.ok) {
+          wakeBackgroundJobsOverlay({
+            label: "Coolify Redeploy",
+            detail: containerName,
+          });
+        }
       } catch (e) {
         setActiveRedeploy(null);
         setStatus(containerName, {

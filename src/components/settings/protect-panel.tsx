@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { triggerBackupAction } from "@/app/actions/protect";
+import { wakeBackgroundJobsOverlay } from "@/lib/jobs/wake-client";
 import { Button } from "@/components/ui/button";
 
 type Props = {
@@ -38,8 +39,8 @@ export function ProtectPanel({
           <p className="text-xs text-zinc-500 mt-1">
             Nur IPs aus <code className="text-zinc-400">BLOCKED_REMOTE_IPS</code>.
             Opt-in: <code className="text-zinc-400">AUTO_BLOCK_ENABLED=true</code>
-            {", "}Jail <code className="text-zinc-400">AUTO_BLOCK_JAIL</code> (Standard sshd).
-            Audit unter /history (category protect).
+            {", "}Jail <code className="text-zinc-400">AUTO_BLOCK_JAIL</code>{" "}
+            (Standard sshd). Audit unter /history (category protect).
           </p>
         </li>
         <li>
@@ -55,8 +56,8 @@ export function ProtectPanel({
             </p>
           )}
           <p className="text-xs text-zinc-500 mt-1">
-            Env <code className="text-zinc-400">BACKUP_TRIGGER_COMMAND</code> =
-            absoluter Pfad auf dem SSH-Host. Restore führt Guardian nie aus.
+            Pro Server unter <strong className="text-zinc-400">Einstellungen → Server → Bearbeiten</strong>.
+            Restore führt Guardian nie aus.
           </p>
         </li>
         <li>
@@ -72,11 +73,9 @@ export function ProtectPanel({
             </p>
           )}
           <p className="text-xs text-zinc-500 mt-1">
-            <code className="text-zinc-400">COOLIFY_API_URL</code> +{" "}
-            <code className="text-zinc-400">COOLIFY_API_TOKEN</code> (Deploy-Recht).
-            Button <strong className="text-zinc-400">Rebuild</strong> auf /docker.
-            App-CVEs (next, auth, …): erst Lockfile committen, dann Rebuild — sonst
-            ändert sich nichts.
+            Pro Server URL + Token. Button{" "}
+            <strong className="text-zinc-400">Rebuild</strong> auf /docker.
+            App-CVEs: erst Lockfile committen, dann Rebuild.
           </p>
         </li>
         <li className="text-xs text-zinc-500">
@@ -97,6 +96,9 @@ export function ProtectPanel({
               const result = await triggerBackupAction();
               setIsError(!result.ok);
               setMessage(result.message);
+              if (result.ok) {
+                wakeBackgroundJobsOverlay({ label: "Backup" });
+              }
             });
           }}
         >

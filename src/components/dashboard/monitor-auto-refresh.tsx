@@ -1,21 +1,29 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { startTransition, useEffect, useRef } from "react";
 
 export function MonitorAutoRefresh({
   children,
-  intervalSec = 30,
+  intervalSec = 60,
 }: {
   children: React.ReactNode;
   intervalSec?: number;
 }) {
   const router = useRouter();
+  const routerRef = useRef(router);
+  routerRef.current = router;
 
   useEffect(() => {
-    const id = setInterval(() => router.refresh(), intervalSec * 1000);
+    const ms = Math.max(15, intervalSec) * 1000;
+    const id = setInterval(() => {
+      // Non-urgent refresh — avoids hard UI flash every cycle (esp. 4K TV).
+      startTransition(() => {
+        routerRef.current.refresh();
+      });
+    }, ms);
     return () => clearInterval(id);
-  }, [router, intervalSec]);
+  }, [intervalSec]);
 
   return <>{children}</>;
 }

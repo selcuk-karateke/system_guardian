@@ -41,6 +41,13 @@ export const servers = pgTable("servers", {
   sshPort: integer("ssh_port"),
   sshPrivateKeyEnc: text("ssh_private_key_enc"),
   sshPasswordEnc: text("ssh_password_enc"),
+  /** Per-server Coolify API (Slice 2). Token encrypted at rest. */
+  coolifyApiUrl: varchar("coolify_api_url", { length: 512 }),
+  coolifyApiTokenEnc: text("coolify_api_token_enc"),
+  /** Per-server backup config (Slice 3). Null = ENV fallback until seeded. */
+  backupPaths: text("backup_paths"),
+  backupMonitoringDir: varchar("backup_monitoring_dir", { length: 512 }),
+  backupTriggerCommand: text("backup_trigger_command"),
   isActive: boolean("is_active").default(true).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

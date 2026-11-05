@@ -10,6 +10,7 @@ info:
     - Status-API: `Authorization: Bearer <API_SECRET>`
     - Health: öffentlich
     - History: Dashboard-Session (Cookie), wenn Auth aktiv ist
+    - Jobs: Dashboard-Session (Cookie), wenn Auth aktiv ist
   contact:
     name: System Guardian Ops
 servers:
@@ -20,6 +21,7 @@ tags:
   - name: Status
   - name: Cron
   - name: History
+  - name: Jobs
 paths:
   /api/health:
     get:
@@ -144,6 +146,34 @@ paths:
           description: Unauthorized
         "500":
           description: Report fehlgeschlagen
+
+  /api/jobs:
+    get:
+      tags: [Jobs]
+      summary: Hintergrund-Aufgaben (Checks, Scans, Backup, Redeploy)
+      description: |
+        Prozess-lokale Job-Liste für das Overlay. Bei aktivem Dashboard-Login:
+        Session-Cookie nötig.
+      operationId: getJobs
+      responses:
+        "200":
+          description: Aktive und kürzlich beendete Jobs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  active:
+                    type: boolean
+                  jobs:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+        "401":
+          description: Unauthorized (wenn Auth aktiv)
 
   /api/history:
     get:

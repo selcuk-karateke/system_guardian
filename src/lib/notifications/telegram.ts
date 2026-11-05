@@ -1,16 +1,17 @@
+import { resolveTelegramCreds } from "./config";
+
 export async function sendTelegram(message: string): Promise<boolean> {
-  const token = process.env.TELEGRAM_BOT_TOKEN;
-  const chatId = process.env.TELEGRAM_CHAT_ID;
-  if (!token || !chatId) return false;
+  const creds = await resolveTelegramCreds();
+  if (!creds) return false;
 
   try {
     const res = await fetch(
-      `https://api.telegram.org/bot${token}/sendMessage`,
+      `https://api.telegram.org/bot${creds.botToken}/sendMessage`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          chat_id: chatId,
+          chat_id: creds.chatId,
           text: message,
           parse_mode: "HTML",
           disable_web_page_preview: true,
@@ -27,23 +28,23 @@ export async function sendTelegram(message: string): Promise<boolean> {
 export async function sendTelegramWithDetail(
   message: string,
 ): Promise<{ ok: boolean; error?: string }> {
-  const token = process.env.TELEGRAM_BOT_TOKEN?.trim();
-  const chatId = process.env.TELEGRAM_CHAT_ID?.trim();
-  if (!token || !chatId) {
+  const creds = await resolveTelegramCreds();
+  if (!creds) {
     return {
       ok: false,
-      error: "TELEGRAM_BOT_TOKEN oder TELEGRAM_CHAT_ID fehlt in .env.local",
+      error:
+        "Telegram nicht konfiguriert — unter Einstellungen → Benachrichtigungen setzen",
     };
   }
 
   try {
     const res = await fetch(
-      `https://api.telegram.org/bot${token}/sendMessage`,
+      `https://api.telegram.org/bot${creds.botToken}/sendMessage`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          chat_id: chatId,
+          chat_id: creds.chatId,
           text: message,
           parse_mode: "HTML",
           disable_web_page_preview: true,

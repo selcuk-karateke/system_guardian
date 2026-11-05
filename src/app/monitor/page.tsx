@@ -161,6 +161,27 @@ export default async function MonitorPage({
     uptimeFormatted,
   );
 
+  const egressSrc =
+    checkData.server_health ?? checkData.network ?? undefined;
+  const egress =
+    egressSrc && typeof egressSrc.egressTxMbps === "number"
+      ? {
+          txMbps: egressSrc.egressTxMbps as number,
+          txBytes:
+            typeof egressSrc.egressTxBytes === "number"
+              ? (egressSrc.egressTxBytes as number)
+              : undefined,
+          windowSec:
+            typeof egressSrc.egressWindowSec === "number"
+              ? (egressSrc.egressWindowSec as number)
+              : undefined,
+          iface:
+            typeof egressSrc.egressIface === "string"
+              ? (egressSrc.egressIface as string)
+              : null,
+        }
+      : null;
+
   const homeIpCandidate =
     overview?.server?.ipv4 ??
     (sshHost && /^\d{1,3}(?:\.\d{1,3}){3}$/.test(sshHost) ? sshHost : null);
@@ -175,7 +196,7 @@ export default async function MonitorPage({
   const wallTone = crisisStageToWallTone(crisisStage);
 
   return (
-    <MonitorAutoRefresh intervalSec={30}>
+    <MonitorAutoRefresh intervalSec={60}>
       <div className="px-4 pt-3 flex justify-end">
         <Suspense fallback={null}>
           <ServerSelect
@@ -216,6 +237,7 @@ export default async function MonitorPage({
           sessionMarkers={sessionMarkers}
           webMarkers={webMarkers}
           homeMarker={homeMarker}
+          egress={egress}
         />
       </MonitorTvProtection>
     </MonitorAutoRefresh>

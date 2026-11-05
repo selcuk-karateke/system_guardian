@@ -2,7 +2,7 @@
 
 ## Multi-server truth (read this)
 
-Slice 1: per-server SSH via `await getSshClient(serverId)` + encrypted DB secrets. Global `SSH_*` is fallback/seed only. Coolify/backup knobs still global. Details: `.cursor/rules/multi-server-truth.mdc`.
+SSH / Coolify / Backup / Notify / Thresholds / Trusted IPs live in DB (Settings UI). ENV is deploy-runtime only (`DATABASE_URL`, `CHECK_MODE`, `CRON_SECRET`, `AUTH_*`). Details: `.cursor/rules/multi-server-truth.mdc`.
 
 ## Start here
 

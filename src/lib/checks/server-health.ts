@@ -2,6 +2,7 @@ import { db } from "@/db";
 import { metricsSnapshots } from "@/db/schema";
 import { THRESHOLDS, worstStatus } from "@/lib/config";
 import { getSshClient } from "@/lib/ssh";
+import { sampleHostEgress } from "./egress-traffic";
 import type { AlertInput, CheckResult } from "./types";
 
 function parseMemPercent(freeOut: string): { ram: number; swap: number } {
@@ -110,14 +111,18 @@ export async function runServerHealthCheck(
   const ssh = await getSshClient(serverId);
   const alerts: AlertInput[] = [];
 
-  const [uptime, loadavg, free, df, sensors, nprocOut] = await Promise.all([
-    ssh.exec("uptime"),
-    ssh.exec("cat /proc/loadavg"),
-    ssh.exec("free -b"),
-    ssh.exec("df -hP"),
-    ssh.exec("sensors 2>/dev/null || echo ''"),
-    ssh.exec("nproc"),
-  ]);
+  const [uptime, loadavg, free, df, sensors, nprocOut, egress] =
+    await Promise.all([
+      ssh.exec("uptime"),
+      ssh.exec("cat /proc/loadavg"),
+      ssh.exec("free -b"),
+      ssh.exec("df -hP"),
+      ssh.exec("sensors 2>/dev/null || echo ''"),
+      ssh.exec("nproc"),
+      sampleHostEgress(serverId, ssh).catch(() => null),
+    ]);
+
+  if (egress?.alerts.length) alerts.push(...egress.alerts);
 
   const loadParts = loadavg.stdout.trim().split(/\s+/);
   const cpuCores = Math.max(1, parseInt(nprocOut.stdout.trim(), 10) || 1);
@@ -230,6 +235,10 @@ export async function runServerHealthCheck(
       uptimeSeconds: uptimeSec,
       temperatureCelsius: temp,
       networkOk: true,
+      egressTxMbps: egress?.delta?.txMbps,
+      egressTxBytes: egress?.delta?.txBytes,
+      egressWindowSec: egress?.delta?.seconds,
+      egressIface: egress?.delta?.topTxIface,
     },
     alerts,
   };

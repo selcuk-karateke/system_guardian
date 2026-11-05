@@ -1,5 +1,3 @@
-import { existsSync, readFileSync } from "fs";
-import { resolve } from "path";
 import type { servers } from "@/db/schema";
 import { decryptSecret } from "@/lib/crypto/secret";
 
@@ -24,26 +22,14 @@ function normalizeKey(raw: string): string {
   return key;
 }
 
-function envPrivateKey(): string | undefined {
-  const keyPath = process.env.SSH_PRIVATE_KEY_PATH;
-  if (keyPath) {
-    const full = resolve(/* turbopackIgnore: true */ process.cwd(), keyPath);
-    if (existsSync(full)) return normalizeKey(readFileSync(full, "utf8"));
-  }
-  const inline = process.env.SSH_PRIVATE_KEY?.trim();
-  return inline ? normalizeKey(inline) : undefined;
-}
-
-/** Build SSH target from server row; fall back to global SSH_* if row has no secrets. */
+/** Build SSH target from server row only (no ENV fallback). */
 export function resolveSshTarget(server: ServerRow): SshTarget {
-  const host =
-    (server.ipv4?.trim() || server.host.trim() || process.env.SSH_HOST || "").trim();
-  const username =
-    (server.sshUser?.trim() || process.env.SSH_USER || "root").trim();
+  const host = (server.ipv4?.trim() || server.host.trim() || "").trim();
+  const username = (server.sshUser?.trim() || "root").trim();
   const port =
     server.sshPort && server.sshPort > 0 && server.sshPort < 65536
       ? server.sshPort
-      : parseInt(process.env.SSH_PORT ?? "22", 10) || 22;
+      : 22;
 
   let privateKey: string | undefined;
   let password: string | undefined;
@@ -71,14 +57,9 @@ export function resolveSshTarget(server: ServerRow): SshTarget {
     }
   }
 
-  if (!privateKey && !password) {
-    privateKey = envPrivateKey();
-    password = process.env.SSH_PASSWORD || undefined;
-  }
-
   if (!host || (!privateKey && !password)) {
     throw new Error(
-      `SSH für „${server.name}“ unvollständig — in Einstellungen Key hinterlegen oder SSH_* Env setzen`,
+      `SSH für „${server.name}“ unvollständig — unter Einstellungen → Server Key/Passwort hinterlegen`,
     );
   }
 

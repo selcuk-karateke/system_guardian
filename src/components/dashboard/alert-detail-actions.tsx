@@ -7,6 +7,7 @@ import { dismissAlert } from "@/app/actions/alerts";
 import { triggerBackupAction } from "@/app/actions/protect";
 import { CopyReportButton } from "@/components/dashboard/copy-report-button";
 import { Button } from "@/components/ui/button";
+import { wakeBackgroundJobsOverlay } from "@/lib/jobs/wake-client";
 
 export function AlertDetailActions({
   alertId,
@@ -43,7 +44,9 @@ export function AlertDetailActions({
               startTransition(async () => {
                 const result = await triggerBackupAction(serverId);
                 setBackupMsg(result.message);
-                router.refresh();
+                if (result.ok) {
+                  wakeBackgroundJobsOverlay({ label: "Backup" });
+                }
               });
             }}
           >
