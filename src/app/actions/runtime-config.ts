@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { requireSettingsWrite } from "@/lib/auth/require-role";
 import {
   DEFAULT_THRESHOLDS,
   type ThresholdKey,
@@ -24,6 +25,8 @@ function revalidate() {
 export async function updateThresholdsAction(
   formData: FormData,
 ): Promise<RuntimeConfigActionResult> {
+  const gate = await requireSettingsWrite();
+  if (!gate.ok) return { ok: false, message: gate.message };
   try {
     const patch: Partial<ThresholdsMap> = {};
     for (const key of Object.keys(DEFAULT_THRESHOLDS) as ThresholdKey[]) {
@@ -49,6 +52,8 @@ export async function updateThresholdsAction(
 export async function updateTrustedIpsAction(
   formData: FormData,
 ): Promise<RuntimeConfigActionResult> {
+  const gate = await requireSettingsWrite();
+  if (!gate.ok) return { ok: false, message: gate.message };
   try {
     await updateTrustedConfig({
       loginIpsRaw: String(formData.get("loginIps") ?? ""),

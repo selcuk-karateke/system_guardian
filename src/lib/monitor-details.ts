@@ -580,6 +580,10 @@ function formatModuleDetailLinesFromData(
       const eff = data.effectiveLoadPercent as number | undefined;
       const t = data.temperatureCelsius as number | undefined;
       const kernel = data.kernel as string | undefined;
+      const topTalker =
+        typeof data.topTalker === "string" ? data.topTalker : null;
+      const egressTx =
+        typeof data.egressTxMbps === "number" ? data.egressTxMbps : null;
       const fs = data.filesystems as
         | { filesystem?: string; usePercent?: number }[]
         | undefined;
@@ -590,12 +594,19 @@ function formatModuleDetailLinesFromData(
         | { name?: string; linkUp?: boolean }[]
         | undefined;
       const lines: string[] = [];
+      // Prefer egress/talker when hot — load alone misleads on S1 exfil tiles.
+      if (topTalker) {
+        // kind + path/cmdline can be long — keep readable on tiles
+        lines.push(shortenLabel(topTalker, 72));
+      } else if (egressTx != null && egressTx >= 15) {
+        lines.push(`↑ ${egressTx.toFixed(1)} Mbit/s`);
+      }
       if (load?.[0] && cores) {
         lines.push(`load ${formatLoadNumber(load[0])}/${cores}`);
       } else if (load?.[0]) {
         lines.push(`load ${formatLoadNumber(load[0])}`);
       }
-      if (eff != null) lines.push(`${eff}% effective`);
+      if (eff != null && !topTalker) lines.push(`${eff}% effective`);
       if (t != null) lines.push(`${t}°C`);
       if (fs?.length) {
         const hottest = [...fs].sort(

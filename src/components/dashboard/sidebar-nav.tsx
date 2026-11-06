@@ -19,6 +19,7 @@ import {
   Shield,
   type LucideIcon,
 } from "lucide-react";
+import { SgScrollRail } from "@/components/ui/sg-scroll-rail";
 import { cn } from "@/lib/utils";
 
 type NavItem = {
@@ -187,7 +188,7 @@ export function SidebarNav({
         </p>
       )}
 
-      <div className="sg-sidebar-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 pb-2 pt-1">
+      <SgScrollRail className="sg-sidebar-scroll min-h-0 flex-1 px-2 pb-1 pt-1">
         {NAV_GROUPS.map((group) => {
           const groupActive = group.id === contextGroup;
           return (
@@ -245,7 +246,7 @@ export function SidebarNav({
             </div>
           );
         })}
-      </div>
+      </SgScrollRail>
     </nav>
   );
 }

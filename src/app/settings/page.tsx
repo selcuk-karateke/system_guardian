@@ -3,6 +3,8 @@ import { NotificationSettingsPanel } from "@/components/settings/notification-se
 import { ProtectPanel } from "@/components/settings/protect-panel";
 import { RuntimeConfigPanel } from "@/components/settings/runtime-config-panel";
 import { ServerAdminPanel } from "@/components/settings/server-admin-panel";
+import { TotpSetupPanel } from "@/components/settings/totp-setup-panel";
+import { UsersAdminPanel } from "@/components/settings/users-admin-panel";
 import { getProtectStatusAction } from "@/app/actions/protect";
 import { getDomains } from "@/lib/dashboard-data";
 import { getNotificationPublicStatus } from "@/lib/notifications/status";
@@ -13,6 +15,15 @@ import {
   getRuntimeConfigSnapshot,
 } from "@/lib/runtime-config";
 import { listServersSshStatus } from "@/lib/servers-ssh";
+import { getSessionUser } from "@/lib/auth/session";
+import {
+  getUserRole,
+  isTotpRequired,
+  listAuthUsers,
+  roleCanManageUsers,
+  roleCanWriteSettings,
+  syncEnvUsersToDb,
+} from "@/lib/auth/users";
 
 export default async function SettingsPage() {
   let domains: Awaited<ReturnType<typeof getDomains>> = [];
@@ -26,6 +37,14 @@ export default async function SettingsPage() {
 
   await ensureRuntimeConfig().catch(() => null);
   const runtime = getRuntimeConfigSnapshot();
+
+  const sessionUser = await getSessionUser();
+  await syncEnvUsersToDb().catch(() => null);
+  const role = sessionUser ? await getUserRole(sessionUser) : "admin";
+  const totpEnabled = sessionUser
+    ? await isTotpRequired(sessionUser).catch(() => false)
+    : false;
+  const users = await listAuthUsers().catch(() => []);
 
   const [notificationStatus, protect] = await Promise.all([
     getNotificationPublicStatus().catch(() => ({
@@ -48,10 +67,42 @@ export default async function SettingsPage() {
 
   const checkMode = getCheckMode();
   const sshHost = null;
+  const canWrite = roleCanWriteSettings(role);
 
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold">Einstellungen</h1>
+
+      {!canWrite && (
+        <p className="text-sm text-amber-400 rounded-lg border border-amber-900/50 bg-amber-950/30 px-3 py-2">
+          Rolle <span className="font-mono">{role}</span> — nur Lesen. Änderungen
+          speichern Admins/Operators.
+        </p>
+      )}
+
+      {sessionUser && (
+        <Card id="security-2fa">
+          <CardHeader>
+            <CardTitle>Sicherheit · 2FA</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <TotpSetupPanel username={sessionUser} totpEnabled={totpEnabled} />
+          </CardContent>
+        </Card>
+      )}
+
+      <Card id="users">
+        <CardHeader>
+          <CardTitle>Benutzer & Rollen</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <UsersAdminPanel
+            users={users}
+            currentUser={sessionUser ?? ""}
+            canManage={sessionUser ? roleCanManageUsers(role) : false}
+          />
+        </CardContent>
+      </Card>
 
       <Card id="protect">
         <CardHeader>

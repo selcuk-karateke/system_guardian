@@ -176,7 +176,7 @@ function checkOpenApi() {
   }
   const yaml = read(specPath);
   const specPaths = new Set<string>();
-  for (const m of yaml.matchAll(/^\s+(\/api\/[a-z0-9\-_/]+):/gm)) {
+  for (const m of yaml.matchAll(/^\s+(\/api\/[a-z0-9\-_/./]+):/gm)) {
     specPaths.add(m[1]);
   }
 

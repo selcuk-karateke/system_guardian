@@ -86,6 +86,12 @@ export type EgressThresholds = {
   mbCritical: number;
   /** Ignore windows shorter than this (seconds). */
   minWindowSec: number;
+  /**
+   * Volume (MB) thresholds only apply when the sample window is ≤ this.
+   * Longer gaps (e.g. 14h after cron pause) use rate (Mbit/s) only —
+   * otherwise normal overnight traffic trips "Datenabfluss" S1.
+   */
+  maxVolumeWindowSec: number;
 };
 
 export const DEFAULT_EGRESS_THRESHOLDS: EgressThresholds = {
@@ -94,6 +100,7 @@ export const DEFAULT_EGRESS_THRESHOLDS: EgressThresholds = {
   mbWarning: 400,
   mbCritical: 2048,
   minWindowSec: 60,
+  maxVolumeWindowSec: 20 * 60,
 };
 
 /**
@@ -119,6 +126,7 @@ export function evaluateEgressDelta(
   const rxMbps = (rxBytes * 8) / seconds / 1e6;
   const txMb = txBytes / (1024 * 1024);
   const topTxIface = topTxInterface(prev, curr);
+  const useVolume = seconds <= thresholds.maxVolumeWindowSec;
 
   const alerts: AlertInput[] = [];
   const windowLabel =
@@ -128,10 +136,12 @@ export function evaluateEgressDelta(
   const ifaceHint = topTxIface ? ` · ${topTxIface}` : "";
 
   const critical =
-    txMbps >= thresholds.mbpsCritical || txMb >= thresholds.mbCritical;
+    txMbps >= thresholds.mbpsCritical ||
+    (useVolume && txMb >= thresholds.mbCritical);
   const warning =
     !critical &&
-    (txMbps >= thresholds.mbpsWarning || txMb >= thresholds.mbWarning);
+    (txMbps >= thresholds.mbpsWarning ||
+      (useVolume && txMb >= thresholds.mbWarning));
 
   if (critical) {
     alerts.push({
@@ -163,6 +173,7 @@ export function egressThresholdsFromEnv(): EgressThresholds {
     mbWarning: THRESHOLDS.egressMbWarning(),
     mbCritical: THRESHOLDS.egressMbCritical(),
     minWindowSec: 60,
+    maxVolumeWindowSec: DEFAULT_EGRESS_THRESHOLDS.maxVolumeWindowSec,
   };
 }
 

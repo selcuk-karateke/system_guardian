@@ -87,6 +87,7 @@ type Props = {
   webMarkers?: GlobeTint[];
   homeMarker?: GlobeTint | null;
   egress?: MonitorEgressInfo | null;
+  serverId?: string | null;
 };
 
 export function MonitorWall({
@@ -106,6 +107,7 @@ export function MonitorWall({
   webMarkers = [],
   homeMarker = null,
   egress = null,
+  serverId = null,
 }: Props) {
   const wallTone = crisisStageToWallTone(crisisStage);
   const hero = crisisStageHeroLabel(crisisStage);
@@ -181,6 +183,7 @@ export function MonitorWall({
           counts={counts}
           lastCheck={lastCheck}
           egress={egress}
+          serverId={serverId}
         />
 
         <section className="monitor-metrics">

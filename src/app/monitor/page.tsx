@@ -190,6 +190,10 @@ export default async function MonitorPage({
             typeof egressSrc.egressIface === "string"
               ? (egressSrc.egressIface as string)
               : null,
+          topTalker:
+            typeof egressSrc.topTalker === "string"
+              ? (egressSrc.topTalker as string)
+              : null,
         }
       : null;
 
@@ -250,6 +254,7 @@ export default async function MonitorPage({
           webMarkers={webMarkers}
           homeMarker={homeMarker}
           egress={egress}
+          serverId={selectedServerId}
         />
       </MonitorTvProtection>
     </MonitorAutoRefresh>

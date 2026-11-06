@@ -150,10 +150,16 @@ export async function listServersSshStatus() {
       backupPaths: servers.backupPaths,
       backupMonitoringDir: servers.backupMonitoringDir,
       backupTriggerCommand: servers.backupTriggerCommand,
+      agentTokenHash: servers.agentTokenHash,
+      agentLastSeenAt: servers.agentLastSeenAt,
+      agentVersion: servers.agentVersion,
     })
     .from(servers)
     .where(eq(servers.isActive, true))
     .orderBy(desc(servers.createdAt));
+
+  const freshMs = 30_000;
+  const now = Date.now();
 
   return rows.map(
     ({
@@ -161,6 +167,8 @@ export async function listServersSshStatus() {
       sshPasswordEnc,
       coolifyApiTokenEnc,
       backupTriggerCommand,
+      agentTokenHash,
+      agentLastSeenAt,
       ...r
     }) => ({
       ...r,
@@ -169,6 +177,11 @@ export async function listServersSshStatus() {
       hasCoolifyToken: Boolean(coolifyApiTokenEnc),
       hasBackupTrigger: Boolean(backupTriggerCommand?.trim()),
       backupTriggerCommand: backupTriggerCommand?.trim() || null,
+      hasAgentToken: Boolean(agentTokenHash),
+      agentLastSeenAt: agentLastSeenAt?.toISOString() ?? null,
+      agentOnline: Boolean(
+        agentLastSeenAt && now - agentLastSeenAt.getTime() < freshMs,
+      ),
     }),
   );
 }

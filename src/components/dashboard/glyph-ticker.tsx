@@ -13,19 +13,22 @@ type Props = {
   className?: string;
   /** Scramble frames per letter before lock-in */
   cycleCount?: number;
-  /** Pause before looping the scramble again */
+  /** Pause before looping the scramble again (ignored when loop=false) */
   loopDelayMs?: number;
+  /** When false, settle once and stop (status blurbs — no “Next_” forever). */
+  loop?: boolean;
 };
 
 /**
  * Hacker-style glyph scramble → settle (CodePen lettering ticker, no jQuery).
- * Loops while mounted; respects prefers-reduced-motion.
+ * Optional loop; respects prefers-reduced-motion.
  */
 export function GlyphTicker({
   text,
   className,
   cycleCount = 5,
   loopDelayMs = 900,
+  loop: shouldLoop = true,
 }: Props) {
   const rootRef = useRef<HTMLSpanElement>(null);
 
@@ -111,12 +114,14 @@ export function GlyphTicker({
           curr.classList.add("done");
         }
         letterCurrent++;
-      } else {
+      } else if (shouldLoop) {
         resetTimer = setTimeout(() => {
           if (cancelled) return;
           resetLetters();
           raf = requestAnimationFrame(loop);
         }, loopDelayMs);
+        return;
+      } else {
         return;
       }
 
@@ -130,7 +135,7 @@ export function GlyphTicker({
       cancelAnimationFrame(raf);
       if (resetTimer) clearTimeout(resetTimer);
     };
-  }, [text, cycleCount, loopDelayMs]);
+  }, [text, cycleCount, loopDelayMs, shouldLoop]);
 
   return (
     <span

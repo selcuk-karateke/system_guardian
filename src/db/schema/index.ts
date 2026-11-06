@@ -48,6 +48,10 @@ export const servers = pgTable("servers", {
   backupPaths: text("backup_paths"),
   backupMonitoringDir: varchar("backup_monitoring_dir", { length: 512 }),
   backupTriggerCommand: text("backup_trigger_command"),
+  /** Metrics agent (outbound push). Token hashed at rest; plaintext only on mint. */
+  agentTokenHash: text("agent_token_hash"),
+  agentLastSeenAt: timestamp("agent_last_seen_at"),
+  agentVersion: varchar("agent_version", { length: 32 }),
   isActive: boolean("is_active").default(true).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -132,6 +136,21 @@ export const snapshots = pgTable("snapshots", {
 export const settings = pgTable("settings", {
   key: varchar("key", { length: 128 }).primaryKey(),
   value: jsonb("value").$type<unknown>().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+/**
+ * Dashboard users: password in ENV and/or password_hash here.
+ * TOTP secret encrypted; role gates Settings mutations.
+ */
+export const authUsers = pgTable("auth_users", {
+  username: varchar("username", { length: 64 }).primaryKey(),
+  /** scrypt hash — null = password only from AUTH_USERS / AUTH_USERNAME */
+  passwordHash: text("password_hash"),
+  role: varchar("role", { length: 16 }).default("admin").notNull(),
+  totpSecretEnc: text("totp_secret_enc"),
+  totpEnabled: boolean("totp_enabled").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 

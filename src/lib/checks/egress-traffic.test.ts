@@ -45,6 +45,7 @@ describe("evaluateEgressDelta", () => {
       mbWarning: 400,
       mbCritical: 2048,
       minWindowSec: 60,
+      maxVolumeWindowSec: 20 * 60,
     });
     assert.ok(ev.alerts.some((a) => a.level === "critical"));
     assert.match(ev.alerts[0]!.message, /Datenabfluss/i);
@@ -61,8 +62,39 @@ describe("evaluateEgressDelta", () => {
         mbWarning: 1,
         mbCritical: 2,
         minWindowSec: 60,
+        maxVolumeWindowSec: 20 * 60,
       }).alerts.length,
       0,
     );
+  });
+
+  it("ignores volume thresholds on long gaps (rate-only)", () => {
+    // ~6.3 Mbit/s over 14h ≈ 36 GB — must NOT fire critical volume S1
+    const hours = 14;
+    const seconds = hours * 3600;
+    const txBytes = Math.round((6.3e6 / 8) * seconds); // ~36.7 GB
+    const prev: EgressSnapshot = {
+      at: Date.now() - seconds * 1000,
+      totalRx: 0,
+      totalTx: 0,
+      byIface: { eth0: { rx: 0, tx: 0 } },
+    };
+    const curr: EgressSnapshot = {
+      at: Date.now(),
+      totalRx: 1_000_000,
+      totalTx: txBytes,
+      byIface: { eth0: { rx: 1_000_000, tx: txBytes } },
+    };
+    const ev = evaluateEgressDelta(prev, curr, {
+      mbpsWarning: 40,
+      mbpsCritical: 150,
+      mbWarning: 400,
+      mbCritical: 2048,
+      minWindowSec: 60,
+      maxVolumeWindowSec: 20 * 60,
+    });
+    assert.equal(ev.alerts.length, 0);
+    assert.ok(ev.delta);
+    assert.ok(ev.delta!.txMbps < 10);
   });
 });

@@ -6,17 +6,21 @@ import {
   CRISIS_STAGE_META,
   type CrisisStage,
 } from "@/lib/crisis/stages";
-import { cn, formatBytes } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { GlyphTicker } from "./glyph-ticker";
 
 const POLL_ACTIVE_MS = 2000;
 const POLL_IDLE_MS = 12_000;
+/** Egress/talker only — agent pushes ~5s; keep UI near that without full wall refresh. */
+const EGRESS_POLL_MS = 8000;
 
 export type MonitorEgressInfo = {
   txMbps?: number;
   txBytes?: number;
   windowSec?: number;
   iface?: string | null;
+  /** Agent top talker — answers "is the connection still active?" */
+  topTalker?: string | null;
 };
 
 type Props = {
@@ -27,6 +31,8 @@ type Props = {
   counts: { ok: number; s4: number; s3: number; s2: number; s1: number };
   lastCheck: Date | null;
   egress?: MonitorEgressInfo | null;
+  /** When set, status band polls /api/monitor/live for near-realtime egress. */
+  serverId?: string | null;
 };
 
 function stageShort(stage: CrisisStage | null): string {
@@ -40,26 +46,6 @@ function jobActionWord(kind: JobKind): string {
   if (kind === "redeploy") return "DEPLOY";
   if (kind === "docker_refresh") return "INVENTORY";
   return "CHECK";
-}
-
-function formatEgressLine(e: MonitorEgressInfo): string | null {
-  if (e.txMbps == null || !Number.isFinite(e.txMbps)) return null;
-  const parts = [`↑ ${e.txMbps.toFixed(1)} Mbit/s`];
-  if (e.txBytes != null && e.txBytes > 0) {
-    const win =
-      e.windowSec != null && e.windowSec >= 60
-        ? e.windowSec >= 3600
-          ? `${Math.round(e.windowSec / 3600)}h`
-          : `${Math.max(1, Math.round(e.windowSec / 60))}m`
-        : null;
-    parts.push(
-      win
-        ? `${formatBytes(e.txBytes)} / ${win}`
-        : formatBytes(e.txBytes),
-    );
-  }
-  if (e.iface) parts.push(e.iface);
-  return parts.join(" · ");
 }
 
 function jobsKey(jobs: BackgroundJob[]): string {
@@ -115,9 +101,81 @@ function useLiveJobs(): BackgroundJob[] {
   return jobs;
 }
 
+function egressKey(e: MonitorEgressInfo | null | undefined): string {
+  if (!e) return "";
+  return [
+    e.txMbps?.toFixed(2) ?? "",
+    e.txBytes ?? "",
+    e.windowSec ?? "",
+    e.iface ?? "",
+    e.topTalker ?? "",
+  ].join("|");
+}
+
+function useLiveEgress(
+  serverId: string | null | undefined,
+  initial: MonitorEgressInfo | null | undefined,
+): MonitorEgressInfo | null {
+  const [egress, setEgress] = useState<MonitorEgressInfo | null>(
+    initial ?? null,
+  );
+  const keyRef = useRef(egressKey(initial));
+
+  const initialKey = egressKey(initial);
+  useEffect(() => {
+    setEgress(initial ?? null);
+    keyRef.current = initialKey;
+  }, [initial, initialKey]);
+
+  useEffect(() => {
+    if (!serverId) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const tick = async () => {
+      try {
+        const res = await fetch(
+          `/api/monitor/live?serverId=${encodeURIComponent(serverId)}`,
+          { cache: "no-store" },
+        );
+        if (res.ok && !cancelled) {
+          const data = (await res.json()) as {
+            ok: boolean;
+            egress: MonitorEgressInfo | null;
+          };
+          if (data.ok) {
+            const next = data.egress;
+            const nextKey = egressKey(next);
+            if (nextKey !== keyRef.current) {
+              keyRef.current = nextKey;
+              setEgress(next);
+            } else if (!next && keyRef.current) {
+              /* keep last SSR/poll sample if agent briefly stale */
+            }
+          }
+        }
+      } catch {
+        /* ignore */
+      } finally {
+        if (!cancelled) {
+          timer = setTimeout(tick, EGRESS_POLL_MS);
+        }
+      }
+    };
+
+    void tick();
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [serverId]);
+
+  return egress;
+}
+
 /**
  * Monitor hero band: crisis stage integrates live job (S4 · SCAN) — no extra badge.
- * Egress line shows last measured uplink (backup / possible exfil).
+ * Egress line polls agent snapshot (~8s) without refreshing the whole wall.
  */
 export function MonitorStatusBand({
   wallTone,
@@ -126,9 +184,11 @@ export function MonitorStatusBand({
   counts,
   lastCheck,
   egress,
+  serverId,
 }: Props) {
   const jobs = useLiveJobs();
   const live = jobs[0] ?? null;
+  const liveEgress = useLiveEgress(serverId, egress);
 
   const displayHero = live
     ? `${stageShort(crisisStage)} · ${jobActionWord(live.kind)}`
@@ -140,12 +200,25 @@ export function MonitorStatusBand({
       ? CRISIS_STAGE_META[crisisStage].blurb
       : null;
 
-  const egressLine = egress ? formatEgressLine(egress) : null;
   // Visual hint only (backup uploads) — alerts use higher THRESHOLD_EGRESS_*
   const egressHot =
-    egress?.txMbps != null &&
-    (egress.txMbps >= 15 ||
-      (egress.txBytes != null && egress.txBytes >= 100 * 1024 * 1024));
+    liveEgress?.txMbps != null &&
+    (liveEgress.txMbps >= 15 ||
+      (liveEgress.txBytes != null &&
+        liveEgress.txBytes >= 100 * 1024 * 1024));
+
+  const rateLine =
+    liveEgress?.txMbps != null && Number.isFinite(liveEgress.txMbps)
+      ? [
+          `↑ ${liveEgress.txMbps.toFixed(1)} Mbit/s`,
+          liveEgress.iface,
+          liveEgress.windowSec != null
+            ? `${liveEgress.windowSec.toFixed(0)}s Fenster`
+            : null,
+        ]
+          .filter(Boolean)
+          .join(" · ")
+      : null;
 
   return (
     <section
@@ -168,9 +241,40 @@ export function MonitorStatusBand({
         </p>
         {displayBlurb && (
           <p className="monitor-status-sub">
-            {live ? <GlyphTicker text={displayBlurb} /> : displayBlurb}
+            {live ? (
+              <GlyphTicker text={displayBlurb} loop={false} />
+            ) : (
+              displayBlurb
+            )}
           </p>
         )}
+        <div className="monitor-status-info">
+          {rateLine ? (
+            <p
+              className={cn(
+                "monitor-status-egress",
+                egressHot && "monitor-status-egress--hot",
+              )}
+            >
+              {rateLine}
+            </p>
+          ) : (
+            <p className="monitor-status-egress monitor-status-egress--muted">
+              ↑ Egress · warte auf Agent
+            </p>
+          )}
+          {liveEgress?.topTalker ? (
+            <p
+              className={cn(
+                "monitor-status-talker",
+                egressHot && "monitor-status-egress--hot",
+              )}
+              title="Top-Talker (Agent): Prozess/Art → Ziel · Rate · aktiv · Datei/cmdline. TLS/SSH = Inhalt verschlüsselt."
+            >
+              {liveEgress.topTalker}
+            </p>
+          ) : null}
+        </div>
       </div>
       <div className="monitor-status-side">
         <div className="monitor-badges">
@@ -185,23 +289,9 @@ export function MonitorStatusBand({
           </span>
         </div>
         <p className="monitor-status-meta">
-          {lastCheck ? lastCheck.toLocaleString("en-US") : "—"} · 30s
+          {lastCheck ? lastCheck.toLocaleString("en-US") : "—"}
+          {serverId ? " · live 8s" : " · 60s"}
         </p>
-        {egressLine ? (
-          <p
-            className={cn(
-              "monitor-status-egress",
-              egressHot && "monitor-status-egress--hot",
-            )}
-            title="Host uplink (TX) seit letztem Sample — Backup ok, unerwartet = DSGVO-Risiko"
-          >
-            {egressLine}
-          </p>
-        ) : (
-          <p className="monitor-status-egress monitor-status-egress--muted">
-            ↑ Egress · warte auf Sample
-          </p>
-        )}
       </div>
     </section>
   );

@@ -11,6 +11,10 @@ import {
   parseDiskTemps,
   parseTmpfsAlerts,
 } from "./disk-storage";
+import {
+  formatTopTalkerLine,
+  getFreshAgentLive,
+} from "@/lib/agent/ingest";
 import { sampleHostEgress } from "./egress-traffic";
 import {
   HOST_INVENTORY_CMD,
@@ -91,7 +95,11 @@ export async function runServerHealthCheck(
     sampleHostEgress(serverId, ssh).catch(() => null),
   ]);
 
-  if (egress?.alerts.length) alerts.push(...egress.alerts);
+  const agentLive = await getFreshAgentLive(serverId).catch(() => null);
+  // Agent ingest already raises egress alerts — avoid SSH duplicate S1 on long windows.
+  if (egress?.alerts.length && !agentLive) {
+    alerts.push(...egress.alerts);
+  }
 
   const inventory = parseHostInventory(inventoryOut.stdout);
   const filesystems = listBlockFilesystems(df.stdout);
@@ -237,10 +245,15 @@ export async function runServerHealthCheck(
       uptimeSeconds: uptimeSec,
       temperatureCelsius: temp,
       networkOk: true,
-      egressTxMbps: egress?.delta?.txMbps,
+      egressTxMbps: agentLive?.egress?.txMbps ?? egress?.delta?.txMbps,
       egressTxBytes: egress?.delta?.txBytes,
-      egressWindowSec: egress?.delta?.seconds,
-      egressIface: egress?.delta?.topTxIface,
+      egressWindowSec:
+        agentLive?.egress?.windowSec ?? egress?.delta?.seconds,
+      egressIface: agentLive?.egress?.iface ?? egress?.delta?.topTxIface,
+      agentOnline: Boolean(agentLive),
+      agentVersion: agentLive?.agentVersion ?? null,
+      topTalker: agentLive ? formatTopTalkerLine(agentLive.talkers) : null,
+      talkers: agentLive?.talkers?.slice(0, 8) ?? [],
       hostname: inventory.hostname,
       osPretty: inventory.osPretty,
       kernel: inventory.kernel,

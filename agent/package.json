@@ -1,0 +1,15 @@
+{
+  "name": "@system-guardian/agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "guardian-agent": "./guardian-agent.mjs"
+  },
+  "scripts": {
+    "start": "node guardian-agent.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

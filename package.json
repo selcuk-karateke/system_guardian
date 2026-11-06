@@ -16,7 +16,7 @@
     "test:ssh": "tsx scripts/test-ssh.ts",
     "setup:ssh-key": "tsx scripts/setup-ssh-key.ts",
     "docs:check": "tsx scripts/docs-check.ts",
-    "test": "tsx --test src/lib/security/events.test.ts src/lib/checks/session-presence.test.ts src/lib/checks/web-presence.test.ts src/lib/alerts/pipeline.test.ts src/lib/checks/container-process.test.ts src/lib/checks/docker-health.test.ts src/lib/monitor-profiles.test.ts src/lib/protect/backup-trigger.test.ts src/lib/dashboard-data.status.test.ts src/lib/trivy/alerts.test.ts src/lib/trivy/resolve-container.test.ts src/lib/checks/website.test.ts src/lib/checks/coolify.test.ts src/lib/checks/server-health.test.ts src/lib/checks/backup-monitoring.test.ts src/lib/crisis/stages.test.ts src/lib/checks/egress-traffic.test.ts src/lib/jobs/store.test.ts"
+    "test": "tsx --test src/lib/security/events.test.ts src/lib/checks/session-presence.test.ts src/lib/checks/web-presence.test.ts src/lib/alerts/pipeline.test.ts src/lib/checks/container-process.test.ts src/lib/checks/docker-health.test.ts src/lib/monitor-profiles.test.ts src/lib/protect/backup-trigger.test.ts src/lib/dashboard-data.status.test.ts src/lib/trivy/alerts.test.ts src/lib/trivy/resolve-container.test.ts src/lib/checks/website.test.ts src/lib/checks/coolify.test.ts src/lib/checks/server-health.test.ts src/lib/checks/backup-monitoring.test.ts src/lib/crisis/stages.test.ts src/lib/checks/egress-traffic.test.ts src/lib/jobs/store.test.ts src/lib/agent/ingest.test.ts src/lib/auth/totp.test.ts"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",
@@ -30,7 +30,9 @@
     "lucide-react": "^0.544.0",
     "next": "16.4.3",
     "nodemailer": "^7.0.6",
+    "otpauth": "^9.6.0",
     "postgres": "^3.4.7",
+    "qrcode": "^1.5.4",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "ssh2": "^1.17.0",
@@ -41,6 +43,7 @@
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/nodemailer": "^7.0.1",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/ssh2": "^1.15.5",

@@ -9,6 +9,7 @@ info:
     - Cron: `Authorization: Bearer <CRON_SECRET>`
     - Status-API: `Authorization: Bearer <API_SECRET>`
     - Health: öffentlich
+    - Agent ingest/install/bundle: öffentlich (Ingest mit per-server Agent-Token)
     - History: Dashboard-Session (Cookie), wenn Auth aktiv ist
     - Jobs: Dashboard-Session (Cookie), wenn Auth aktiv ist
   contact:
@@ -22,6 +23,7 @@ tags:
   - name: Cron
   - name: History
   - name: Jobs
+  - name: Agent
 paths:
   /api/health:
     get:
@@ -47,6 +49,99 @@ paths:
                     type: string
                     enum: [mock, ssh]
                     example: mock
+
+  /api/monitor/live:
+    get:
+      tags: [Monitor]
+      summary: Near-realtime Egress/Talker für Statusband
+      description: |
+        Leichter Poll (~8s) für die Monitor-Wand. Liefert nur den frischen
+        Agent-Snapshot (Egress + Top-Talker), ohne Full-Page-Refresh.
+        Session-Auth wenn AUTH aktiv (nicht öffentlich wie /api/agent/*).
+      operationId: monitorLive
+      parameters:
+        - name: serverId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Live-Snapshot oder online=false
+        "400":
+          description: serverId fehlt
+
+  /api/agent/ingest:
+    post:
+      tags: [Agent]
+      summary: Live-Metriken vom Host-Agent
+      description: |
+        Outbound-Push vom Node-Agent. Auth: `Authorization: Bearer <agent-token>`
+        (pro Server, einmalig bei Create/Rotate). Enthält Metriken + Top-Talker.
+      operationId: agentIngest
+      security:
+        - bearerAgent: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [agentVersion, hostname]
+              properties:
+                agentVersion:
+                  type: string
+                hostname:
+                  type: string
+                serverId:
+                  type: string
+                  format: uuid
+                cpuPercent:
+                  type: number
+                  nullable: true
+                egress:
+                  type: object
+                  nullable: true
+                talkers:
+                  type: array
+                  items:
+                    type: object
+      responses:
+        "200":
+          description: Ingest ok
+        "401":
+          description: Fehlendes oder falsches Agent-Token
+        "400":
+          description: Ungültiges Payload
+
+  /api/agent/install.sh:
+    get:
+      tags: [Agent]
+      summary: Install-Skript (shell)
+      description: One-Liner-Ziel für Host-Setup. Kein Auth.
+      operationId: agentInstallSh
+      responses:
+        "200":
+          description: bash install script
+          content:
+            text/x-shellscript:
+              schema:
+                type: string
+
+  /api/agent/bundle.js:
+    get:
+      tags: [Agent]
+      summary: Agent-Script (ESM)
+      description: Vom Install-Skript heruntergeladen. Kein Auth.
+      operationId: agentBundle
+      responses:
+        "200":
+          description: guardian-agent.mjs Inhalt
+          content:
+            application/javascript:
+              schema:
+                type: string
 
   /api/status:
     get:
@@ -231,6 +326,10 @@ components:
       type: http
       scheme: bearer
       description: Wert von `API_SECRET`
+    bearerAgent:
+      type: http
+      scheme: bearer
+      description: Per-Server Metrics-Agent-Token (`sga_…`)
   schemas:
     CronBatchResult:
       type: object

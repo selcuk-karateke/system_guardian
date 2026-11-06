@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { isAuthEnabled } from "@/lib/auth/config";
 import { verifySessionToken, SESSION_COOKIE } from "@/lib/auth/session";
 
-const PUBLIC_PREFIXES = ["/login", "/api/cron/", "/api/health"];
+const PUBLIC_PREFIXES = [
+  "/login",
+  "/api/cron/",
+  "/api/health",
+  "/api/agent/",
+];
 
 function isPublicPath(pathname: string): boolean {
   if (pathname.startsWith("/_next")) return true;

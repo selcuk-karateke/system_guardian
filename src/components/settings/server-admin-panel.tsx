@@ -6,6 +6,8 @@ import {
   alignServerWithSshHostAction,
   createServerAction,
   deactivateServerAction,
+  installAgentViaSshAction,
+  rotateAgentTokenAction,
   updateServerBackupAction,
   updateServerCoolifyAction,
   updateServerSshAction,
@@ -28,6 +30,10 @@ export type ServerAdminRow = {
   backupMonitoringDir: string | null;
   backupTriggerCommand: string | null;
   hasBackupTrigger: boolean;
+  hasAgentToken?: boolean;
+  agentOnline?: boolean;
+  agentLastSeenAt?: string | null;
+  agentVersion?: string | null;
 };
 
 const fieldClass =
@@ -47,6 +53,8 @@ export function ServerAdminPanel({
   const [message, setMessage] = useState<string | null>(null);
   const [isError, setIsError] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
+  const [installCmd, setInstallCmd] = useState<string | null>(null);
+  const [installFor, setInstallFor] = useState<string | null>(null);
 
   function mismatchesSsh(s: ServerAdminRow) {
     if (checkMode !== "ssh" || !sshHost) return false;
@@ -61,15 +69,62 @@ export function ServerAdminPanel({
     const form = e.currentTarget;
     const formData = new FormData(form);
     setMessage(null);
+    setInstallCmd(null);
     startTransition(async () => {
       const result = await createServerAction(formData);
       setIsError(!result.ok);
       setMessage(result.message);
       if (result.ok) {
         form.reset();
+        if (result.agentInstallCmd) {
+          setInstallCmd(result.agentInstallCmd);
+          setInstallFor(result.id ?? null);
+        }
         router.refresh();
-        if (result.id) router.push(`/servers/${result.id}`);
       }
+    });
+  }
+
+  function onRotateAgent(serverId: string) {
+    if (
+      !confirm(
+        "Neuen Agent-Token ausstellen? Der alte Token funktioniert danach nicht mehr.",
+      )
+    ) {
+      return;
+    }
+    setMessage(null);
+    startTransition(async () => {
+      const result = await rotateAgentTokenAction(serverId);
+      setIsError(!result.ok);
+      setMessage(result.message);
+      if (result.ok && result.agentInstallCmd) {
+        setInstallCmd(result.agentInstallCmd);
+        setInstallFor(serverId);
+      }
+      if (result.ok) router.refresh();
+    });
+  }
+
+  function onInstallAgent(serverId: string, name: string) {
+    if (
+      !confirm(
+        `Metrics-Agent per SSH auf „${name}“ installieren?\n(Token wird erst nach erfolgreichem Deploy gewechselt — kein 401-Loop bei Fehler)`,
+      )
+    ) {
+      return;
+    }
+    setMessage(null);
+    setInstallCmd(null);
+    startTransition(async () => {
+      const result = await installAgentViaSshAction(serverId);
+      setIsError(!result.ok);
+      setMessage(result.message);
+      if (result.agentInstallCmd) {
+        setInstallCmd(result.agentInstallCmd);
+        setInstallFor(serverId);
+      }
+      router.refresh();
     });
   }
 
@@ -125,6 +180,42 @@ export function ServerAdminPanel({
 
   return (
     <div className="space-y-6">
+      {installCmd && (
+        <div className="rounded-lg border border-sky-800/60 bg-sky-950/30 px-3 py-3 space-y-2">
+          <p className="text-xs font-medium text-sky-200">
+            Metrics-Agent installieren
+            {installFor ? ` · Server ${installFor.slice(0, 8)}…` : ""}
+          </p>
+          <p className="text-[11px] text-zinc-400">
+            Auf dem Host ausführen (Root). Token wird nur einmal angezeigt.
+          </p>
+          <pre className="overflow-x-auto rounded-md bg-zinc-950 p-2 text-[11px] text-zinc-200 font-mono whitespace-pre-wrap break-all">
+            {installCmd}
+          </pre>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="text-xs"
+            onClick={() => {
+              void navigator.clipboard?.writeText(installCmd);
+              setMessage("Install-Befehl kopiert");
+              setIsError(false);
+            }}
+          >
+            Kopieren
+          </Button>
+        </div>
+      )}
+      {message && (
+        <p
+          className={
+            isError ? "text-sm text-rose-400" : "text-sm text-emerald-400"
+          }
+        >
+          {message}
+        </p>
+      )}
       <ul className="space-y-3 text-sm">
         {servers.map((s) => (
           <li
@@ -171,6 +262,19 @@ export function ServerAdminPanel({
                       <span className="text-zinc-500">—</span>
                     )}
                   </span>
+                  <span>·</span>
+                  <span>
+                    Agent:{" "}
+                    {s.agentOnline ? (
+                      <span className="text-emerald-400">
+                        online{s.agentVersion ? ` v${s.agentVersion}` : ""}
+                      </span>
+                    ) : s.hasAgentToken ? (
+                      <span className="text-amber-400">warte</span>
+                    ) : (
+                      <span className="text-zinc-500">kein Token</span>
+                    )}
+                  </span>
                 </p>
               </div>
               {mismatchesSsh(s) && (
@@ -193,6 +297,34 @@ export function ServerAdminPanel({
                   Host → SSH_HOST
                 </Button>
               )}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="text-xs border-sky-800 text-sky-200"
+                disabled={
+                  pending ||
+                  (checkMode === "ssh" && !s.hasKey && !s.hasPassword)
+                }
+                title={
+                  checkMode === "ssh" && !s.hasKey && !s.hasPassword
+                    ? "Zuerst SSH-Zugang speichern"
+                    : "Agent per SSH installieren"
+                }
+                onClick={() => onInstallAgent(s.id, s.name)}
+              >
+                {s.agentOnline ? "Agent neu installieren" : "Agent installieren"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="text-xs"
+                disabled={pending}
+                onClick={() => onRotateAgent(s.id)}
+              >
+                Agent-Token
+              </Button>
               <Button
                 type="button"
                 variant="outline"
@@ -462,14 +594,6 @@ export function ServerAdminPanel({
           {pending ? "Speichern…" : "Server anlegen"}
         </Button>
       </form>
-
-      {message && (
-        <p
-          className={`text-sm ${isError ? "text-amber-400" : "text-emerald-400"}`}
-        >
-          {message}
-        </p>
-      )}
     </div>
   );
 }

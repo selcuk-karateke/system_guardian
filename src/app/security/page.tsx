@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { SgScrollRail } from "@/components/ui/sg-scroll-rail";
 import { ServerSelect } from "@/components/dashboard/server-select";
 import { SshTargetNote } from "@/components/dashboard/ssh-target-note";
 import {
@@ -107,24 +108,31 @@ export default async function SecurityPage({
           <CardHeader>
             <CardTitle>Offene Punkte (Früherkennung)</CardTitle>
           </CardHeader>
-          <CardContent className="sg-stagger text-sm space-y-2 max-h-64 overflow-auto">
-            {openIssues.map((issue, i) => (
-              <p
-                key={`${issue.source}-${i}`}
-                className={
-                  issue.severity === "critical"
-                    ? "text-red-300"
-                    : issue.severity === "warning"
-                      ? "text-amber-300"
-                      : "text-zinc-400"
-                }
-              >
-                [{issue.source}] {issue.message}
-              </p>
-            ))}
-            <Link href="/history" className="text-sky-400 text-xs underline block mt-2">
-              Historie filtern →
-            </Link>
+          <CardContent className="p-0">
+            <SgScrollRail className="max-h-64 px-6 py-4">
+              <div className="sg-stagger space-y-2 text-sm">
+                {openIssues.map((issue, i) => (
+                  <p
+                    key={`${issue.source}-${i}`}
+                    className={
+                      issue.severity === "critical"
+                        ? "text-red-300"
+                        : issue.severity === "warning"
+                          ? "text-amber-300"
+                          : "text-zinc-400"
+                    }
+                  >
+                    [{issue.source}] {issue.message}
+                  </p>
+                ))}
+                <Link
+                  href="/history"
+                  className="mt-2 block text-xs text-sky-400 underline"
+                >
+                  Historie filtern →
+                </Link>
+              </div>
+            </SgScrollRail>
           </CardContent>
         </Card>
       )}

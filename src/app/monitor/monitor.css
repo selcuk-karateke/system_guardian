@@ -1031,6 +1031,13 @@
   min-width: 0;
   container-type: inline-size;
   container-name: status-main;
+  /* Day: hero above blurb (left). Night centers via data-night override. */
+  display: flex;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  justify-content: center;
+  gap: clamp(6px, 0.7vh, 12px);
 }
 
 .monitor-status-band--healthy {
@@ -1060,15 +1067,18 @@
 
 .monitor-display {
   font-family: var(--monitor-display);
-  font-size: min(18cqi, 10vh, 140px);
+  /* Readable hero — must fit "S1 · EMERGENCY" without ellipsis */
+  font-size: clamp(28px, min(9cqi, 6.5vh), 92px);
   font-weight: 800;
   line-height: 1;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   min-width: 0;
   max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: nowrap;
+  flex: 0 0 auto;
   /* No brightness pulse — TV compositors flicker on animated filters */
 }
 
@@ -1138,13 +1148,26 @@
 
 .monitor-status-sub {
   display: block;
-  margin: 0.45em 0 0;
+  margin: 0;
   font-family: var(--monitor-mono);
-  font-size: clamp(13px, 1.45vmin, 28px);
-  color: rgb(148 163 184);
-  letter-spacing: 0.04em;
+  font-size: clamp(14px, 1.5vmin, 26px);
+  color: rgb(186 200 214);
+  letter-spacing: 0.03em;
   line-height: 1.35;
-  max-width: 100%;
+  max-width: min(100%, 56rem);
+  flex: 0 1 auto;
+  min-width: 0;
+  white-space: normal;
+  overflow: visible;
+}
+
+.monitor-status-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25em;
+  margin-top: 0.15em;
+  max-width: min(100%, 56rem);
+  min-width: 0;
 }
 
 .monitor-status-band--busy .monitor-status-sub {
@@ -1219,11 +1242,22 @@
 }
 
 .monitor-status-egress {
-  margin-top: 0.35em;
-  font-size: clamp(13px, 1.4vmin, 26px);
+  margin: 0;
+  font-size: clamp(13px, 1.35vmin, 24px);
   font-family: var(--monitor-mono);
   color: rgb(148 163 184);
   letter-spacing: 0.02em;
+  line-height: 1.35;
+}
+
+.monitor-status-talker {
+  margin: 0;
+  font-size: clamp(12px, 1.25vmin, 22px);
+  font-family: var(--monitor-mono);
+  color: rgb(125 211 252 / 90%);
+  letter-spacing: 0.01em;
+  line-height: 1.35;
+  word-break: break-word;
 }
 
 .monitor-status-egress--muted {
@@ -1253,20 +1287,23 @@
   gap: var(--m-block-gap);
   padding: var(--m-section-gap) clamp(24px, 3vw, var(--m-pad-x));
   min-height: 0;
-  /* Enough room for value + 2 detail lines — old 18vh/200px clipped on TV */
-  max-height: min(22vh, var(--m-metrics-max, 260px));
+  /* No max-height — auto row in monitor-content; hard caps clipped detail pills */
+  align-items: stretch;
 }
 
 .monitor-stat {
   border-radius: clamp(12px, 1.4vmin, 22px);
-  padding: clamp(10px, 1.2vh, 18px) clamp(14px, 1.8vmin, 28px);
+  padding: clamp(10px, 1.2vh, 18px) clamp(14px, 1.8vmin, 28px)
+    clamp(12px, 1.4vh, 20px);
   text-align: left;
   min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
   gap: 0.25em;
-  overflow: hidden;
+  /* Visible feet — clip was eating last detail row */
+  overflow: visible;
 }
 
 .monitor-stat--hud {
@@ -1342,7 +1379,7 @@
 
 .monitor-stat-value {
   font-family: var(--monitor-mono);
-  font-size: min(7.5vmin, 9vh, var(--m-cap-stat-value, 72px));
+  font-size: min(6.5vmin, 7.5vh, var(--m-cap-stat-value, 64px));
   font-weight: 700;
   line-height: 1.05;
   font-variant-numeric: tabular-nums;
@@ -1374,9 +1411,9 @@
   gap: clamp(4px, 0.45vmin, 8px);
   margin-top: 0.35em;
   min-height: 0;
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   min-width: 0;
-  overflow: hidden;
+  overflow: visible;
   align-content: flex-start;
 }
 
@@ -2116,6 +2153,7 @@ a.monitor-cell-link:focus-visible {
   width: 100%;
   display: flex;
   flex-direction: column;
+  flex-wrap: nowrap;
   align-items: center;
   justify-content: center;
   gap: clamp(8px, 1vh, 14px);
@@ -2125,6 +2163,10 @@ a.monitor-cell-link:focus-visible {
   margin: 0;
   max-width: 100%;
   text-align: center;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+  flex: 0 1 auto;
 }
 
 .monitor-tv-shell[data-night="1"] .monitor-status-side {
@@ -2280,18 +2322,17 @@ a.monitor-cell-link:focus-visible {
     --m-cap-clock: 80px;
     --m-cap-ring: 64px;
     --m-cap-stat: 120px;
-    --m-cap-stat-value: 96px;
-    --m-cap-stat-text: 72px;
+    --m-cap-stat-value: 88px;
+    --m-cap-stat-text: 68px;
     --m-pad-x: 80px;
     --m-pad-y: 28px;
     --m-cell-pad-y: 14px;
     --m-cell-pad-x: 22px;
     --m-radius-cell: 18px;
-    --m-metrics-max: 320px;
   }
 
   .monitor-display {
-    font-size: min(18cqi, 11vh, 180px);
+    font-size: min(12cqi, 8vh, 128px);
   }
 }
 
@@ -2308,18 +2349,17 @@ a.monitor-cell-link:focus-visible {
     --m-cap-clock: 104px;
     --m-cap-ring: 80px;
     --m-cap-stat: 140px;
-    --m-cap-stat-value: 120px;
-    --m-cap-stat-text: 88px;
+    --m-cap-stat-value: 110px;
+    --m-cap-stat-text: 80px;
     --m-pad-x: 96px;
     --m-pad-y: 36px;
     --m-cell-pad-y: 18px;
     --m-cell-pad-x: 28px;
     --m-radius-cell: 22px;
-    --m-metrics-max: 400px;
   }
 
   .monitor-display {
-    font-size: min(18cqi, 12vh, 220px);
+    font-size: min(12cqi, 8.5vh, 148px);
   }
 
   .monitor-status-sub {
