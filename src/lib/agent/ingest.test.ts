@@ -4,8 +4,10 @@ import {
   formatTopTalkerDetail,
   formatTopTalkerLine,
   parseAgentIngestPayload,
+  toMonitorLivePayload,
 } from "./ingest";
 import { classifyTalkerKind, sanitizeCmdline } from "./talker-meta";
+import type { AgentLiveSnapshot } from "./types";
 
 describe("parseAgentIngestPayload", () => {
   it("accepts a minimal live payload", () => {
@@ -78,8 +80,37 @@ describe("classifyTalkerKind / sanitizeCmdline", () => {
   });
 });
 
+describe("toMonitorLivePayload", () => {
+  it("exposes host vitals even without egress", () => {
+    const snap: AgentLiveSnapshot = {
+      agentVersion: "0.2.0",
+      hostname: "kawai",
+      cpuPercent: 8,
+      load1: 0.42,
+      load5: 0.5,
+      load15: 0.6,
+      memUsedBytes: 2_000_000_000,
+      memTotalBytes: 8_000_000_000,
+      diskUsedBytes: 100_000_000_000,
+      diskTotalBytes: 200_000_000_000,
+      uptimeSec: 90_000,
+      egress: null,
+      talkers: [],
+      receivedAt: 1,
+      serverId: "00000000-0000-0000-0000-000000000001",
+    };
+    const p = toMonitorLivePayload(snap);
+    assert.equal(p.online, true);
+    assert.equal(p.egress, null);
+    assert.equal(p.host?.load1, 0.42);
+    assert.equal(p.host?.ramPercent, 25);
+    assert.equal(p.host?.diskPercent, 50);
+    assert.equal(p.host?.uptimeSec, 90_000);
+  });
+});
+
 describe("formatTopTalkerLine", () => {
-  it("includes kind, activity and what-hint", () => {
+  it("stays one short HUD line (detail carries paths)", () => {
     const line = formatTopTalkerLine([
       {
         pid: 1,
@@ -96,9 +127,9 @@ describe("formatTopTalkerLine", () => {
         openFiles: ["/var/backups/app/db.dump"],
       },
     ]);
-    assert.match(line ?? "", /noch aktiv/);
-    assert.match(line ?? "", /rsync\/rsync/);
-    assert.match(line ?? "", /db\.dump/);
+    assert.match(line ?? "", /aktiv/);
+    assert.match(line ?? "", /rsync → 1\.2\.3\.4:873/);
+    assert.doesNotMatch(line ?? "", /db\.dump/);
   });
 
   it("detail line exposes cmdline + files for alerts", () => {

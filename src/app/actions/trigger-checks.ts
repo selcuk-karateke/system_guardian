@@ -19,6 +19,7 @@ function revalidateDashboards() {
   revalidatePath("/docker");
   revalidatePath("/security");
   revalidatePath("/notifications");
+  revalidatePath("/servers", "layout");
 }
 
 export type TriggerResult = EnqueueResult & {

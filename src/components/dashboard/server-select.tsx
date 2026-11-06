@@ -29,6 +29,8 @@ export function ServerSelect({
     router.push(`${pathname}?${next.toString()}`);
   }
 
+  const quiet = Boolean(className?.includes("monitor-top-select--quiet"));
+
   return (
     <label
       className={
@@ -36,15 +38,22 @@ export function ServerSelect({
         "flex items-center gap-2 text-xs text-zinc-400"
       }
     >
-      <span className="shrink-0">Server</span>
+      {!quiet ? <span className="shrink-0">Server</span> : null}
+      <span className="sr-only">Server</span>
       <select
         value={selectedId}
         onChange={(e) => onChange(e.target.value)}
-        className="bg-zinc-950 border border-zinc-700 rounded px-2 py-1.5 text-sm text-zinc-100 max-w-[16rem]"
+        title="Server"
+        aria-label="Server"
+        className={
+          quiet
+            ? undefined
+            : "bg-zinc-950 border border-zinc-700 rounded px-2 py-1.5 text-sm text-zinc-100 max-w-[16rem]"
+        }
       >
         {servers.map((s) => (
           <option key={s.id} value={s.id}>
-            {s.name} ({s.host})
+            {quiet ? s.name : `${s.name} (${s.host})`}
           </option>
         ))}
       </select>

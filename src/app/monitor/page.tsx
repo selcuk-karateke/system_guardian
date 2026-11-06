@@ -1,8 +1,6 @@
-import { Suspense } from "react";
 import { MonitorAutoRefresh } from "@/components/dashboard/monitor-auto-refresh";
 import { MonitorTvProtection } from "@/components/dashboard/monitor-tv-protection";
 import { MonitorWall } from "@/components/dashboard/monitor-wall";
-import { ServerSelect } from "@/components/dashboard/server-select";
 import {
   getMonitorNightEndHour,
   getMonitorNightStartHour,
@@ -19,6 +17,7 @@ import {
 import { fimPathsFromAlerts } from "@/lib/alerts/fim-paths";
 import {
   buildMonitorMetricCards,
+  buildMonitorMetricCardsFromLive,
   formatModuleDetailLines,
   getLatestCheckDataByModule,
 } from "@/lib/monitor-details";
@@ -32,6 +31,10 @@ import {
   formatInventoryShort,
   inventoryFromCheckData,
 } from "@/lib/checks/host-inventory";
+import {
+  getFreshAgentLive,
+  toMonitorLivePayload,
+} from "@/lib/agent/ingest";
 import { buildGlobeTints } from "@/lib/geo/attack-markers";
 import { MONITOR_MODULE_ORDER, MONITOR_PLACEHOLDER_MODULES } from "@/lib/module-labels";
 import { listActiveServers } from "@/lib/servers";
@@ -163,7 +166,15 @@ export default async function MonitorPage({
   const inventory = inventoryFromCheckData(checkData.server_health ?? null);
   const hostMeta = inventory ? formatInventoryShort(inventory) : null;
 
-  const metricCards = buildMonitorMetricCards(
+  const agentLive = selectedServerId
+    ? await getFreshAgentLive(selectedServerId).catch(() => null)
+    : null;
+  const agentPayload = agentLive ? toMonitorLivePayload(agentLive) : null;
+  const agentEgress = agentPayload?.egress ?? null;
+  const liveHost = agentPayload?.host ?? null;
+  const cpuCores = overview?.metrics?.cpuCores ?? null;
+
+  const snapshotCards = buildMonitorMetricCards(
     overview?.metrics ?? null,
     uptimeFormatted,
     {
@@ -171,10 +182,22 @@ export default async function MonitorPage({
       osPretty: inventory?.osPretty,
     },
   );
+  const metricCards =
+    liveHost != null
+      ? buildMonitorMetricCardsFromLive(liveHost, {
+          cpuCores,
+          uptimeFormatted:
+            liveHost.uptimeSec != null
+              ? formatUptime(liveHost.uptimeSec)
+              : uptimeFormatted,
+          uptimeLines: snapshotCards.uptime.lines,
+          seed: snapshotCards,
+        })
+      : snapshotCards;
 
   const egressSrc =
     checkData.server_health ?? checkData.network ?? undefined;
-  const egress =
+  const checkEgress =
     egressSrc && typeof egressSrc.egressTxMbps === "number"
       ? {
           txMbps: egressSrc.egressTxMbps as number,
@@ -194,8 +217,10 @@ export default async function MonitorPage({
             typeof egressSrc.topTalker === "string"
               ? (egressSrc.topTalker as string)
               : null,
+          topTalkerDetail: null as string | null,
         }
       : null;
+  const egress = agentEgress ?? checkEgress;
 
   const homeIpCandidate =
     overview?.server?.ipv4 ??
@@ -211,19 +236,7 @@ export default async function MonitorPage({
   const wallTone = crisisStageToWallTone(crisisStage);
 
   return (
-    <MonitorAutoRefresh intervalSec={60}>
-      <div className="px-4 pt-3 flex justify-end">
-        <Suspense fallback={null}>
-          <ServerSelect
-            servers={serverRows.map((s) => ({
-              id: s.id,
-              name: s.name,
-              host: s.host,
-            }))}
-            selectedId={selectedServerId}
-          />
-        </Suspense>
-      </div>
+    <MonitorAutoRefresh>
       <MonitorTvProtection
         globalStatus={wallTone}
         crisisStage={crisisStage}
@@ -254,7 +267,14 @@ export default async function MonitorPage({
           webMarkers={webMarkers}
           homeMarker={homeMarker}
           egress={egress}
+          liveHost={liveHost}
+          cpuCores={cpuCores}
           serverId={selectedServerId}
+          servers={serverRows.map((s) => ({
+            id: s.id,
+            name: s.name,
+            host: s.host,
+          }))}
         />
       </MonitorTvProtection>
     </MonitorAutoRefresh>

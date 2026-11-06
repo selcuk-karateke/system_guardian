@@ -2,31 +2,15 @@ import type { metricsSnapshots } from "@/db/schema";
 import { parseFailedUnitName } from "@/lib/checks/services";
 import { getFimPaths } from "@/lib/config";
 import { MONITOR_PLACEHOLDER_MODULES } from "@/lib/module-labels";
+import {
+  buildMetricCardsFromParts,
+  type MonitorMetricCards,
+} from "@/lib/monitor-metric-cards";
+
+export type { MonitorMetricCards } from "@/lib/monitor-metric-cards";
+export { buildMonitorMetricCardsFromLive } from "@/lib/monitor-metric-cards";
 
 type MetricsRow = typeof metricsSnapshots.$inferSelect;
-
-export type MonitorMetricCards = {
-  cpu: {
-    value: number | null;
-    displayValue?: string | null;
-    lines: string[];
-    tone: "ok" | "warn" | "crit";
-  };
-  ram: { value: number | null; lines: string[]; tone: "ok" | "warn" | "crit" };
-  disk: { value: number | null; lines: string[]; tone: "ok" | "warn" | "crit" };
-  uptime: { display: string; lines: string[] };
-};
-
-function toneFromPercent(
-  pct: number | null | undefined,
-  warn: number,
-  crit: number,
-): "ok" | "warn" | "crit" {
-  if (pct == null) return "ok";
-  if (pct >= crit) return "crit";
-  if (pct >= warn) return "warn";
-  return "ok";
-}
 
 function formatLoadNumber(load: string | number): string {
   const n = typeof load === "number" ? load : parseFloat(load);
@@ -46,90 +30,47 @@ function effectiveLoadPercent(
   return Math.min(100, Math.round((load / c) * 100));
 }
 
+/** TV cards: one hero + at most one quiet detail line. No redundant noise. */
 export function buildMonitorMetricCards(
   m: MetricsRow | null | undefined,
   uptimeFormatted: string,
   opts?: { kernel?: string | null; osPretty?: string | null },
 ): MonitorMetricCards {
-  const ram = m?.ramPercent ?? null;
-  const disk = m?.diskPercent ?? null;
-  const swap = m?.swapPercent ?? null;
-  const sec = m?.uptimeSeconds ?? null;
-  const cores = m?.cpuCores ?? null;
-  const load1 = m?.loadAvg1 ?? null;
-  const effectivePct =
-    effectiveLoadPercent(load1, cores) ?? m?.cpuPercent ?? null;
-
-  const cpuLines: string[] = [];
-  if (effectivePct != null) {
-    cpuLines.push(`${effectivePct}% effective load`);
-  }
-  if (m?.loadAvg5 || m?.loadAvg15) {
-    cpuLines.push(
-      `5m ${formatLoadNumber(m.loadAvg5 ?? "—")} · 15m ${formatLoadNumber(m.loadAvg15 ?? "—")}`,
-    );
-  }
-  if (m?.temperatureCelsius != null) {
-    cpuLines.push(`temp ${m.temperatureCelsius}°C`);
-  }
-
-  // Keep the hero value short — "2.26 / 16" ellipsizes to "2.26 / …" on TV cards
-  let cpuDisplay: string | null = null;
-  if (load1) {
-    cpuDisplay = formatLoadNumber(load1);
-  }
-  if (cores != null) {
-    cpuLines.unshift(`${cores} cores`);
-  }
-
-  const ramLines: string[] = [];
-  if (swap != null) ramLines.push(`swap ${swap}%`);
-  if (m?.networkOk != null) {
-    ramLines.push(m.networkOk ? "network ok" : "check network");
-  }
-
-  const diskLines: string[] = [];
-  if (disk != null) diskLines.push(`${disk}% used · ${100 - disk}% free`);
-
   const uptimeLines: string[] = [];
-  if (opts?.osPretty) uptimeLines.push(shortenLabel(opts.osPretty, 28));
-  else if (opts?.kernel) uptimeLines.push(shortenLabel(opts.kernel, 28));
-  if (sec != null) uptimeLines.push(`${sec.toLocaleString("en-US")} sec`);
-  if (sec != null && sec >= 86400) {
-    uptimeLines.push(`${Math.floor(sec / 86400)}d since boot`);
+  if (opts?.osPretty) {
+    uptimeLines.push(shortOsLabel(opts.osPretty));
+  } else if (opts?.kernel) {
+    uptimeLines.push(shortenLabel(opts.kernel, 22));
   }
 
-  if (cpuLines.length === 0 && effectivePct == null && !load1) {
-    cpuLines.push("no snapshot");
-  }
-  if (ramLines.length === 0 && ram == null) ramLines.push("no snapshot");
-  if (diskLines.length === 0 && disk == null) diskLines.push("no snapshot");
-  if (uptimeLines.length === 0 && uptimeFormatted === "—") {
-    uptimeLines.push("no snapshot");
-  }
+  return buildMetricCardsFromParts(
+    {
+      load1: m?.loadAvg1,
+      load5: m?.loadAvg5,
+      load15: m?.loadAvg15,
+      cpuPercent: m?.cpuPercent,
+      cpuCores: m?.cpuCores,
+      ramPercent: m?.ramPercent,
+      swapPercent: m?.swapPercent,
+      diskPercent: m?.diskPercent,
+      temperatureCelsius: m?.temperatureCelsius,
+    },
+    uptimeFormatted,
+    uptimeLines,
+  );
+}
 
-  return {
-    cpu: {
-      value: effectivePct,
-      displayValue: cpuDisplay,
-      lines: cpuLines,
-      tone: toneFromPercent(effectivePct, 80, 95),
-    },
-    ram: {
-      value: ram,
-      lines: ramLines,
-      tone: toneFromPercent(ram, 85, 95),
-    },
-    disk: {
-      value: disk,
-      lines: diskLines,
-      tone: toneFromPercent(disk, 85, 95),
-    },
-    uptime: {
-      display: uptimeFormatted,
-      lines: uptimeLines,
-    },
-  };
+/** "Debian GNU/Linux 13 (trixie)" → "Debian 13" */
+function shortOsLabel(osPretty: string): string {
+  const m = osPretty.match(
+    /^([A-Za-z]+)(?:\s+GNU\/Linux)?\s+(\d+(?:\.\d+)?)(?:\s*\(([^)]+)\))?/,
+  );
+  if (m) {
+    const name = m[1]!;
+    const ver = m[2]!;
+    return `${name} ${ver}`;
+  }
+  return shortenLabel(osPretty, 22);
 }
 
 export function formatModuleDetail(

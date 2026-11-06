@@ -6,22 +6,30 @@ import type { BackgroundJob } from "@/lib/jobs/types";
 import type { JobsWakeDetail } from "@/lib/jobs/wake-client";
 import { cn } from "@/lib/utils";
 
-const POLL_ACTIVE_MS = 1500;
+const POLL_ACTIVE_MS = 2000;
 const POLL_IDLE_MS = 20_000;
 const DONE_HIDE_MS = 14_000;
-const REFRESH_COOLDOWN_MS = 8_000;
+/** Absolute floor — survives HMR / remounts via globalThis. */
+const REFRESH_COOLDOWN_MS = 60_000;
+/** Ignore completions older than this (remount false-positives). */
+const FRESH_DONE_MS = 8_000;
 export const JOBS_WAKE_EVENT = "sg:jobs-wake";
 
-/** Survives overlay remounts (router.refresh / Fast Refresh) — avoids refresh storms. */
-const refreshedJobIds = (() => {
-  const g = globalThis as typeof globalThis & {
-    __sg_jobs_refreshed__?: Set<string>;
-  };
-  if (!g.__sg_jobs_refreshed__) g.__sg_jobs_refreshed__ = new Set();
-  return g.__sg_jobs_refreshed__;
-})();
+type JobsGuard = {
+  refreshedIds: Set<string>;
+  lastRefreshAt: number;
+};
 
-let lastRouterRefreshAt = 0;
+function jobsGuard(): JobsGuard {
+  const g = globalThis as typeof globalThis & { __sg_jobs_guard__?: JobsGuard };
+  if (!g.__sg_jobs_guard__) {
+    g.__sg_jobs_guard__ = {
+      refreshedIds: new Set(),
+      lastRefreshAt: 0,
+    };
+  }
+  return g.__sg_jobs_guard__;
+}
 
 function statusLabel(status: BackgroundJob["status"]): string {
   if (status === "queued") return "Warteschlange";
@@ -68,6 +76,7 @@ export function BackgroundJobsOverlay() {
   useEffect(() => {
     if (hidden) return;
 
+    const guard = jobsGuard();
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
 
@@ -130,18 +139,20 @@ export function BackgroundJobsOverlay() {
           if (j.status !== "done" && j.status !== "error") continue;
           // First sighting after mount/restart: do NOT refresh (prevents loops).
           if (prev !== "queued" && prev !== "running") continue;
-          if (refreshedJobIds.has(j.id)) continue;
-          refreshedJobIds.add(j.id);
+          if (j.finishedAt && now - j.finishedAt > FRESH_DONE_MS) continue;
+          if (guard.refreshedIds.has(j.id)) continue;
+          guard.refreshedIds.add(j.id);
           shouldRefresh = true;
         }
+
         // Never refresh the monitor wall from the jobs pill (it has its own cadence).
         const onMonitor = pathname.startsWith("/monitor");
         if (
           shouldRefresh &&
           !onMonitor &&
-          now - lastRouterRefreshAt >= REFRESH_COOLDOWN_MS
+          now - guard.lastRefreshAt >= REFRESH_COOLDOWN_MS
         ) {
-          lastRouterRefreshAt = now;
+          guard.lastRefreshAt = now;
           routerRef.current.refresh();
         }
 

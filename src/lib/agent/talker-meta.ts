@@ -82,26 +82,24 @@ function pickTop(talkers: AgentTalker[]): AgentTalker | null {
 }
 
 /**
- * Compact HUD line: process/kind → ip · rate · active · what (files|cmdline)
+ * One-line HUD: process → ip:port · ↑ rate · aktiv
+ * Long cmdline/paths stay in formatTopTalkerDetail (title / alerts).
  */
 export function formatTopTalkerLine(talkers: AgentTalker[]): string | null {
   const top = pickTop(talkers);
   if (!top) return null;
-  const kind = top.kind ?? classifyTalkerKind(top.process, top.remotePort);
   const peer = `${top.remoteIp}${
     top.remotePort != null ? `:${top.remotePort}` : ""
   }`;
-  const head = `${top.process}/${kind} → ${peer}`;
+  const head = `${top.process} → ${peer}`;
   if (top.state !== "established") {
-    return `${head} · nicht mehr established`;
+    return `${head} · weg`;
   }
-  const active = top.stillActive ? "noch aktiv" : "gerade gesehen";
-  const parts = [head, `↑ ${formatBps(top.txBps)}`, active];
+  const parts = [head, `↑ ${formatBps(top.txBps)}`];
+  if (top.stillActive) parts.push("aktiv");
   if (top.txBytes != null && top.txBytes > 0) {
     parts.push(formatBytes(top.txBytes));
   }
-  const what = talkerWhatHint(top);
-  if (what) parts.push(what);
   return parts.join(" · ");
 }
 

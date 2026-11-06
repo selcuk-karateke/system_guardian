@@ -53,11 +53,10 @@ paths:
   /api/monitor/live:
     get:
       tags: [Monitor]
-      summary: Near-realtime Egress/Talker für Statusband
+      summary: Frische Agent-Metriken (Host + Egress)
       description: |
-        Leichter Poll (~8s) für die Monitor-Wand. Liefert nur den frischen
-        Agent-Snapshot (Egress + Top-Talker), ohne Full-Page-Refresh.
-        Session-Auth wenn AUTH aktiv (nicht öffentlich wie /api/agent/*).
+        JSON-Snapshot vom Host-Agent (Load/RAM/Disk/Uptime + Egress/Talker).
+        Monitor-Wall pollt alle ~5s im Live-/Intervall-Modus. Session-Auth wenn AUTH aktiv.
       operationId: monitorLive
       parameters:
         - name: serverId
@@ -68,7 +67,7 @@ paths:
             format: uuid
       responses:
         "200":
-          description: Live-Snapshot oder online=false
+          description: Live-Snapshot (host + egress) oder online=false
         "400":
           description: serverId fehlt
 

@@ -23,8 +23,6 @@ type Props = {
   secondsPerRow?: number;
 };
 
-const RESUME_AFTER_LEAVE_MS = 900;
-
 export function MonitorModuleGrid({
   sections,
   severityMap,
@@ -41,7 +39,6 @@ export function MonitorModuleGrid({
   const copyHRef = useRef(0);
   const periodRef = useRef(0);
   const offsetRef = useRef(0);
-  const hoverRef = useRef(false);
   const pausedRef = useRef(false);
   const reducedRef = useRef(false);
   const resumeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -52,28 +49,13 @@ export function MonitorModuleGrid({
     setPaused(next);
   }, []);
 
-  const pauseWhileHover = useCallback(() => {
-    hoverRef.current = true;
-    if (resumeTimer.current) clearTimeout(resumeTimer.current);
-    setPausedState(true);
-  }, [setPausedState]);
-
-  const resumeAfterLeave = useCallback(() => {
-    hoverRef.current = false;
-    if (resumeTimer.current) clearTimeout(resumeTimer.current);
-    resumeTimer.current = setTimeout(() => {
-      if (hoverRef.current) return;
-      setPausedState(false);
-    }, RESUME_AFTER_LEAVE_MS);
-  }, [setPausedState]);
-
+  /** Wheel scrub pause — always clears. Hover freeze is :hover in the rAF
+   *  loop only (no sticky pointerenter that survives layout shifts). */
   const pauseBriefly = useCallback(
     (ms = 2200) => {
-      if (hoverRef.current) return;
       setPausedState(true);
       if (resumeTimer.current) clearTimeout(resumeTimer.current);
       resumeTimer.current = setTimeout(() => {
-        if (hoverRef.current) return;
         setPausedState(false);
       }, ms);
     },
@@ -146,10 +128,11 @@ export function MonitorModuleGrid({
       const rowH = copyH / approxRows;
       const speed = rowH / (secondsPerRow * 1000);
 
+      const hovering = Boolean(viewportRef.current?.matches(":hover"));
       if (
         !reducedRef.current &&
         !pausedRef.current &&
-        !hoverRef.current &&
+        !hovering &&
         document.visibilityState === "visible"
       ) {
         offsetRef.current += speed * dt;
@@ -182,8 +165,8 @@ export function MonitorModuleGrid({
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       e.stopPropagation();
-      // Hover only freezes auto-scroll; wheel scrub still works.
-      if (!hoverRef.current) pauseBriefly();
+      // Hover already freezes via :hover; wheel scrub always works.
+      pauseBriefly();
       offsetRef.current += e.deltaY;
       const period = periodRef.current || copyHRef.current;
       if (period > 0) {
@@ -246,12 +229,7 @@ export function MonitorModuleGrid({
       data-paused={paused ? "1" : "0"}
       data-loop={shouldLoop ? "1" : "0"}
     >
-      <div
-        ref={viewportRef}
-        className="monitor-grid-viewport"
-        onPointerEnter={pauseWhileHover}
-        onPointerLeave={resumeAfterLeave}
-      >
+      <div ref={viewportRef} className="monitor-grid-viewport">
         <div ref={trackRef} className="monitor-grid-track">
           {renderCopy(0)}
           {shouldLoop && (

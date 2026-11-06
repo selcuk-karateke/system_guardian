@@ -1,20 +1,25 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { MonitorAlertTicker } from "./monitor-alert-ticker";
 import { MonitorClock } from "./monitor-clock";
 import { MonitorGlobe } from "./monitor-globe";
-import { MonitorHeroMetric } from "./monitor-metric";
 import { MonitorModeSwitch } from "./monitor-mode-switch";
 import { MonitorReloadButton } from "./monitor-reload-button";
-import {
-  MonitorStatusBand,
-  type MonitorEgressInfo,
-} from "./monitor-status-band";
+import type { MonitorEgressInfo } from "./monitor-status-band";
+import { MonitorLivePanel } from "./monitor-live-panel";
 import {
   MonitorModuleGrid,
   type MonitorModuleSection,
 } from "./monitor-module-grid";
+import {
+  ServerSelect,
+  type ServerSelectOption,
+} from "./server-select";
 import type { GlobeTint } from "@/lib/geo/attack-markers";
-import type { MonitorMetricCards } from "@/lib/monitor-details";
+import type {
+  MonitorLiveHostVitals,
+  MonitorMetricCards,
+} from "@/lib/monitor-metric-cards";
 import {
   crisisStageHeroLabel,
   crisisStageToWallTone,
@@ -87,7 +92,11 @@ type Props = {
   webMarkers?: GlobeTint[];
   homeMarker?: GlobeTint | null;
   egress?: MonitorEgressInfo | null;
+  /** Fresh agent host vitals for live metric cards (SSR seed). */
+  liveHost?: MonitorLiveHostVitals | null;
+  cpuCores?: number | null;
   serverId?: string | null;
+  servers?: ServerSelectOption[];
 };
 
 export function MonitorWall({
@@ -107,7 +116,10 @@ export function MonitorWall({
   webMarkers = [],
   homeMarker = null,
   egress = null,
+  liveHost = null,
+  cpuCores = null,
   serverId = null,
+  servers = [],
 }: Props) {
   const wallTone = crisisStageToWallTone(crisisStage);
   const hero = crisisStageHeroLabel(crisisStage);
@@ -167,6 +179,15 @@ export function MonitorWall({
             ) : null}
           </div>
           <div className="monitor-top-right">
+            {servers.length > 1 && serverId ? (
+              <Suspense fallback={null}>
+                <ServerSelect
+                  servers={servers}
+                  selectedId={serverId}
+                  className="monitor-top-select monitor-top-select--quiet"
+                />
+              </Suspense>
+            ) : null}
             <MonitorModeSwitch compact />
             <MonitorClock />
             <MonitorReloadButton />
@@ -176,43 +197,17 @@ export function MonitorWall({
           </div>
         </header>
 
-        <MonitorStatusBand
+        <MonitorLivePanel
           wallTone={wallTone}
           crisisStage={crisisStage}
           hero={hero}
           counts={counts}
           lastCheck={lastCheck}
-          egress={egress}
           serverId={serverId}
+          initial={{ egress, host: liveHost }}
+          metricCards={metricCards}
+          cpuCores={cpuCores}
         />
-
-        <section className="monitor-metrics">
-          <MonitorHeroMetric
-            label="Load"
-            value={metricCards.cpu.value}
-            displayValue={metricCards.cpu.displayValue ?? undefined}
-            lines={metricCards.cpu.lines}
-            tone={metricCards.cpu.tone}
-          />
-          <MonitorHeroMetric
-            label="RAM"
-            value={metricCards.ram.value}
-            lines={metricCards.ram.lines}
-            tone={metricCards.ram.tone}
-          />
-          <MonitorHeroMetric
-            label="Disk"
-            value={metricCards.disk.value}
-            lines={metricCards.disk.lines}
-            tone={metricCards.disk.tone}
-          />
-          <MonitorHeroMetric
-            label="Uptime"
-            value={null}
-            displayValue={metricCards.uptime.display}
-            lines={metricCards.uptime.lines}
-          />
-        </section>
 
         <MonitorModuleGrid
           sections={MODULE_SECTIONS}

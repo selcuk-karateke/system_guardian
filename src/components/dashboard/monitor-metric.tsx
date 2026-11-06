@@ -1,3 +1,5 @@
+import { MonitorSparkline } from "./monitor-sparkline";
+
 export type MetricCardProps = {
   label: string;
   value: number | null | undefined;
@@ -5,6 +7,10 @@ export type MetricCardProps = {
   unit?: string;
   lines?: string[];
   tone?: "ok" | "warn" | "crit";
+  /** Soft sparkline backdrop (live history). */
+  series?: number[];
+  /** Pin sparkline Y domain (RAM/Disk = 0–100). */
+  seriesDomain?: { min: number; max: number };
 };
 
 function MonitorRingGauge({
@@ -50,13 +56,25 @@ export function MonitorHeroMetric({
   displayValue,
   lines = [],
   tone = "ok",
+  series,
+  seriesDomain,
 }: MetricCardProps) {
   const pct = value ?? 0;
   const showRing = value != null;
   const isTextValue = displayValue != null;
+  const showSpark = series != null && series.length >= 2;
 
   return (
-    <div className={`monitor-glass monitor-stat monitor-stat--hud monitor-stat--${tone}`}>
+    <div
+      className={`monitor-glass monitor-stat monitor-stat--hud monitor-stat--${tone}`}
+    >
+      {showSpark ? (
+        <MonitorSparkline
+          values={series}
+          tone={tone}
+          fixedDomain={seriesDomain}
+        />
+      ) : null}
       <div className="monitor-stat-head">
         {showRing && <MonitorRingGauge pct={pct} tone={tone} />}
         <div className="monitor-stat-body">

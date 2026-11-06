@@ -19,6 +19,109 @@ import { THRESHOLDS } from "@/lib/config";
 
 export { formatTopTalkerLine, formatTopTalkerDetail } from "@/lib/agent/talker-meta";
 
+/** Host vitals for TV metric cards (agent push). */
+export type MonitorLiveHost = {
+  cpuPercent: number | null;
+  load1: number | null;
+  load5: number | null;
+  load15: number | null;
+  ramPercent: number | null;
+  diskPercent: number | null;
+  uptimeSec: number | null;
+};
+
+/** Wire payload for monitor status band + metric cards (JSON poll + SSR seed). */
+export type MonitorLivePayload = {
+  ok: true;
+  online: boolean;
+  agentVersion: string | null;
+  receivedAt: number | null;
+  egress: {
+    txMbps: number;
+    txBytes: number | null;
+    windowSec: number;
+    iface: string | null;
+    topTalker: string | null;
+    /** Hover / alert detail — cmdline & files */
+    topTalkerDetail: string | null;
+  } | null;
+  host: MonitorLiveHost | null;
+};
+
+function bytesToPercent(
+  used: number | null | undefined,
+  total: number | null | undefined,
+): number | null {
+  if (used == null || total == null || total <= 0) return null;
+  return Math.min(100, Math.max(0, Math.round((used / total) * 100)));
+}
+
+export function hostFromAgentLive(
+  live: AgentLiveSnapshot | null,
+): MonitorLiveHost | null {
+  if (!live) return null;
+  const hasAny =
+    live.cpuPercent != null ||
+    live.load1 != null ||
+    live.memUsedBytes != null ||
+    live.diskUsedBytes != null ||
+    live.uptimeSec != null;
+  if (!hasAny) return null;
+  return {
+    cpuPercent: live.cpuPercent,
+    load1: live.load1,
+    load5: live.load5,
+    load15: live.load15,
+    ramPercent: bytesToPercent(live.memUsedBytes, live.memTotalBytes),
+    diskPercent: bytesToPercent(live.diskUsedBytes, live.diskTotalBytes),
+    uptimeSec: live.uptimeSec,
+  };
+}
+
+export function toMonitorLivePayload(
+  live: AgentLiveSnapshot | null,
+): MonitorLivePayload {
+  const host = hostFromAgentLive(live);
+  if (!live) {
+    return {
+      ok: true,
+      online: false,
+      agentVersion: null,
+      receivedAt: null,
+      egress: null,
+      host: null,
+    };
+  }
+  if (!live.egress) {
+    return {
+      ok: true,
+      online: true,
+      agentVersion: live.agentVersion,
+      receivedAt: live.receivedAt,
+      egress: null,
+      host,
+    };
+  }
+  const topTalker = formatTopTalkerLine(live.talkers);
+  const topTalkerDetail = formatTopTalkerDetail(live.talkers);
+  const top = [...live.talkers].sort((a, b) => b.txBps - a.txBps)[0];
+  return {
+    ok: true,
+    online: true,
+    agentVersion: live.agentVersion,
+    receivedAt: live.receivedAt,
+    egress: {
+      txMbps: live.egress.txMbps,
+      txBytes: top?.txBytes ?? null,
+      windowSec: live.egress.windowSec,
+      iface: live.egress.iface,
+      topTalker,
+      topTalkerDetail,
+    },
+    host,
+  };
+}
+
 const KINDS = new Set<AgentTalkerKind>([
   "ssh",
   "https",

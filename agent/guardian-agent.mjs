@@ -98,7 +98,24 @@ async function sampleCpuPercent() {
 
 async function sampleDiskRoot() {
   try {
-    const { stdout } = await execFileAsync("df", ["-BP", "/"], {
+    if (typeof fs.statfs === "function") {
+      const s = await fs.statfs("/");
+      const bsize = Number(s.bsize) || 0;
+      const blocks = Number(s.blocks) || 0;
+      const bavail = Number(s.bavail) || 0;
+      const total = bsize * blocks;
+      const free = bsize * bavail;
+      const used = total - free;
+      if (total > 0 && Number.isFinite(used)) {
+        return { used: Math.max(0, used), total };
+      }
+    }
+  } catch {
+    /* fall through to df */
+  }
+  try {
+    // POSIX 1K blocks; Capacity column as last-resort sanity check
+    const { stdout } = await execFileAsync("df", ["-Pk", "/"], {
       timeout: 5000,
       maxBuffer: 64_000,
     });
@@ -107,10 +124,10 @@ async function sampleDiskRoot() {
     const parts = line.trim().split(/\s+/);
     const total = Number(parts[1]) * 1024;
     const used = Number(parts[2]) * 1024;
-    if (!Number.isFinite(total) || !Number.isFinite(used)) {
+    if (!Number.isFinite(total) || !Number.isFinite(used) || total <= 0) {
       return { used: null, total: null };
     }
-    return { used, total };
+    return { used: Math.max(0, used), total };
   } catch {
     return { used: null, total: null };
   }

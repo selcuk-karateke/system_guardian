@@ -11,21 +11,27 @@ export default async function MonitorGlobePage({
 }) {
   const sp = await searchParams;
   const view = await loadMonitorGlobeView(sp.server);
+  const multi = view.serverRows.length > 1;
 
   return (
-    <MonitorAutoRefresh intervalSec={60}>
-      <div className="px-4 pt-3 flex justify-end">
-        <Suspense fallback={null}>
-          <ServerSelect
-            servers={view.serverRows.map((s) => ({
-              id: s.id,
-              name: s.name,
-              host: s.host,
-            }))}
-            selectedId={view.selectedServerId}
-          />
-        </Suspense>
-      </div>
+    <MonitorAutoRefresh>
+      {multi ? (
+        <div className="pointer-events-none absolute right-4 top-3 z-20">
+          <div className="pointer-events-auto">
+            <Suspense fallback={null}>
+              <ServerSelect
+                servers={view.serverRows.map((s) => ({
+                  id: s.id,
+                  name: s.name,
+                  host: s.host,
+                }))}
+                selectedId={view.selectedServerId}
+                className="monitor-top-select monitor-top-select--quiet"
+              />
+            </Suspense>
+          </div>
+        </div>
+      ) : null}
       <MonitorGlobeStage
         globalStatus={view.globalStatus}
         hostLabel={view.hostLabel}

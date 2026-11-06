@@ -143,9 +143,9 @@ export function GlyphTicker({
       aria-label={text}
       role="status"
     >
-      <span ref={rootRef} className="monitor-glyph-ticker" aria-hidden="true">
-        {text}
-      </span>
+      {/* Empty shell — scramble DOM is owned by the effect; React text
+          children would wipe spans on every parent re-render. */}
+      <span ref={rootRef} className="monitor-glyph-ticker" aria-hidden="true" />
       <span className="monitor-glyph-ticker-scan" aria-hidden="true" />
     </span>
   );
