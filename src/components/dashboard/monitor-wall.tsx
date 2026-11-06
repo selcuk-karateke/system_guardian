@@ -18,6 +18,7 @@ import {
 } from "./server-select";
 import type { GlobeTint } from "@/lib/geo/attack-markers";
 import type {
+  MetricToneThresholds,
   MonitorLiveHostVitals,
   MonitorMetricCards,
 } from "@/lib/monitor-metric-cards";
@@ -96,6 +97,8 @@ type Props = {
   /** Fresh agent host vitals for live metric cards (SSR seed). */
   liveHost?: MonitorLiveHostVitals | null;
   cpuCores?: number | null;
+  /** Ampel thresholds from Settings (CPU/RAM/Disk). */
+  toneThresholds?: MetricToneThresholds;
   serverId?: string | null;
   servers?: ServerSelectOption[];
 };
@@ -119,6 +122,7 @@ export function MonitorWall({
   egress = null,
   liveHost = null,
   cpuCores = null,
+  toneThresholds,
   serverId = null,
   servers = [],
 }: Props) {
@@ -209,13 +213,14 @@ export function MonitorWall({
           initial={{ egress, host: liveHost }}
           metricCards={metricCards}
           cpuCores={cpuCores}
+          toneThresholds={toneThresholds}
         />
 
         <MonitorModuleGrid
           sections={MODULE_SECTIONS}
           severityMap={severityMap}
           moduleDetails={moduleDetails}
-          visibleRows={4}
+          visibleRows={3}
           secondsPerRow={3.5}
         />
 

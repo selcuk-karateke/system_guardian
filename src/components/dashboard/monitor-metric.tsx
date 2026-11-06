@@ -25,27 +25,35 @@ function MonitorRingGauge({
   const filled = (Math.min(100, Math.max(0, pct)) / 100) * c;
 
   return (
-    <svg
-      className="monitor-stat-ring"
-      viewBox="0 0 100 100"
-      aria-hidden
-    >
-      <circle className="monitor-stat-ring-track" cx="50" cy="50" r={r} />
-      <circle
-        className={`monitor-stat-ring-fill monitor-stat-ring-fill--${tone}`}
-        cx="50"
-        cy="50"
-        r={r}
-        strokeDasharray={`${filled} ${c}`}
-        transform="rotate(-90 50 50)"
-      />
-      <circle
-        className="monitor-stat-ring-tick"
-        cx="50"
-        cy="50"
-        r={r + 6}
-      />
-    </svg>
+    <span className={`monitor-stat-ring-wrap monitor-stat-ring-wrap--${tone}`}>
+      <svg
+        className={`monitor-stat-ring monitor-stat-ring--${tone}`}
+        viewBox="0 0 100 100"
+        aria-hidden
+      >
+        {/* Soft bloom on the stroke path — not on the outer wrap */}
+        <circle
+          className={`monitor-stat-ring-glow monitor-stat-ring-glow--${tone}`}
+          cx="50"
+          cy="50"
+          r={r}
+        />
+        <circle
+          className={`monitor-stat-ring-track monitor-stat-ring-track--${tone}`}
+          cx="50"
+          cy="50"
+          r={r}
+        />
+        <circle
+          className={`monitor-stat-ring-fill monitor-stat-ring-fill--${tone}`}
+          cx="50"
+          cy="50"
+          r={r}
+          strokeDasharray={`${filled} ${c}`}
+          transform="rotate(-90 50 50)"
+        />
+      </svg>
+    </span>
   );
 }
 
@@ -76,7 +84,6 @@ export function MonitorHeroMetric({
         />
       ) : null}
       <div className="monitor-stat-head">
-        {showRing && <MonitorRingGauge pct={pct} tone={tone} />}
         <div className="monitor-stat-body">
           <span className="monitor-stat-label">{label}</span>
           <span
@@ -93,15 +100,14 @@ export function MonitorHeroMetric({
               "—"
             )}
           </span>
+          <div className="monitor-stat-details" aria-hidden={lines.length === 0}>
+            {lines.map((line) => (
+              <span key={line}>{line}</span>
+            ))}
+          </div>
         </div>
+        {showRing ? <MonitorRingGauge pct={pct} tone={tone} /> : null}
       </div>
-      {lines.length > 0 && (
-        <div className="monitor-stat-details">
-          {lines.map((line) => (
-            <span key={line}>{line}</span>
-          ))}
-        </div>
-      )}
     </div>
   );
 }

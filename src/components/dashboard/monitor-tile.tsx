@@ -93,7 +93,6 @@ export function MonitorTile({
         </div>
       </div>
       <span className={`monitor-cell-status monitor-cell-status-ring ${s.text}`}>
-        <span className="monitor-cell-status-core" aria-hidden />
         {s.label}
       </span>
     </>

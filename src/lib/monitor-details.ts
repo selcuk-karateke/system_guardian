@@ -4,10 +4,11 @@ import { getFimPaths } from "@/lib/config";
 import { MONITOR_PLACEHOLDER_MODULES } from "@/lib/module-labels";
 import {
   buildMetricCardsFromParts,
+  type MetricToneThresholds,
   type MonitorMetricCards,
 } from "@/lib/monitor-metric-cards";
 
-export type { MonitorMetricCards } from "@/lib/monitor-metric-cards";
+export type { MonitorMetricCards, MetricToneThresholds } from "@/lib/monitor-metric-cards";
 export { buildMonitorMetricCardsFromLive } from "@/lib/monitor-metric-cards";
 
 type MetricsRow = typeof metricsSnapshots.$inferSelect;
@@ -34,7 +35,11 @@ function effectiveLoadPercent(
 export function buildMonitorMetricCards(
   m: MetricsRow | null | undefined,
   uptimeFormatted: string,
-  opts?: { kernel?: string | null; osPretty?: string | null },
+  opts?: {
+    kernel?: string | null;
+    osPretty?: string | null;
+    thresholds?: MetricToneThresholds;
+  },
 ): MonitorMetricCards {
   const uptimeLines: string[] = [];
   if (opts?.osPretty) {
@@ -57,6 +62,7 @@ export function buildMonitorMetricCards(
     },
     uptimeFormatted,
     uptimeLines,
+    opts?.thresholds,
   );
 }
 

@@ -32,6 +32,8 @@
   --m-cell-pad-y: 10px;
   --m-cell-pad-x: 16px;
   --m-radius-cell: 14px;
+  /* Shared min height: metric cards + module tiles */
+  --m-card-min-h: clamp(96px, 11vh, 132px);
 
   position: fixed;
   inset: 0;
@@ -932,7 +934,6 @@
 .monitor-hud-ring--1,
 .monitor-hud-ring--2,
 .monitor-hud-ring--3,
-.monitor-stat-ring-tick,
 .monitor-hud-scan,
 .monitor-aurora,
 .monitor-hud-grid,
@@ -1450,10 +1451,10 @@
     clamp(12px, 1.4vh, 20px);
   text-align: left;
   min-width: 0;
-  min-height: 0;
+  min-height: var(--m-card-min-h);
   display: flex;
   flex-direction: column;
-  justify-content: flex-start;
+  justify-content: center;
   gap: 0.25em;
   /* Visible feet — clip was eating last detail row */
   overflow: visible;
@@ -1529,8 +1530,10 @@
   z-index: 1;
   display: flex;
   align-items: center;
-  gap: clamp(8px, 1.2vmin, 16px);
+  justify-content: space-between;
+  gap: clamp(10px, 1.4vmin, 18px);
   min-width: 0;
+  width: 100%;
 }
 
 .monitor-stat-body {
@@ -1538,39 +1541,88 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.1em;
+  justify-content: flex-start;
+  gap: 0.12em;
 }
 
-.monitor-stat-ring {
+.monitor-stat-ring-wrap {
+  position: relative;
+  align-self: center;
   flex-shrink: 0;
+  display: grid;
+  place-items: center;
   width: clamp(52px, 7vmin, var(--m-cap-stat));
   height: clamp(52px, 7vmin, var(--m-cap-stat));
 }
 
+.monitor-stat-ring {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  /* Subtle bloom — fill arc stays the readable signal */
+  filter: drop-shadow(0 0 2px rgb(34 211 238 / 55%))
+    drop-shadow(0 0 4px rgb(34 211 238 / 28%));
+}
+
+.monitor-stat-ring--warn {
+  filter: drop-shadow(0 0 2px rgb(251 191 36 / 60%))
+    drop-shadow(0 0 4px rgb(251 191 36 / 30%));
+}
+
+.monitor-stat-ring--crit {
+  filter: drop-shadow(0 0 2px rgb(248 113 113 / 65%))
+    drop-shadow(0 0 4px rgb(248 113 113 / 32%));
+}
+
+.monitor-stat-ring-glow {
+  fill: none;
+  stroke-width: 7;
+  stroke-linecap: round;
+  opacity: 0.12;
+}
+
+.monitor-stat-ring-glow--ok {
+  stroke: var(--hud-cyan);
+}
+
+.monitor-stat-ring-glow--warn {
+  stroke: var(--warn);
+}
+
+.monitor-stat-ring-glow--crit {
+  stroke: var(--crit);
+}
+
 .monitor-stat-ring-track {
   fill: none;
-  stroke: rgb(255 255 255 / 8%);
+  stroke: rgb(255 255 255 / 10%);
   stroke-width: 5;
 }
 
-.monitor-stat-ring-tick {
-  fill: none;
-  stroke: rgb(34 211 238 / 12%);
-  stroke-width: 1;
-  stroke-dasharray: 2 8;
-  transform-origin: 50px 50px;
-  animation: monitor-hud-spin 24s linear infinite;
+/* Neutral track — keep fill arc readable */
+.monitor-stat-ring-track--ok {
+  stroke: rgb(255 255 255 / 12%);
+}
+
+.monitor-stat-ring-track--warn {
+  stroke: rgb(255 255 255 / 12%);
+}
+
+.monitor-stat-ring-track--crit {
+  stroke: rgb(255 255 255 / 12%);
 }
 
 .monitor-stat-ring-fill {
   fill: none;
   stroke-width: 5;
   stroke-linecap: round;
-  transition: stroke-dasharray 0.5s ease;
+  transition:
+    stroke-dasharray 0.5s ease,
+    stroke 0.35s ease;
 }
 
 .monitor-stat-ring-fill--ok {
-  stroke: var(--ok);
+  stroke: var(--hud-cyan);
 }
 
 .monitor-stat-ring-fill--warn {
@@ -1588,6 +1640,18 @@
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--hud-cyan);
+}
+
+.monitor-stat--ok .monitor-stat-label {
+  color: var(--hud-cyan);
+}
+
+.monitor-stat--warn .monitor-stat-label {
+  color: var(--warn);
+}
+
+.monitor-stat--crit .monitor-stat-label {
+  color: var(--crit);
 }
 
 .monitor-stat-value {
@@ -1625,7 +1689,8 @@
   flex-wrap: wrap;
   gap: clamp(4px, 0.45vmin, 8px);
   margin-top: 0.35em;
-  min-height: 0;
+  /* Keep label/value baselines aligned across cards with/without chips */
+  min-height: clamp(18px, 2vh, 24px);
   flex: 0 0 auto;
   min-width: 0;
   overflow: visible;
@@ -1660,17 +1725,40 @@
   border-color: rgb(248 113 113 / 28%);
 }
 
+.monitor-stat--ok {
+  border-color: rgb(34 211 238 / 28%);
+  box-shadow:
+    0 0 28px rgb(34 211 238 / 10%),
+    inset 0 0 20px rgb(34 211 238 / 4%);
+}
+
 .monitor-stat--warn {
-  border-color: rgba(251, 191, 36, 0.35);
-  box-shadow: 0 0 30px rgb(251 191 36 / 10%);
+  border-color: rgba(251, 191, 36, 0.4);
+  box-shadow:
+    0 0 30px rgb(251 191 36 / 14%),
+    inset 0 0 20px rgb(251 191 36 / 5%);
 }
 
 .monitor-stat--crit {
-  border-color: rgba(248, 113, 113, 0.4);
-  box-shadow: 0 0 32px rgb(248 113 113 / 12%);
+  border-color: rgba(248, 113, 113, 0.48);
+  box-shadow:
+    0 0 32px rgb(248 113 113 / 16%),
+    inset 0 0 22px rgb(248 113 113 / 6%);
 }
 
-/* modules — 4 visible rows, endless vertical loop */
+.monitor-stat--warn .monitor-stat-value {
+  text-shadow: 0 0 22px rgb(251 191 36 / 25%);
+}
+
+.monitor-stat--crit .monitor-stat-value {
+  text-shadow: 0 0 24px rgb(248 113 113 / 30%);
+}
+
+.monitor-stat--ok .monitor-stat-value {
+  text-shadow: 0 0 20px rgb(34 211 238 / 20%);
+}
+
+/* modules — 4 cols × metric-card height, endless vertical loop */
 .monitor-grid-shell {
   min-height: 0;
   height: 100%;
@@ -1844,14 +1932,14 @@
 .monitor-grid {
   min-height: 0;
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: var(--m-block-gap);
   align-content: start;
   box-sizing: border-box;
 }
 
 .monitor-grid--flat {
-  grid-auto-rows: minmax(clamp(56px, 7.5vh, 88px), auto);
+  grid-auto-rows: minmax(var(--m-card-min-h), auto);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1865,14 +1953,13 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: clamp(8px, 0.9vmin, 14px);
+  gap: clamp(6px, 0.7vmin, 12px);
   min-height: 0;
   height: 100%;
   max-height: 100%;
   overflow: hidden;
-  padding: clamp(6px, 0.7vh, var(--m-cell-pad-y))
-    clamp(10px, 1.4vmin, var(--m-cell-pad-x));
-  border-radius: clamp(8px, 0.9vmin, var(--m-radius-cell));
+  padding: clamp(8px, 0.9vh, 14px) clamp(10px, 1.2vmin, 14px);
+  border-radius: clamp(10px, 1.1vmin, var(--m-radius-cell));
 }
 
 a.monitor-cell-link {
@@ -1906,35 +1993,36 @@ a.monitor-cell-link:focus-visible {
 
 .monitor-cell-name {
   font-family: var(--monitor-sans);
-  font-size: clamp(12px, 1.55vmin, var(--m-cap-cell));
+  font-size: clamp(11px, 1.35vmin, 22px);
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  line-height: 1.1;
+  line-height: 1.15;
   flex-shrink: 0;
   letter-spacing: 0.02em;
 }
 
 .monitor-cell-chips {
   display: flex;
-  flex-wrap: nowrap;
-  gap: clamp(3px, 0.4vmin, 6px);
+  flex-wrap: wrap;
+  gap: clamp(3px, 0.35vmin, 5px);
   min-width: 0;
   overflow: hidden;
+  max-height: 2.6em;
 }
 
 .monitor-cell-chip {
   flex: 0 1 auto;
   max-width: 100%;
   font-family: var(--monitor-mono);
-  font-size: clamp(9px, 1.05vmin, var(--m-cap-xs));
+  font-size: clamp(8px, 0.95vmin, 13px);
   line-height: 1.2;
   color: rgb(186 230 253 / 85%);
   background: rgb(34 211 238 / 10%);
   border: 1px solid rgb(34 211 238 / 22%);
   border-radius: 999px;
-  padding: 0.12em 0.55em;
+  padding: 0.12em 0.5em;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1985,16 +2073,6 @@ a.monitor-cell-link:focus-visible {
     0 0 14px currentColor,
     inset 0 0 10px rgb(255 255 255 / 6%);
   background: rgb(0 0 0 / 35%);
-}
-
-.monitor-cell-status-core {
-  position: absolute;
-  width: 38%;
-  height: 38%;
-  border-radius: 50%;
-  background: currentColor;
-  opacity: 0.35;
-  pointer-events: none;
 }
 
 .monitor-cell--healthy {
@@ -2486,7 +2564,6 @@ a.monitor-cell-link:focus-visible {
 
   .monitor-display,
   .monitor-stat-ring-fill,
-  .monitor-stat-ring-tick,
   .monitor-cell-status-ring,
   .monitor-glass::before,
   .monitor-glass::after {

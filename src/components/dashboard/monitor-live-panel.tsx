@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   buildMonitorMetricCardsFromLive,
+  type MetricToneThresholds,
   type MonitorLiveHostVitals,
   type MonitorMetricCards,
 } from "@/lib/monitor-metric-cards";
@@ -40,6 +41,7 @@ type Props = {
   initial: LiveSeed;
   metricCards: MonitorMetricCards;
   cpuCores?: number | null;
+  toneThresholds?: MetricToneThresholds;
 };
 
 function egressKey(e: MonitorEgressInfo | null | undefined): string {
@@ -193,6 +195,7 @@ export function MonitorLivePanel({
   initial,
   metricCards,
   cpuCores = null,
+  toneThresholds,
 }: Props) {
   const { egress, host, streamLive, sampleGen } = useMonitorLivePoll(
     serverId,
@@ -210,8 +213,9 @@ export function MonitorLivePanel({
       uptimeFormatted,
       uptimeLines: metricCards.uptime.lines,
       seed: metricCards,
+      thresholds: toneThresholds,
     });
-  }, [host, metricCards, cpuCores]);
+  }, [host, metricCards, cpuCores, toneThresholds]);
 
   const seedSeries = (): MetricSeries => {
     const load =

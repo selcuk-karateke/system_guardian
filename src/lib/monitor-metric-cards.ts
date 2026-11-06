@@ -3,15 +3,37 @@
  * Keep free of Node/SSH imports — used by monitor-live-panel (browser).
  */
 
+export type MetricTone = "ok" | "warn" | "crit";
+
+/** Ampel thresholds — mirrors DEFAULT_THRESHOLDS (Settings → Runtime). */
+export type MetricToneThresholds = {
+  cpuWarn: number;
+  cpuCrit: number;
+  ramWarn: number;
+  ramCrit: number;
+  diskWarn: number;
+  diskCrit: number;
+};
+
+/** Defaults match `DEFAULT_THRESHOLDS` in runtime-config (no Node import). */
+export const DEFAULT_METRIC_TONE_THRESHOLDS: MetricToneThresholds = {
+  cpuWarn: 80,
+  cpuCrit: 95,
+  ramWarn: 85,
+  ramCrit: 95,
+  diskWarn: 85,
+  diskCrit: 95,
+};
+
 export type MonitorMetricCards = {
   cpu: {
     value: number | null;
     displayValue?: string | null;
     lines: string[];
-    tone: "ok" | "warn" | "crit";
+    tone: MetricTone;
   };
-  ram: { value: number | null; lines: string[]; tone: "ok" | "warn" | "crit" };
-  disk: { value: number | null; lines: string[]; tone: "ok" | "warn" | "crit" };
+  ram: { value: number | null; lines: string[]; tone: MetricTone };
+  disk: { value: number | null; lines: string[]; tone: MetricTone };
   uptime: { display: string; lines: string[] };
 };
 
@@ -25,11 +47,11 @@ export type MonitorLiveHostVitals = {
   uptimeSec: number | null;
 };
 
-function toneFromPercent(
+export function toneFromPercent(
   pct: number | null | undefined,
   warn: number,
   crit: number,
-): "ok" | "warn" | "crit" {
+): MetricTone {
   if (pct == null) return "ok";
   if (pct >= crit) return "crit";
   if (pct >= warn) return "warn";
@@ -70,7 +92,9 @@ export function buildMetricCardsFromParts(
   parts: MetricCardBuildInput,
   uptimeFormatted: string,
   uptimeLines: string[],
+  thresholds: MetricToneThresholds = DEFAULT_METRIC_TONE_THRESHOLDS,
 ): MonitorMetricCards {
+  const thr = { ...DEFAULT_METRIC_TONE_THRESHOLDS, ...thresholds };
   const ram = parts.ramPercent ?? null;
   const disk = parts.diskPercent ?? null;
   const swap = parts.swapPercent ?? null;
@@ -119,17 +143,17 @@ export function buildMetricCardsFromParts(
       value: effectivePct,
       displayValue: load1 ? formatLoadNumber(load1) : null,
       lines: cpuLines,
-      tone: toneFromPercent(effectivePct, 80, 95),
+      tone: toneFromPercent(effectivePct, thr.cpuWarn, thr.cpuCrit),
     },
     ram: {
       value: ram,
       lines: ramLines,
-      tone: toneFromPercent(ram, 85, 95),
+      tone: toneFromPercent(ram, thr.ramWarn, thr.ramCrit),
     },
     disk: {
       value: disk,
       lines: diskLines,
-      tone: toneFromPercent(disk, 85, 95),
+      tone: toneFromPercent(disk, thr.diskWarn, thr.diskCrit),
     },
     uptime: {
       display: uptimeFormatted,
@@ -147,6 +171,7 @@ export function buildMonitorMetricCardsFromLive(
     uptimeLines?: string[];
     /** Keep last good SSR/SSH values when agent omits a field. */
     seed?: MonitorMetricCards | null;
+    thresholds?: MetricToneThresholds;
   },
 ): MonitorMetricCards {
   const seed = opts.seed ?? null;
@@ -175,6 +200,7 @@ export function buildMonitorMetricCardsFromLive(
     },
     opts.uptimeFormatted,
     opts.uptimeLines ?? seed?.uptime.lines ?? [],
+    opts.thresholds,
   );
 
   if (!seed) return built;

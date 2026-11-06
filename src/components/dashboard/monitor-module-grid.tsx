@@ -31,7 +31,7 @@ export function MonitorModuleGrid({
   secondsPerRow = 3.5,
 }: Props) {
   const totalModules = sections.reduce((n, s) => n + s.modules.length, 0);
-  const approxRows = Math.max(1, Math.ceil(totalModules / 3));
+  const approxRows = Math.max(1, Math.ceil(totalModules / 4));
   const shouldLoop = approxRows > visibleRows;
 
   const viewportRef = useRef<HTMLDivElement>(null);

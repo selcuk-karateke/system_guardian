@@ -22,6 +22,10 @@ import {
   getLatestCheckDataByModule,
 } from "@/lib/monitor-details";
 import {
+  DEFAULT_METRIC_TONE_THRESHOLDS,
+  type MetricToneThresholds,
+} from "@/lib/monitor-metric-cards";
+import {
   compareCrisisAlerts,
   crisisStageForModule,
   crisisStageToWallTone,
@@ -37,8 +41,24 @@ import {
 } from "@/lib/agent/ingest";
 import { buildGlobeTints } from "@/lib/geo/attack-markers";
 import { MONITOR_MODULE_ORDER, MONITOR_PLACEHOLDER_MODULES } from "@/lib/module-labels";
+import {
+  ensureRuntimeConfig,
+  getRuntimeConfigSnapshot,
+} from "@/lib/runtime-config";
 import { listActiveServers } from "@/lib/servers";
 import { formatUptime } from "@/lib/utils";
+
+function metricToneThresholdsFromRuntime(): MetricToneThresholds {
+  const t = getRuntimeConfigSnapshot().thresholds;
+  return {
+    cpuWarn: t.CPU_WARNING ?? DEFAULT_METRIC_TONE_THRESHOLDS.cpuWarn,
+    cpuCrit: t.CPU_CRITICAL ?? DEFAULT_METRIC_TONE_THRESHOLDS.cpuCrit,
+    ramWarn: t.RAM_WARNING ?? DEFAULT_METRIC_TONE_THRESHOLDS.ramWarn,
+    ramCrit: t.RAM_CRITICAL ?? DEFAULT_METRIC_TONE_THRESHOLDS.ramCrit,
+    diskWarn: t.DISK_WARNING ?? DEFAULT_METRIC_TONE_THRESHOLDS.diskWarn,
+    diskCrit: t.DISK_CRITICAL ?? DEFAULT_METRIC_TONE_THRESHOLDS.diskCrit,
+  };
+}
 
 type TileSeverity = CrisisStage | "ok" | "unknown";
 
@@ -174,12 +194,16 @@ export default async function MonitorPage({
   const liveHost = agentPayload?.host ?? null;
   const cpuCores = overview?.metrics?.cpuCores ?? null;
 
+  await ensureRuntimeConfig().catch(() => null);
+  const toneThresholds = metricToneThresholdsFromRuntime();
+
   const snapshotCards = buildMonitorMetricCards(
     overview?.metrics ?? null,
     uptimeFormatted,
     {
       kernel: inventory?.kernel,
       osPretty: inventory?.osPretty,
+      thresholds: toneThresholds,
     },
   );
   const metricCards =
@@ -192,6 +216,7 @@ export default async function MonitorPage({
               : uptimeFormatted,
           uptimeLines: snapshotCards.uptime.lines,
           seed: snapshotCards,
+          thresholds: toneThresholds,
         })
       : snapshotCards;
 
@@ -269,6 +294,7 @@ export default async function MonitorPage({
           egress={egress}
           liveHost={liveHost}
           cpuCores={cpuCores}
+          toneThresholds={toneThresholds}
           serverId={selectedServerId}
           servers={serverRows.map((s) => ({
             id: s.id,
