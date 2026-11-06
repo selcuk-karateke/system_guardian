@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { MonitorAlertTicker } from "./monitor-alert-ticker";
 import { MonitorClock } from "./monitor-clock";
 import { MonitorGlobe } from "./monitor-globe";
+import { MonitorMatrixRain } from "./monitor-matrix-rain";
 import { MonitorModeSwitch } from "./monitor-mode-switch";
 import { MonitorReloadButton } from "./monitor-reload-button";
 import type { MonitorEgressInfo } from "./monitor-status-band";
@@ -148,6 +149,7 @@ export function MonitorWall({
         </div>
       </div>
       <div className="monitor-hud" aria-hidden>
+        <MonitorMatrixRain status={wallTone} />
         <div className="monitor-hud-grid" />
         <div className="monitor-hud-rings">
           <MonitorGlobe

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRef } from "react";
 import { MonitorGlobe, type MonitorGlobeHandle } from "./monitor-globe";
 import { MonitorLiveActionSuffix } from "./monitor-live-action";
+import { MonitorMatrixRain } from "./monitor-matrix-rain";
 import { MonitorModeSwitch } from "./monitor-mode-switch";
 import type { GlobeTint } from "@/lib/geo/attack-markers";
 
@@ -37,6 +38,7 @@ export function MonitorGlobeStage({
         <div className="monitor-aurora" />
       </div>
       <div className="monitor-hud">
+        <MonitorMatrixRain status={globalStatus} />
         <div className="monitor-hud-grid" />
         <div className="monitor-hud-rings monitor-hud-rings--focus">
           <MonitorGlobe
