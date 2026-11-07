@@ -1,6 +1,8 @@
 # System Guardian host agent
 
-Node metrics agent — outbound HTTPS push to Guardian (`POST /api/agent/ingest`).
+Optional Node metrics agent — outbound HTTPS push to Guardian (`POST /api/agent/ingest`).
+
+Guardian itself stays agentless via SSH. With a fresh agent sample you get live egress/host cards on `/monitor`, and `server_health` prefers agent CPU/RAM/disk for snapshots and threshold alerts (SSH remains fallback).
 
 ## Install
 

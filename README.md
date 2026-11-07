@@ -1,6 +1,8 @@
 # System Guardian
 
-Überwacht Linux-Server **ohne Agent** — per SSH. Health, Docker, RAID, Backups, SSL, Logins und mehr. Coolify ist optional.
+Überwacht Linux-Server per SSH (ohne Pflicht-Agent). Health, Docker, RAID, Backups, SSL, Logins und mehr. Coolify ist optional. Optionaler Metrics-Agent für Live-Werte auf `/monitor`.
+
+![System Guardian Monitor](docs/assets/monitor.png)
 
 Passt neben [Beszel](https://github.com/henrygd/beszel) (Metriken) und [Uptime Kuma](https://github.com/louislam/uptime-kuma) (Erreichbarkeit) — Guardian macht die Ops-/Security-Checks.
 

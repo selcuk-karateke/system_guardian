@@ -1,4 +1,5 @@
 import { getSetting, setSetting } from "@/lib/app-settings";
+import { ensureAllowlistsConfig } from "@/lib/runtime-allowlists";
 
 const THRESHOLDS_KEY = "runtime.thresholds";
 const TRUSTED_KEY = "runtime.trusted";
@@ -155,7 +156,10 @@ export function getRuntimeConfigSnapshot(): {
 }
 
 export async function ensureRuntimeConfig(): Promise<void> {
-  if (ready) return;
+  if (ready) {
+    await ensureAllowlistsConfig().catch(() => null);
+    return;
+  }
   if (loading) return loading;
   loading = (async () => {
     try {
@@ -184,6 +188,7 @@ export async function ensureRuntimeConfig(): Promise<void> {
         trusted: parseTrusted(storedTr),
       };
       ready = true;
+      await ensureAllowlistsConfig().catch(() => null);
     } catch {
       cache = defaultsCache();
       ready = false;

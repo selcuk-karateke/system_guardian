@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireSettingsWrite } from "@/lib/auth/require-role";
+import { updateAllowlistsConfig } from "@/lib/runtime-allowlists";
 import {
   DEFAULT_THRESHOLDS,
   type ThresholdKey,
@@ -61,6 +62,43 @@ export async function updateTrustedIpsAction(
     });
     revalidate();
     return { ok: true, message: "Trusted IPs gespeichert" };
+  } catch (e) {
+    return {
+      ok: false,
+      message: e instanceof Error ? e.message : "Speichern fehlgeschlagen",
+    };
+  }
+}
+
+export async function updateAllowlistsAction(
+  formData: FormData,
+): Promise<RuntimeConfigActionResult> {
+  const gate = await requireSettingsWrite();
+  if (!gate.ok) return { ok: false, message: gate.message };
+  try {
+    await updateAllowlistsConfig({
+      expectedStoppedContainersRaw: String(
+        formData.get("expectedStoppedContainers") ?? "",
+      ),
+      expectedFailedUnitsRaw: String(formData.get("expectedFailedUnits") ?? ""),
+      fimPathsRaw: String(formData.get("fimPaths") ?? ""),
+      knownPortsRaw: String(formData.get("knownPorts") ?? ""),
+      knownDockerImagePrefixesRaw: String(
+        formData.get("knownDockerImagePrefixes") ?? "",
+      ),
+      blockedRemoteIpsRaw: String(formData.get("blockedRemoteIps") ?? ""),
+      incidentIocDomainsRaw: String(formData.get("incidentIocDomains") ?? ""),
+      trustedOutboundProcessesExtraRaw: String(
+        formData.get("trustedOutboundProcessesExtra") ?? "",
+      ),
+      trustedShellProcessPatternsExtraRaw: String(
+        formData.get("trustedShellProcessPatternsExtra") ?? "",
+      ),
+      autoBlockEnabled: formData.get("autoBlockEnabled") === "on",
+      autoBlockJail: String(formData.get("autoBlockJail") ?? "sshd"),
+    });
+    revalidate();
+    return { ok: true, message: "Allowlists gespeichert" };
   } catch (e) {
     return {
       ok: false,

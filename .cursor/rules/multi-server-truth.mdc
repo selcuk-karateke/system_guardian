@@ -12,22 +12,23 @@ alwaysApply: true
 - **Backup** paths / monitoring / trigger: `resolveBackupConfig(serverId)`.
 - **Notifications**: `settings` via `src/lib/notifications/config.ts`.
 - **Thresholds + Trusted IPs**: `settings` keys `runtime.thresholds` / `runtime.trusted` via `ensureRuntimeConfig()`.
+- **Allowlists + Auto-Block**: `settings` key `runtime.allowlists` via `ensureAllowlistsConfig()` (seeded once from ENV if missing).
 
 ## Still global env (ok)
 
 - Deploy: `DATABASE_URL`, `CRON_SECRET`, `CHECK_MODE`, `AUTH_*`, `API_SECRET`, `APP_URL`
-- Ops allowlists not yet migrated: `EXPECTED_*`, `FIM_PATHS`, `KNOWN_PORTS`, `BLOCKED_REMOTE_IPS`, `INCIDENT_*`, Trivy/Monitor knobs, `AUTO_BLOCK_*`, process/shell trust patterns
+- Ops knobs not yet migrated: Trivy (`TRIVY_*`), Monitor night (`MONITOR_*`), `OBSERVATION_HOURS`, `RAID_CHECK_ENABLED`, incident log window (`INCIDENT_LOG_SINCE` / `UNTIL`)
 
 ## Do not
 
-- Re-introduce ENV fallbacks for SSH/Coolify/Backup/Notify/Thresholds/Trusted IPs.
+- Re-introduce ENV fallbacks for SSH/Coolify/Backup/Notify/Thresholds/Trusted IPs/Allowlists.
 - Call `getSshClient()` without `serverId`.
 - Mass-edit unrelated docs while touching this.
 
 ## Later (only when user asks)
 
-1. Migrate remaining allowlists (`EXPECTED_*`, `FIM_PATHS`, `KNOWN_PORTS`, …) into settings UI.
-2. Metrics agent (realtime) — separate track.
+1. Migrate remaining Trivy / Monitor / observation knobs into settings UI.
+2. Prefer agent vitals in server-health / metrics_snapshots when agent is fresh.
 
 ## Default when unsure
 

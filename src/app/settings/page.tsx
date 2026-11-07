@@ -10,6 +10,10 @@ import { getDomains } from "@/lib/dashboard-data";
 import { getNotificationPublicStatus } from "@/lib/notifications/status";
 import { getCheckMode } from "@/lib/config";
 import {
+  DEFAULT_ALLOWLISTS,
+  getCachedAllowlists,
+} from "@/lib/runtime-allowlists";
+import {
   DEFAULT_THRESHOLDS,
   ensureRuntimeConfig,
   getRuntimeConfigSnapshot,
@@ -135,12 +139,13 @@ export default async function SettingsPage() {
 
       <Card id="runtime">
         <CardHeader>
-          <CardTitle>Schwellen & Trusted IPs</CardTitle>
+          <CardTitle>Schwellen, Trusted IPs &amp; Allowlists</CardTitle>
         </CardHeader>
         <CardContent>
           <RuntimeConfigPanel
             thresholds={runtime.thresholds ?? { ...DEFAULT_THRESHOLDS }}
             trusted={runtime.trusted}
+            allowlists={getCachedAllowlists() ?? { ...DEFAULT_ALLOWLISTS }}
           />
         </CardContent>
       </Card>

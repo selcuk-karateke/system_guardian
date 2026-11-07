@@ -36,10 +36,11 @@ export function ProtectPanel({
             <span className="text-zinc-500">aus</span>
           )}
           <p className="text-xs text-zinc-500 mt-1">
-            Nur IPs aus <code className="text-zinc-400">BLOCKED_REMOTE_IPS</code>.
-            Opt-in: <code className="text-zinc-400">AUTO_BLOCK_ENABLED=true</code>
-            {", "}Jail <code className="text-zinc-400">AUTO_BLOCK_JAIL</code>{" "}
-            (Standard sshd). Audit unter /history (category protect).
+            Nur IPs aus den Blocked Remote IPs. Schalter unter{" "}
+            <strong className="text-zinc-400">
+              Einstellungen → Schwellen &amp; Allowlists
+            </strong>
+            . Audit unter /history (category protect).
           </p>
         </li>
         <li>

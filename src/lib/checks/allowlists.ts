@@ -1,3 +1,5 @@
+import { getCachedAllowlists } from "@/lib/runtime-allowlists";
+
 /** Standard Linux users – not alerted on first sight after baseline */
 export const BUILTIN_PASSWD_USERS = new Set([
   "root",
@@ -29,10 +31,9 @@ export const BUILTIN_PASSWD_USERS = new Set([
   "nginx",
 ]);
 
-/** Ports that are normal on a web/Coolify host */
+/** Ports that are normal on a web/app host */
 export function getKnownPorts(): Set<string> {
-  const raw = process.env.KNOWN_PORTS ?? "22,80,443,3000,5432,6379,8000,8080";
-  return new Set(raw.split(",").map((p) => p.trim()).filter(Boolean));
+  return new Set(getCachedAllowlists().knownPorts);
 }
 
 export function isBuiltinUser(username: string): boolean {

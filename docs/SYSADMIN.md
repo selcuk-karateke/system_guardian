@@ -15,7 +15,9 @@ Zielgruppe: Ops / Systemadministration. Du kennst Linux, SSH, Cron, Docker, Fail
 | Uptime-Robot / Blackbox | Website + SSL |
 | Coolify (optional) | Stack-Check + API-Redeploy, wenn Coolify erkannt/konfiguriert |
 
-Alles läuft **ohne Agent** auf dem Zielhost: Guardian verbindet sich per **SSH**, führt bekannte Shell-Befehle aus (`ss`, `docker`, `journalctl`, `mdstat`, …), speichert Ergebnis in **PostgreSQL** und alarmiert per **Telegram / Discord / E-Mail**. Beliebige Linux-Server; Coolify ist kein Muss.
+Kern läuft **ohne Agent** (agentless SSH): Guardian verbindet sich per SSH, führt Shell-Befehle aus (`ss`, `docker`, `journalctl`, `mdstat`, …), speichert in **PostgreSQL** und alarmiert per Telegram / Discord / E-Mail. Beliebige Linux-Server; Coolify ist optional.
+
+**Optional:** Host-Metrics-Agent (`agent/`) pusht CPU/RAM/Disk/Egress an `POST /api/agent/ingest` — Live auf `/monitor`, und frische Agent-Werte fließen in `server_health` / `metrics_snapshots` (sonst SSH). Install: Settings → Server → Agent installieren. Details: [`agent/README.md`](../agent/README.md).
 
 Lokal (Windows-Dev): `CHECK_MODE=mock` – keine echten SSH-Calls, Fixtures in `src/lib/ssh/mock.ts`.
 

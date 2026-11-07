@@ -3,9 +3,11 @@
 import { useTransition, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import {
+  updateAllowlistsAction,
   updateThresholdsAction,
   updateTrustedIpsAction,
 } from "@/app/actions/runtime-config";
+import type { AllowlistsConfig } from "@/lib/runtime-allowlists";
 import type { ThresholdsMap, TrustedConfig } from "@/lib/runtime-config";
 import { Button } from "@/components/ui/button";
 import { fieldClass } from "@/lib/ui/field";
@@ -36,9 +38,14 @@ const THRESHOLD_FIELDS: { key: keyof ThresholdsMap; label: string }[] = [
 type Props = {
   thresholds: ThresholdsMap;
   trusted: TrustedConfig;
+  allowlists: AllowlistsConfig;
 };
 
-export function RuntimeConfigPanel({ thresholds, trusted }: Props) {
+export function RuntimeConfigPanel({
+  thresholds,
+  trusted,
+  allowlists,
+}: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
@@ -117,6 +124,112 @@ export function RuntimeConfigPanel({ thresholds, trusted }: Props) {
         </div>
       </form>
 
+      <form
+        onSubmit={(e) => save(e, updateAllowlistsAction)}
+        className="grid gap-3 sm:grid-cols-2 border-t border-zinc-800 pt-4"
+      >
+        <p className="sm:col-span-2 text-xs font-medium text-zinc-300">
+          Allowlists &amp; Protect
+        </p>
+        <p className="sm:col-span-2 text-[11px] text-zinc-500">
+          Kommagetrennt. Einmalig aus ENV geseedet, danach gilt nur die DB.
+        </p>
+        <label className="space-y-1 text-xs text-zinc-400 sm:col-span-2">
+          Erwartet gestoppte Container (Substring)
+          <input
+            name="expectedStoppedContainers"
+            defaultValue={allowlists.expectedStoppedContainers.join(",")}
+            className={fieldClass + " font-mono text-xs"}
+          />
+        </label>
+        <label className="space-y-1 text-xs text-zinc-400 sm:col-span-2">
+          Erwartet failed Units
+          <input
+            name="expectedFailedUnits"
+            defaultValue={allowlists.expectedFailedUnits.join(",")}
+            className={fieldClass + " font-mono text-xs"}
+          />
+        </label>
+        <label className="space-y-1 text-xs text-zinc-400 sm:col-span-2">
+          FIM-Pfade
+          <input
+            name="fimPaths"
+            defaultValue={allowlists.fimPaths.join(",")}
+            className={fieldClass + " font-mono text-xs"}
+          />
+        </label>
+        <label className="space-y-1 text-xs text-zinc-400 sm:col-span-2">
+          Bekannte Ports
+          <input
+            name="knownPorts"
+            defaultValue={allowlists.knownPorts.join(",")}
+            className={fieldClass + " font-mono text-xs"}
+          />
+        </label>
+        <label className="space-y-1 text-xs text-zinc-400 sm:col-span-2">
+          Docker Image-Prefixes
+          <input
+            name="knownDockerImagePrefixes"
+            defaultValue={allowlists.knownDockerImagePrefixes.join(",")}
+            className={fieldClass + " font-mono text-xs"}
+          />
+        </label>
+        <label className="space-y-1 text-xs text-zinc-400 sm:col-span-2">
+          Blocked Remote IPs
+          <input
+            name="blockedRemoteIps"
+            defaultValue={allowlists.blockedRemoteIps.join(",")}
+            className={fieldClass + " font-mono text-xs"}
+          />
+        </label>
+        <label className="space-y-1 text-xs text-zinc-400 sm:col-span-2">
+          IOC-Domains
+          <input
+            name="incidentIocDomains"
+            defaultValue={allowlists.incidentIocDomains.join(",")}
+            className={fieldClass + " font-mono text-xs"}
+          />
+        </label>
+        <label className="space-y-1 text-xs text-zinc-400 sm:col-span-2">
+          Extra Outbound-Prozess-Regex
+          <input
+            name="trustedOutboundProcessesExtra"
+            defaultValue={allowlists.trustedOutboundProcessesExtra.join(",")}
+            className={fieldClass + " font-mono text-xs"}
+            placeholder="my-agent"
+          />
+        </label>
+        <label className="space-y-1 text-xs text-zinc-400 sm:col-span-2">
+          Extra Shell-Prozess-Regex
+          <input
+            name="trustedShellProcessPatternsExtra"
+            defaultValue={allowlists.trustedShellProcessPatternsExtra.join(",")}
+            className={fieldClass + " font-mono text-xs"}
+            placeholder="my-start-script"
+          />
+        </label>
+        <label className="flex items-center gap-2 text-xs text-zinc-400 sm:col-span-2">
+          <input
+            type="checkbox"
+            name="autoBlockEnabled"
+            defaultChecked={allowlists.autoBlockEnabled}
+          />
+          Auto-Block (fail2ban) für Blocked IPs
+        </label>
+        <label className="space-y-1 text-xs text-zinc-400">
+          fail2ban Jail
+          <input
+            name="autoBlockJail"
+            defaultValue={allowlists.autoBlockJail}
+            className={fieldClass + " font-mono text-xs"}
+          />
+        </label>
+        <div className="sm:col-span-2">
+          <Button type="submit" size="sm" disabled={pending}>
+            Allowlists speichern
+          </Button>
+        </div>
+      </form>
     </div>
   );
 }

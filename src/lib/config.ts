@@ -1,4 +1,5 @@
 import type { CheckStatus } from "@/lib/checks/types";
+import { getCachedAllowlists } from "@/lib/runtime-allowlists";
 import {
   DEFAULT_THRESHOLDS,
   getCachedThreshold,
@@ -80,17 +81,14 @@ export function isTrustedOutboundKey(key: string): boolean {
 
 /** Stopped containers matching these name patterns are expected (no docker warning) */
 export function getExpectedStoppedContainers(): string[] {
-  const raw =
-    process.env.EXPECTED_STOPPED_CONTAINERS ??
-    "nextcloud-aio-mastercontainer";
-  return raw.split(",").map((s) => s.trim()).filter(Boolean);
+  return [
+    ...getCachedAllowlists().expectedStoppedContainers,
+  ];
 }
 
 /** systemd failed units that are benign (e.g. chkrootkit without mail) */
 export function getExpectedFailedUnits(): string[] {
-  const raw =
-    process.env.EXPECTED_FAILED_UNITS ?? "chkrootkit.service";
-  return raw.split(",").map((s) => s.trim()).filter(Boolean);
+  return [...getCachedAllowlists().expectedFailedUnits];
 }
 
 export function maskLoginIp(ip: string): string {
@@ -183,15 +181,14 @@ export function isBackupTriggerEnabled(): boolean {
 
 /**
  * Opt-in: when true, network/security checks may ban IPs that are already on
- * BLOCKED_REMOTE_IPS via fail2ban. Never bans unknown IPs.
+ * blockedRemoteIps via fail2ban. Never bans unknown IPs.
  */
 export function isAutoBlockEnabled(): boolean {
-  return process.env.AUTO_BLOCK_ENABLED === "true";
+  return getCachedAllowlists().autoBlockEnabled;
 }
 
 export function getAutoBlockJail(): string {
-  const jail = (process.env.AUTO_BLOCK_JAIL ?? "sshd").trim();
-  return /^[a-zA-Z0-9_-]+$/.test(jail) ? jail : "sshd";
+  return getCachedAllowlists().autoBlockJail;
 }
 
 /** @deprecated Prefer resolveCoolifyApi(serverId). */
@@ -249,20 +246,14 @@ export function isMonitorNightModeEnabled(): boolean {
   return process.env.MONITOR_NIGHT_MODE !== "false";
 }
 
-/** Docker image prefixes considered trusted (comma-separated, case-insensitive prefix match) */
+/** Docker image prefixes considered trusted (case-insensitive prefix match) */
 export function getKnownDockerImagePrefixes(): string[] {
-  const raw =
-    process.env.KNOWN_DOCKER_IMAGE_PREFIXES ??
-    "coolifyio/,ghcr.io/coolify,traefik:,postgres:,redis:,mysql:,mariadb:,nginx:,alpine:";
-  return raw.split(",").map((s) => s.trim()).filter(Boolean);
+  return [...getCachedAllowlists().knownDockerImagePrefixes];
 }
 
-/** BSI / incident domains for log grep (comma-separated) */
+/** BSI / incident domains for log grep */
 export function getIncidentIocDomains(): string[] {
-  const raw =
-    process.env.INCIDENT_IOC_DOMAINS ??
-    "xlgelllulyrhpbjmn.org,yxmvknylyxtt.org";
-  return raw.split(",").map((d) => d.trim()).filter(Boolean);
+  return [...getCachedAllowlists().incidentIocDomains];
 }
 
 export function getIncidentLogSince(): string {
@@ -275,19 +266,11 @@ export function getIncidentLogUntil(): string {
 
 /** Outbound IPs from incident reports (e.g. BSI) – always CRITICAL if seen in ss */
 export function getBlockedRemoteIps(): Set<string> {
-  const raw =
-    process.env.BLOCKED_REMOTE_IPS ?? "216.218.185.162";
-  return new Set(
-    raw
-      .split(",")
-      .map((ip) => ip.trim())
-      .filter(Boolean),
-  );
+  return new Set(getCachedAllowlists().blockedRemoteIps);
 }
 
 /** Processes allowed for outbound ESTAB to public :80/:443 without warning */
 export function getTrustedOutboundProcessPatterns(): RegExp[] {
-  const raw = process.env.TRUSTED_OUTBOUND_PROCESSES ?? "";
   const defaults = [
     /docker-proxy/i,
     /containerd/i,
@@ -295,22 +278,29 @@ export function getTrustedOutboundProcessPatterns(): RegExp[] {
     /nginx/i,
     /apt-get/i,
     /unattended-upgrade/i,
-    /** Coolify-App Hermes Agent/WebUI — bekannter Telegram/CF-Outbound */
     /hermes/i,
   ];
-  if (!raw.trim()) return defaults;
+  const extra = getCachedAllowlists().trustedOutboundProcessesExtra;
+  if (extra.length === 0) return defaults;
   return [
     ...defaults,
-    ...raw.split(",").map((s) => new RegExp(s.trim(), "i")).filter((r) => r.source),
+    ...extra
+      .map((s) => {
+        try {
+          return new RegExp(s, "i");
+        } catch {
+          return null;
+        }
+      })
+      .filter((r): r is RegExp => r != null),
   ];
 }
 
 /**
- * `ps aux` lines with sh/bash -c that are benign (Coolify deploy, Node start).
- * Extra regex fragments via TRUSTED_SHELL_PROCESS_PATTERNS (comma-separated).
+ * `ps aux` lines with sh/bash -c that are benign (deploy / Node start).
+ * Extra regex fragments from Settings → Allowlists.
  */
 export function getTrustedShellProcessPatterns(): RegExp[] {
-  const raw = process.env.TRUSTED_SHELL_PROCESS_PATTERNS ?? "";
   const defaults = [
     /sh -c (next start|npm start|node dist|prisma)/i,
     /\/bin\/sh -c npm/i,
@@ -323,23 +313,28 @@ export function getTrustedShellProcessPatterns(): RegExp[] {
     /CORS_ORIGIN.*Coolify/i,
     /next-server/i,
     /node\s+.*\/node_modules/i,
-    /** Hermes WebUI / Agent Start auf Coolify */
     /hermeswebui_init\.bash/i,
     /hermes.*\.(bash|sh)\b/i,
   ];
-  if (!raw.trim()) return defaults;
+  const extra = getCachedAllowlists().trustedShellProcessPatternsExtra;
+  if (extra.length === 0) return defaults;
   return [
     ...defaults,
-    ...raw.split(",").map((s) => new RegExp(s.trim(), "i")).filter((r) => r.source),
+    ...extra
+      .map((s) => {
+        try {
+          return new RegExp(s, "i");
+        } catch {
+          return null;
+        }
+      })
+      .filter((r): r is RegExp => r != null),
   ];
 }
 
 /** File Integrity Monitoring – critical paths to hash over SSH */
 export function getFimPaths(): string[] {
-  const raw =
-    process.env.FIM_PATHS ??
-    "/etc/passwd,/etc/ssh/sshd_config,/etc/sudoers,/root/.ssh/authorized_keys";
-  return raw.split(",").map((p) => p.trim()).filter(Boolean);
+  return [...getCachedAllowlists().fimPaths];
 }
 
 export function worstStatus(

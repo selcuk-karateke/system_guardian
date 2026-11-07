@@ -14,6 +14,7 @@ import {
 import {
   formatTopTalkerLine,
   getFreshAgentLive,
+  hostFromAgentLive,
 } from "@/lib/agent/ingest";
 import { sampleHostEgress } from "./egress-traffic";
 import {
@@ -96,6 +97,7 @@ export async function runServerHealthCheck(
   ]);
 
   const agentLive = await getFreshAgentLive(serverId).catch(() => null);
+  const agentHost = hostFromAgentLive(agentLive);
   // Agent ingest already raises egress alerts — avoid SSH duplicate S1 on long windows.
   if (egress?.alerts.length && !agentLive) {
     alerts.push(...egress.alerts);
@@ -108,15 +110,27 @@ export async function runServerHealthCheck(
 
   const loadParts = loadavg.stdout.trim().split(/\s+/);
   const cpuCores = Math.max(1, parseInt(nprocOut.stdout.trim(), 10) || 1);
-  const load1 = parseFloat(loadParts[0] ?? "0");
-  const effectiveLoadPercent = Math.min(
+  const load1Ssh = parseFloat(loadParts[0] ?? "0");
+  const load1 = agentHost?.load1 ?? load1Ssh;
+  const effectiveLoadFromSsh = Math.min(
     100,
-    Math.round((load1 / cpuCores) * 100),
+    Math.round((load1Ssh / cpuCores) * 100),
   );
-  const { ram, swap } = parseMemPercent(free.stdout);
-  const { percent: disk, mount: diskMount } = parseDiskMax(df.stdout);
+  /** Prefer fresh agent vitals for snapshots / threshold alerts. */
+  const effectiveLoadPercent =
+    agentHost?.cpuPercent ?? effectiveLoadFromSsh;
+  const { ram: ramSsh, swap } = parseMemPercent(free.stdout);
+  const ram = agentHost?.ramPercent ?? ramSsh;
+  const { percent: diskSsh, mount: diskMount } = parseDiskMax(df.stdout);
+  const disk = agentHost?.diskPercent ?? diskSsh;
   const tmpfsHot = parseTmpfsAlerts(df.stdout);
-  const uptimeSec = parseUptimeSeconds(uptime.stdout);
+  const uptimeSec = agentHost?.uptimeSec ?? parseUptimeSeconds(uptime.stdout);
+  const loadAvg1 =
+    agentHost?.load1 != null ? String(agentHost.load1) : loadParts[0];
+  const loadAvg5 =
+    agentHost?.load5 != null ? String(agentHost.load5) : loadParts[1];
+  const loadAvg15 =
+    agentHost?.load15 != null ? String(agentHost.load15) : loadParts[2];
 
   let temp: number | undefined;
   const tempMatch = sensors.stdout.match(/\+(\d+\.?\d*)/);
@@ -217,9 +231,9 @@ export async function runServerHealthCheck(
     cpuPercent: effectiveLoadPercent,
     ramPercent: ram,
     swapPercent: swap,
-    loadAvg1: loadParts[0],
-    loadAvg5: loadParts[1],
-    loadAvg15: loadParts[2],
+    loadAvg1: loadAvg1,
+    loadAvg5: loadAvg5,
+    loadAvg15: loadAvg15,
     cpuCores,
     diskPercent: disk,
     uptimeSeconds: uptimeSec,
@@ -241,10 +255,11 @@ export async function runServerHealthCheck(
       ramPercent: ram,
       swapPercent: swap,
       diskPercent: disk,
-      loadAvg: loadParts.slice(0, 3),
+      loadAvg: [loadAvg1, loadAvg5, loadAvg15],
       uptimeSeconds: uptimeSec,
       temperatureCelsius: temp,
       networkOk: true,
+      metricsSource: agentHost ? "agent" : "ssh",
       egressTxMbps: agentLive?.egress?.txMbps ?? egress?.delta?.txMbps,
       egressTxBytes: egress?.delta?.txBytes,
       egressWindowSec:
