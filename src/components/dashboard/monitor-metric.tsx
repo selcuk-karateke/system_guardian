@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import { MonitorSparkline } from "./monitor-sparkline";
 
 export type MetricCardProps = {
@@ -30,10 +31,21 @@ function MonitorRingGauge({
 }) {
   const r = 38;
   const c = 2 * Math.PI * r;
-  const filled = (Math.min(100, Math.max(0, pct)) / 100) * c;
+  const clamped = Math.min(100, Math.max(0, pct));
+  const filled = (clamped / 100) * c;
+  const spanDeg = (clamped / 100) * 360;
 
   return (
-    <span className={`monitor-stat-ring-wrap monitor-stat-ring-wrap--${tone}`}>
+    <span
+      className={`monitor-stat-ring-wrap monitor-stat-ring-wrap--${tone}`}
+      style={
+        {
+          ["--ring-span"]: `${spanDeg}deg`,
+          ["--ring-mid"]: `${spanDeg * 0.5}deg`,
+          ["--ring-tail"]: `${Math.max(0, spanDeg - 14)}deg`,
+        } as CSSProperties
+      }
+    >
       <svg
         className={`monitor-stat-ring monitor-stat-ring--${tone}`}
         viewBox="0 0 100 100"

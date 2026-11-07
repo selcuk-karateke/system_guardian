@@ -91,6 +91,17 @@ function rgbAlpha(css: string, a: number): string {
   if (!m) return css;
   return `rgba(${m[1]},${m[2]},${m[3]},${Math.max(0, Math.min(1, a))})`;
 }
+
+/**
+ * Soft tips + soft center (peaks ~0.22 / ~0.78).
+ * Same envelope as the N–S pierce gradient — use on arcs / stubs.
+ */
+function tipInwardFade(t: number): number {
+  const u = Math.min(1, Math.max(0, t));
+  const a = Math.exp(-(((u - 0.22) / 0.14) ** 2));
+  const b = Math.exp(-(((u - 0.78) / 0.14) ** 2));
+  return Math.min(1, a + b);
+}
 /**
  * Rays canvas pad vs land box (must match CSS inset on .monitor-hud-globe-rays).
  * Bulge 0.1 @ GLOBE_SCALE 0.97 needs ~3.5% + stub room → 8%.
@@ -600,9 +611,11 @@ function drawAttackArcs(
     for (let i = 0; i < pts.length - 1; i++) {
       const a = pts[i]!;
       const b = pts[i + 1]!;
-      const fade = (arcDepthFade(a.z) + arcDepthFade(b.z)) * 0.5;
-      if (fade < 0.04) continue;
-      ctx.globalAlpha = baseAlpha * 0.98 * fade;
+      const depth = (arcDepthFade(a.z) + arcDepthFade(b.z)) * 0.5;
+      if (depth < 0.04) continue;
+      const along = tipInwardFade((a.t + b.t) * 0.5);
+      if (along < 0.03) continue;
+      ctx.globalAlpha = baseAlpha * 0.98 * depth * along;
       ctx.beginPath();
       ctx.moveTo(a.sx, a.sy);
       ctx.lineTo(b.sx, b.sy);
@@ -700,9 +713,12 @@ function drawRayStubs(
       const y2 = tipY + (rim.y - tipY) * limb;
       const a0 = alpha * Math.max(limb, 0.2);
 
+      // Tips + inward: soft at surface, peak mid-stub, transparent at rim.
       const grad = ctx.createLinearGradient(sx, sy, x2, y2);
-      grad.addColorStop(0, rgbAlpha(color, a0));
-      grad.addColorStop(0.55, rgbAlpha(color, a0 * 0.65));
+      grad.addColorStop(0, rgbAlpha(color, 0));
+      grad.addColorStop(0.22, rgbAlpha(color, a0));
+      grad.addColorStop(0.5, rgbAlpha(color, a0 * 0.2));
+      grad.addColorStop(0.78, rgbAlpha(color, a0 * 0.85));
       grad.addColorStop(1, rgbAlpha(color, 0));
       ctx.strokeStyle = grad;
       ctx.beginPath();
@@ -718,7 +734,8 @@ function drawRayStubs(
       const y2 = sy - reach * 0.15;
       const a0 = alpha * faceOn;
       const grad = ctx.createLinearGradient(sx, sy, x2, y2);
-      grad.addColorStop(0, rgbAlpha(color, a0));
+      grad.addColorStop(0, rgbAlpha(color, 0));
+      grad.addColorStop(0.35, rgbAlpha(color, a0));
       grad.addColorStop(1, rgbAlpha(color, 0));
       ctx.strokeStyle = grad;
       ctx.beginPath();
