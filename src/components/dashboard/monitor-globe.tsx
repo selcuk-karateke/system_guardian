@@ -43,6 +43,38 @@ const KIND_LABEL: Record<RayKind, string> = {
 
 /** Tip inset from rays-canvas rim so the end-dot stays inside. */
 const RAY_EDGE_INSET_PX = 5;
+/**
+ * 3D radial lift (unit-sphere) so limb tips clear the rings.
+ * Face-on markers foreshorten toward the camera instead of faking a 2D direction.
+ */
+const RAY_ELEV = 0.58;
+/** Lateral (√(x²+y²)) below this → treat as facing the camera. */
+const RAY_FACE_LATERAL = 0.12;
+
+function smoothstep(edge0: number, edge1: number, x: number): number {
+  const t = Math.min(1, Math.max(0, (x - edge0) / (edge1 - edge0)));
+  return t * t * (3 - 2 * t);
+}
+
+/** Outward hit of ray (ox,oy)+t(dx,dy) with circle (cx,cy,r). */
+function rimAlong(
+  ox: number,
+  oy: number,
+  dx: number,
+  dy: number,
+  cx: number,
+  cy: number,
+  r: number,
+): { x: number; y: number } {
+  const px = ox - cx;
+  const py = oy - cy;
+  const b = 2 * (px * dx + py * dy);
+  const c = px * px + py * py - r * r;
+  const disc = b * b - 4 * c;
+  if (disc < 0) return { x: ox + dx * 24, y: oy + dy * 24 };
+  const t = Math.max(0, (-b + Math.sqrt(disc)) / 2);
+  return { x: ox + dx * t, y: oy + dy * t };
+}
 /** Great-circle attack → home samples + mid-arc lift above the surface. */
 const ARC_STEPS = 48;
 /** Mid-arc lift — needs RAY_PAD_FRAC so limbs aren't canvas-clipped. */
@@ -347,6 +379,7 @@ function projectTips(
   const cx = css / 2;
   const cy = css / 2;
   const R = (css / 2) * scale;
+  const edgeR = css / 2 - RAY_EDGE_INSET_PX;
   const out: ProjectedTip[] = [];
   for (const mark of marks) {
     const [x0, y0, z0] = attackToXyz(
@@ -357,17 +390,26 @@ function projectTips(
     if (arcDepthFade(z) < 0.04) continue;
     const sx = cx + x * R;
     const sy = cy - y * R;
-    const len = Math.hypot(x, y);
-    const dx = len < 1e-4 ? 0 : x / len;
-    const dy = len < 1e-4 ? -1 : -y / len;
-    // Tip sits on the outer rim (same space as land box; pad added in draw)
-    const edgeR = css / 2 - RAY_EDGE_INSET_PX;
-    // Hit both surface spot center and stub tip — easier region picking
+    const tipX = cx + x * (1 + RAY_ELEV) * R;
+    const tipY = cy - y * (1 + RAY_ELEV) * R;
+    const vx = tipX - sx;
+    const vy = tipY - sy;
+    const vlen = Math.hypot(vx, vy);
+    const lateral = Math.hypot(x, y);
+    const limb = smoothstep(RAY_FACE_LATERAL, 0.55, lateral);
     out.push({ mark, tipX: sx, tipY: sy, z });
+    if (vlen < 0.5 || limb < 0.05) {
+      // Face-on: tip is the surface bloom (toward camera)
+      out.push({ mark, tipX: sx, tipY: sy, z });
+      continue;
+    }
+    const dx = vx / vlen;
+    const dy = vy / vlen;
+    const rim = rimAlong(sx, sy, dx, dy, cx, cy, edgeR);
     out.push({
       mark,
-      tipX: cx + dx * edgeR,
-      tipY: cy + dy * edgeR,
+      tipX: tipX + (rim.x - tipX) * limb,
+      tipY: tipY + (rim.y - tipY) * limb,
       z,
     });
   }
@@ -511,8 +553,8 @@ function drawAttackArcs(
 }
 
 /**
- * Overlay: attack→home arcs, then radial rays surface → outer rim.
- * hoverId = active tip — boosts that mark, dims the rest.
+ * Overlay: attack→home arcs, then 3D-radial rays.
+ * Limb → extend to rim; face-on → foreshorten + bloom toward camera.
  */
 function drawRayStubs(
   ctx: CanvasRenderingContext2D,
@@ -557,9 +599,16 @@ function drawRayStubs(
 
     const sx = cx + x * R;
     const sy = cy - y * R;
-    const len = Math.hypot(x, y);
-    const dx = len < 1e-4 ? 0 : x / len;
-    const dy = len < 1e-4 ? -1 : -y / len;
+    // Elevate along surface normal (toward camera when frontal).
+    const tipX = cx + x * (1 + RAY_ELEV) * R;
+    const tipY = cy - y * (1 + RAY_ELEV) * R;
+    const vx = tipX - sx;
+    const vy = tipY - sy;
+    const vlen = Math.hypot(vx, vy);
+    const lateral = Math.hypot(x, y);
+    const faceOn = 1 - smoothstep(RAY_FACE_LATERAL, 0.55, lateral);
+    const limb = 1 - faceOn;
+
     const hot = hoverId != null && mark.tint.id === hoverId;
     const dim = hoverId != null && !hot ? 0.28 : 1;
 
@@ -571,23 +620,52 @@ function drawRayStubs(
       dim *
       depth;
 
-    const x2 = cx + dx * edgeR;
-    const y2 = cy + dy * edgeR;
-
-    ctx.globalAlpha = alpha;
     ctx.strokeStyle = mark.color;
     ctx.fillStyle = mark.color;
-    ctx.shadowBlur = (hot ? 14 : mark.pulse ? 10 : 6) * depth;
     ctx.shadowColor = mark.color;
-    ctx.lineWidth = hot ? 5.2 : mark.pulse ? 4.0 : 3.2;
     ctx.lineCap = "round";
-    ctx.beginPath();
-    ctx.moveTo(sx, sy);
-    ctx.lineTo(x2, y2);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(x2, y2, hot ? 6.5 : mark.pulse ? 5.2 : 4.0, 0, Math.PI * 2);
-    ctx.fill();
+
+    // Face-on bloom = foreshortened ray coming at the camera.
+    if (faceOn > 0.04) {
+      const bloom = (hot ? 18 : mark.pulse ? 14 : 11) * faceOn * (0.55 + 0.45 * z);
+      ctx.globalAlpha = alpha * faceOn * 0.35;
+      ctx.shadowBlur = 16 * faceOn * depth;
+      ctx.beginPath();
+      ctx.arc(sx, sy, bloom, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = alpha * faceOn;
+      ctx.shadowBlur = 10 * faceOn * depth;
+      ctx.beginPath();
+      ctx.arc(sx, sy, bloom * 0.38, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Lateral ray along true projected radial; stretch toward rim at the limb.
+    if (limb > 0.04 && vlen > 0.5) {
+      const dx = vx / vlen;
+      const dy = vy / vlen;
+      const rim = rimAlong(sx, sy, dx, dy, cx, cy, edgeR);
+      const x2 = tipX + (rim.x - tipX) * limb;
+      const y2 = tipY + (rim.y - tipY) * limb;
+
+      ctx.globalAlpha = alpha * Math.max(limb, 0.2);
+      ctx.shadowBlur = (hot ? 14 : mark.pulse ? 10 : 6) * depth * limb;
+      ctx.lineWidth = (hot ? 5.2 : mark.pulse ? 4.0 : 3.2) * (0.55 + 0.45 * limb);
+      ctx.beginPath();
+      ctx.moveTo(sx, sy);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(
+        x2,
+        y2,
+        (hot ? 6.5 : mark.pulse ? 5.2 : 4.0) * (0.45 + 0.55 * limb),
+        0,
+        Math.PI * 2,
+      );
+      ctx.fill();
+    }
+
     ctx.shadowBlur = 0;
   }
   ctx.globalAlpha = 1;
@@ -596,7 +674,7 @@ function drawRayStubs(
 
 /**
  * Land-dot globe sized to the outermost HUD ring.
- * Overlays: attack→home great-circle arcs + rays surface→rim.
+ * Overlays: attack→home arcs + 3D-radial rays (rim at limb, bloom face-on).
  */
 export const MonitorGlobe = forwardRef<MonitorGlobeHandle, Props>(
   function MonitorGlobe(
