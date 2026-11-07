@@ -5,8 +5,8 @@ const MAP_URL = "/monitor/world-mask.png";
 let cached: Float32Array | null = null;
 let loading: Promise<Float32Array> | null = null;
 
-/** Spot radius — a small cluster of land dots, still readable on TV. */
-export const SPOT_RADIUS_RAD = (2.8 * Math.PI) / 180;
+/** Land-dot tint radius around markers — readable on TV / standalone globe. */
+export const SPOT_RADIUS_RAD = (5.5 * Math.PI) / 180;
 
 function lonLatToXyz(latDeg: number, lonDeg: number): [number, number, number] {
   const lat = (latDeg * Math.PI) / 180;

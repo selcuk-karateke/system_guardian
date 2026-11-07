@@ -366,10 +366,23 @@
 }
 
 .monitor-wall--globe .monitor-content--globe {
+  /* Don't use the wall grid (1fr) — it stretches .monitor-top over the whole globe. */
   pointer-events: none;
+  display: block;
+  height: auto;
 }
 
 .monitor-wall--globe .monitor-top {
+  /* Header chrome only — empty header area must not steal globe drag/zoom. */
+  pointer-events: none;
+  position: relative;
+  z-index: 3;
+}
+
+.monitor-wall--globe .monitor-top a,
+.monitor-wall--globe .monitor-top button,
+.monitor-wall--globe .monitor-mode-switch,
+.monitor-wall--globe .monitor-top-select--quiet {
   pointer-events: auto;
 }
 
@@ -492,6 +505,8 @@
   opacity: 1;
   filter: none;
   transform: none;
+  /* Pointer handlers live on .monitor-hud-globe */
+  pointer-events: none;
 }
 
 .monitor-hud-globe-rays {

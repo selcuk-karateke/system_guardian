@@ -41,8 +41,8 @@ const KIND_LABEL: Record<RayKind, string> = {
   attack: "Attack",
 };
 
-/** Stub past the surface (CSS px) — short; keep within RAY_PAD_FRAC. */
-const RAY_EXTEND_PX = 8;
+/** Tip inset from rays-canvas rim so the end-dot stays inside. */
+const RAY_EDGE_INSET_PX = 5;
 /** Great-circle attack → home samples + mid-arc lift above the surface. */
 const ARC_STEPS = 48;
 /** Mid-arc lift — needs RAY_PAD_FRAC so limbs aren't canvas-clipped. */
@@ -285,12 +285,23 @@ function mulRot(
   ];
 }
 
+/**
+ * Y-rotation that puts `lon` deg at the camera (+Z).
+ * Land uses z = -sin(lon); identity (phi=0) faces lon=-90 (Americas).
+ * Subtract π/2 so lon=0 (Europe/Africa) is centered.
+ */
+function phiFacingLon(lonDeg: number): number {
+  return (lonDeg * Math.PI) / 180 - Math.PI / 2;
+}
+
+/** Prefer home longitude so the monitored server region faces the camera. */
 function phiTowardTints(lists: (GlobeTint | null | undefined)[]): number {
+  const home = lists.find((m): m is GlobeTint => !!m);
+  if (home) return phiFacingLon(home.location[1]);
   const all = lists.filter((m): m is GlobeTint => !!m);
-  if (!all.length) return 0.4;
+  if (!all.length) return phiFacingLon(10); // Europe default
   const lon = all.reduce((sum, m) => sum + m.location[1], 0) / all.length;
-  // With z = -sin(lon), +phi brings east toward the camera.
-  return (lon * Math.PI) / 180;
+  return phiFacingLon(lon);
 }
 
 function tintKey(
@@ -343,18 +354,20 @@ function projectTips(
       mark.tint.location[1],
     );
     const [x, y, z] = mulRot(rot, x0, y0, z0);
-    if (z < 0.04) continue;
+    if (arcDepthFade(z) < 0.04) continue;
     const sx = cx + x * R;
     const sy = cy - y * R;
     const len = Math.hypot(x, y);
     const dx = len < 1e-4 ? 0 : x / len;
     const dy = len < 1e-4 ? -1 : -y / len;
+    // Tip sits on the outer rim (same space as land box; pad added in draw)
+    const edgeR = css / 2 - RAY_EDGE_INSET_PX;
     // Hit both surface spot center and stub tip — easier region picking
     out.push({ mark, tipX: sx, tipY: sy, z });
     out.push({
       mark,
-      tipX: sx + dx * RAY_EXTEND_PX,
-      tipY: sy + dy * RAY_EXTEND_PX,
+      tipX: cx + dx * edgeR,
+      tipY: cy + dy * edgeR,
       z,
     });
   }
@@ -480,13 +493,13 @@ function drawAttackArcs(
     ctx.shadowBlur = 0;
     ctx.shadowColor = "transparent";
 
-    ctx.lineWidth = hot ? 2.4 : 1.55;
+    ctx.lineWidth = hot ? 4.2 : 2.8;
     for (let i = 0; i < pts.length - 1; i++) {
       const a = pts[i]!;
       const b = pts[i + 1]!;
       const fade = (arcDepthFade(a.z) + arcDepthFade(b.z)) * 0.5;
       if (fade < 0.04) continue;
-      ctx.globalAlpha = baseAlpha * 0.88 * fade;
+      ctx.globalAlpha = baseAlpha * 0.98 * fade;
       ctx.beginPath();
       ctx.moveTo(a.sx, a.sy);
       ctx.lineTo(b.sx, b.sy);
@@ -498,7 +511,7 @@ function drawAttackArcs(
 }
 
 /**
- * Overlay: attack→home arcs, then short radial stubs.
+ * Overlay: attack→home arcs, then radial rays surface → outer rim.
  * hoverId = active tip — boosts that mark, dims the rest.
  */
 function drawRayStubs(
@@ -530,13 +543,17 @@ function drawRayStubs(
   const cx = pad + css / 2;
   const cy = pad + css / 2;
   const R = (css / 2) * scale;
+  /** Outer rim of the rays canvas (past the HUD rings). */
+  const edgeR = css / 2 + pad - RAY_EDGE_INSET_PX;
   for (const mark of marks) {
     const [x0, y0, z0] = attackToXyz(
       mark.tint.location[0],
       mark.tint.location[1],
     );
     const [x, y, z] = mulRot(rot, x0, y0, z0);
-    if (z < 0.04) continue;
+    // Same soft limb fade as attack arcs — no hard pop at the horizon.
+    const depth = arcDepthFade(z);
+    if (depth < 0.04) continue;
 
     const sx = cx + x * R;
     const sy = cy - y * R;
@@ -546,30 +563,32 @@ function drawRayStubs(
     const hot = hoverId != null && mark.tint.id === hoverId;
     const dim = hoverId != null && !hot ? 0.28 : 1;
 
-    // Static alpha — pulsing stubs flicker on LED/OLED TVs
+    // Static base alpha — pulsing stubs flicker on LED/OLED TVs
     const alpha =
       Math.min(1, Math.max(0.7, mark.tint.weight)) *
       (0.75 + 0.25 * mark.tint.freshness) *
       (hot ? 1 : 0.92) *
-      dim;
+      dim *
+      depth;
 
-    const extend = hot ? RAY_EXTEND_PX + 10 : RAY_EXTEND_PX;
-    const x2 = sx + dx * extend;
-    const y2 = sy + dy * extend;
+    const x2 = cx + dx * edgeR;
+    const y2 = cy + dy * edgeR;
 
     ctx.globalAlpha = alpha;
     ctx.strokeStyle = mark.color;
     ctx.fillStyle = mark.color;
-    ctx.shadowBlur = 0;
-    ctx.lineWidth = hot ? 3.4 : mark.pulse ? 2.6 : 2.0;
+    ctx.shadowBlur = (hot ? 14 : mark.pulse ? 10 : 6) * depth;
+    ctx.shadowColor = mark.color;
+    ctx.lineWidth = hot ? 5.2 : mark.pulse ? 4.0 : 3.2;
     ctx.lineCap = "round";
     ctx.beginPath();
     ctx.moveTo(sx, sy);
     ctx.lineTo(x2, y2);
     ctx.stroke();
     ctx.beginPath();
-    ctx.arc(x2, y2, hot ? 3.8 : mark.pulse ? 2.8 : 2.0, 0, Math.PI * 2);
+    ctx.arc(x2, y2, hot ? 6.5 : mark.pulse ? 5.2 : 4.0, 0, Math.PI * 2);
     ctx.fill();
+    ctx.shadowBlur = 0;
   }
   ctx.globalAlpha = 1;
   ctx.shadowBlur = 0;
@@ -577,7 +596,7 @@ function drawRayStubs(
 
 /**
  * Land-dot globe sized to the outermost HUD ring.
- * Overlays: attack→home great-circle arcs + short radial stubs.
+ * Overlays: attack→home great-circle arcs + rays surface→rim.
  */
 export const MonitorGlobe = forwardRef<MonitorGlobeHandle, Props>(
   function MonitorGlobe(
@@ -655,6 +674,7 @@ export const MonitorGlobe = forwardRef<MonitorGlobeHandle, Props>(
     let positions = new Float32Array(0);
     let colors = new Float32Array(0);
     let count = 0;
+    // Home first — camera should face the monitored server region.
     const phi0 = phiTowardTints([
       homeMarker,
       ...sessionMarkers,
