@@ -1,39 +1,50 @@
-# Coolify Deployment
+# Coolify
 
-## Services
+Two separate topics:
 
-1. **PostgreSQL** – database `system_guardian`
-2. **System Guardian** – deploy from this repo (Dockerfile)
+1. **Deploy System Guardian on Coolify** (Guardian as a Coolify application)
+2. **Monitor a Coolify host** (optional stack check + API redeploy)
 
-## Environment variables
+For generic Compose/VPS deploy, see [DEPLOY.md](./DEPLOY.md).
 
-Copy from `.env.example`. **Required for production:**
+---
+
+## A) Deploy Guardian on Coolify
+
+### Services
+
+1. **PostgreSQL** – database `system_guardian` (Coolify DB resource or external)
+2. **System Guardian** – deploy this repo (Dockerfile)
+
+### Environment
+
+Copy from `.env.example`. **Required in production:**
 
 | Variable | Purpose |
 |----------|---------|
 | `DATABASE_URL` | Postgres |
 | `CRON_SECRET` | Cron routes (`Authorization: Bearer …`) |
-| `AUTH_SECRET` | Session signing (min. 32 chars random) |
+| `AUTH_SECRET` | Session + DB secret encryption (min. 16 chars; prefer 32+) |
 | `AUTH_USERNAME` + `AUTH_PASSWORD` | Dashboard login (or `AUTH_USERS`) |
-| `API_SECRET` | Bot/API: `GET /api/status` |
+| `API_SECRET` | `GET /api/status` |
 | `CHECK_MODE=ssh` | Live checks |
-| `SSH_HOST`, `SSH_USER`, `SSH_PRIVATE_KEY` | Monitored server |
-| `DISCORD_WEBHOOK_URL` | Alert embeds (optional) |
 | `APP_URL` | Links in notifications |
+
+SSH targets are **not** configured via `SSH_HOST` ENV. Add servers in **Settings → Server** (credentials encrypted in DB).
 
 Without `AUTH_SECRET` + user, the UI stays **open** (dev only — never in production).
 
-## Auth
+### Auth
 
-- **UI** (`/`, `/monitor`, `/settings`, …): login at `/login`, session cookie 7 days
+- **UI**: login at `/login`, session cookie
 - **Cron**: `Authorization: Bearer <CRON_SECRET>`
-- **API** (bot later): `Authorization: Bearer <API_SECRET>` → `GET /api/status`
+- **API**: `Authorization: Bearer <API_SECRET>` → `GET /api/status`
 
 ```bash
 curl -H "Authorization: Bearer YOUR_API_SECRET" https://your-app/api/status
 ```
 
-## Scheduled tasks
+### Scheduled tasks (Coolify)
 
 | Schedule | URL | Header |
 |----------|-----|--------|
@@ -41,13 +52,18 @@ curl -H "Authorization: Bearer YOUR_API_SECRET" https://your-app/api/status
 | `0 * * * *` | `https://your-app/api/cron/security` | same |
 | `0 9 * * *` | `https://your-app/api/cron/daily-report` | same |
 
-## Network
+### Network
 
-- Prefer **internal URL** or VPN; do not expose publicly without auth
-- Coolify Traefik: optional extra IP allowlist
+Prefer **internal URL** or VPN; do not expose publicly without auth. Traefik: optional IP allowlist.
 
-## SSH key
+---
 
-Mount private key as Coolify secret → `SSH_PRIVATE_KEY` or file path.
+## B) Monitor a Coolify stack (optional)
 
-SSH user needs `docker`, logs, and read access for checks.
+On any monitored Linux host:
+
+- If containers named `coolify*` are present **or** Coolify API URL+token are set under **Settings → Server**, the `coolify` module checks the core stack (`coolify`, `coolify-db`, `coolify-redis`, `coolify-proxy`; realtime/sentinel optional).
+- If neither is present, the module is **skipped** (healthy, no alerts) — suitable for non-Coolify servers.
+- **Force-Rebuild** on `/docker` needs Coolify API credentials + resource UUID.
+
+Backup paths are optional; for Coolify installs you may set e.g. `/data/coolify/backups` under Server → Backup.

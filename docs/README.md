@@ -10,8 +10,11 @@
 | [BACKLOG.md](./BACKLOG.md) | Collaborators | Anleitung zum Eintragen |
 | [FUTURE-INTEGRATIONS.md](./FUTURE-INTEGRATIONS.md) | Planung | Phasen & Prioritäten |
 | [SECURITY-FEATURES.md](./SECURITY-FEATURES.md) | Security / Ops | SIEM-Begriffe ↔ Guardian-Module |
-| [COOLIFY.md](./COOLIFY.md) | Deploy | Production, Auth, Cron |
+| [DEPLOY.md](./DEPLOY.md) | Deploy | Compose / VPS, Auth, Cron |
+| [COOLIFY.md](./COOLIFY.md) | Deploy / Coolify | Guardian auf Coolify + optional Stack überwachen |
 | [../AGENTS.md](../AGENTS.md) | Entwickler / Agents | Quick start, Code-Layout |
+| [../CONTRIBUTING.md](../CONTRIBUTING.md) | Contributors | Dev-Workflow, PRs |
+| [../SECURITY.md](../SECURITY.md) | Security | Vulnerability reporting |
 
 ## In der App
 

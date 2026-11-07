@@ -1,122 +1,38 @@
 # System Guardian
 
-Monitoring, security, and infrastructure dashboard for Coolify environments.
+Überwacht Linux-Server **ohne Agent** — per SSH. Health, Docker, RAID, Backups, SSL, Logins und mehr. Coolify ist optional.
 
-## Stack
+Passt neben [Beszel](https://github.com/henrygd/beszel) (Metriken) und [Uptime Kuma](https://github.com/louislam/uptime-kuma) (Erreichbarkeit) — Guardian macht die Ops-/Security-Checks.
 
-- Next.js 16, TypeScript, Tailwind, Shadcn-style UI
-- Drizzle ORM + PostgreSQL
-- SSH-based checks (production) / mock fixtures (Windows dev)
+## Start (Docker)
 
-## Quick start (Windows, lokales PostgreSQL)
+```bash
+cp .env.example .env
+docker compose up --build
+```
 
-PostgreSQL läuft **direkt auf dem PC** (kein Docker für die DB).
+Dann http://localhost:3000 öffnen → **Einstellungen → Server** → Host + SSH eintragen.
 
-### 1. `.env.local`
+Für Produktion in `.env` setzen: `AUTH_SECRET`, `AUTH_USERNAME`, `AUTH_PASSWORD`, `CRON_SECRET`.
+
+## Lokal (Windows)
 
 ```powershell
 Copy-Item .env.example .env.local
-```
-
-Beispiel mit User `postgres` (einfachste Variante):
-
-```env
-DATABASE_URL=postgresql://postgres:pass@localhost:5432/system_guardian
-CHECK_MODE=mock
-CRON_SECRET=dev-secret
-```
-
-Alternativ mit eigenem DB-User `system_guardian` (siehe SQL unten):
-
-```env
-DATABASE_URL=postgresql://system_guardian:pass@localhost:5432/system_guardian
-```
-
-### 2. Datenbank in psql anlegen
-
-```powershell
-psql -U postgres
-```
-
-```sql
-CREATE DATABASE system_guardian;
-
--- Optional: eigener App-User (empfohlen für Produktion)
-CREATE USER system_guardian WITH PASSWORD 'pass';
-GRANT ALL PRIVILEGES ON DATABASE system_guardian TO system_guardian;
-
-\c system_guardian
-GRANT ALL ON SCHEMA public TO system_guardian;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO system_guardian;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO system_guardian;
-```
-
-Mit User `postgres` in `DATABASE_URL` reichen `CREATE DATABASE` – die `GRANT`-Zeilen sind dann optional.
-
-### 3. App starten
-
-```powershell
+# DATABASE_URL auf lokales PostgreSQL setzen, CHECK_MODE=mock
 npm install
 npm run db:migrate
 npm run db:seed
 npm run dev
 ```
 
-`db:migrate` liest `DATABASE_URL` aus `.env.local` (siehe `drizzle.config.ts`).
+## Mehr
 
-Open http://localhost:3000 · TV/Monitor: http://localhost:3000/monitor
+| | |
+|--|--|
+| Deploy / Cron | [docs/DEPLOY.md](docs/DEPLOY.md) |
+| Coolify | [docs/COOLIFY.md](docs/COOLIFY.md) |
+| Ops-Handbuch | [docs/SYSADMIN.md](docs/SYSADMIN.md) |
+| Mitmachen | [CONTRIBUTING.md](CONTRIBUTING.md) |
 
-**Windows:** Port 3000 oft belegt oder 3001 von Hyper-V reserviert → `npm run dev -- -p 3101`
-
-**Manuelle Checks:** Buttons auf dem Dashboard oder `/monitor` (Reload-Button oben rechts).
-
-## Features
-
-| Bereich | Route | Kurz |
-|---------|-------|------|
-| Dashboard + globaler Status | `/` | Berücksichtigt **offene** Alerts (entschärfte zählen nicht mehr als WARNING) |
-| TV-Monitor | `/monitor` | 16 Module, Auto-Refresh 30s, Reload |
-| Docker-Inventar + Trivy | `/docker` | Gruppiert (Apps, DB, Coolify…), Scan-Button on-demand (HIGH/CRITICAL) |
-| Security-Übersicht | `/security` | SIEM-Light-Module, `security_posture` |
-| Alerts + Vorfallbericht | `/alerts` | Export mit EINORDNUNG pro Modul |
-| Historie | `/history` | Snapshots, Outbound-Diffs |
-
-**16 Check-Module** (Cron): Server, RAID, Docker, Coolify, DB, SSL, Website, Ports, Backups, Logs, SSH keys, Users, Logins, Cron, Network, Scanner — plus `security_posture` im Security-Batch.
-
-## Konfiguration (`.env.local`)
-
-| Variable | Zweck |
-|----------|--------|
-| `CHECK_MODE` | `mock` (Windows) oder `ssh` (Production-Host) |
-| `SSH_*` | Ziel-Host für Live-Checks |
-| `TRUSTED_LOGIN_IPS` | Kein Root-Login-Alert; `10.0.1.*` intern immer trusted |
-| `TRUSTED_OUTBOUND_IPS` | Kein Network-Baseline-Warn für diese Peers |
-| `TRUSTED_SHELL_PROCESS_PATTERNS` | Extra-Regex für harmlose `sh -c` (Coolify-Start) in `security_posture` |
-| `KNOWN_DOCKER_IMAGE_PREFIXES` | Vertraute Images, fremde Container → CRITICAL |
-
-Vollständige Liste: [.env.example](.env.example)
-
-## Run checks manually
-
-Dashboard-Buttons oder:
-
-```powershell
-curl -H "Authorization: Bearer dev-secret" http://localhost:3000/api/cron/server
-```
-
-## Docs
-
-| Dokument | Inhalt |
-|----------|--------|
-| **[docs/SYSADMIN.md](docs/SYSADMIN.md)** | **Sysadmin-Handbuch** – wo ist was, Checks, Betrieb, Zuarbeit |
-| [docs/README.md](docs/README.md) | Doku-Index |
-| [docs/backlog.json](docs/backlog.json) · App `/docs/roadmap` | Roadmap – Collaborators tragen `idea`-Einträge per PR ein |
-| App: `/docs` · `/docs/api` | Hub + **Redoc** (OpenAPI) |
-| [docs/SECURITY-FEATURES.md](docs/SECURITY-FEATURES.md) | SIEM-Begriffe, Module, UI `/security` |
-| [docs/FUTURE-INTEGRATIONS.md](docs/FUTURE-INTEGRATIONS.md) | Roadmap / Phase 2–3 (ausführlich) |
-| [docs/COOLIFY.md](docs/COOLIFY.md) | Production-Deploy |
-| [AGENTS.md](AGENTS.md) | Entwickler-Einstieg |
-
-## Production
-
-See [docs/COOLIFY.md](docs/COOLIFY.md).
+MIT — [LICENSE](LICENSE)

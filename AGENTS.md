@@ -44,18 +44,19 @@ src/
 |----------|---------|
 | `DATABASE_URL` | PostgreSQL connection |
 | `CHECK_MODE` | `mock` (Windows) or `ssh` (production) |
-| `SSH_HOST`, `SSH_USER`, `SSH_PRIVATE_KEY` | Remote check target |
-| `CRON_SECRET` | Bearer token for cron routes |
-| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | Instant alerts |
-| `SMTP_*` | Email notifications |
+| `CRON_SECRET` / `AUTH_*` / `API_SECRET` | Deploy secrets |
+| SSH / Coolify / Backup / Notify | Settings UI (DB), not ENV |
+
+Deploy: [docs/DEPLOY.md](docs/DEPLOY.md) · Coolify: [docs/COOLIFY.md](docs/COOLIFY.md)
 
 ## Adding a check module
 
 1. Create `src/lib/checks/<name>.ts` with `runXxxCheck(serverId)`
 2. Register in `src/lib/checks/index.ts` (server or security batch)
 3. Use `persistCheckRun` and `processAlerts` from shared libs
+4. Coolify-specific modules must skip cleanly when Coolify is not detected
 
-## Cron (Coolify)
+## Cron
 
 - `GET /api/cron/server` – 15 min
 - `GET /api/cron/security` – 60 min

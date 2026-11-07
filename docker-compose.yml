@@ -1,5 +1,5 @@
-# Optional – nur wenn du Postgres per Docker statt lokal nutzen willst.
-# Standard auf Windows: direkt installiertes PostgreSQL (siehe README).
+# Local / single-host deploy. Change secrets before any public exposure.
+# See docs/DEPLOY.md
 
 services:
   postgres:
@@ -12,6 +12,12 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U guardian -d system_guardian"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
 
   app:
     build: .
@@ -19,10 +25,29 @@ services:
       - "3000:3000"
     environment:
       DATABASE_URL: postgresql://guardian:guardian@postgres:5432/system_guardian
-      CHECK_MODE: mock
-      CRON_SECRET: dev-secret
+      # mock = try without SSH; production hosts: ssh + AUTH_* + CRON_SECRET
+      CHECK_MODE: ${CHECK_MODE:-mock}
+      CRON_SECRET: ${CRON_SECRET:-dev-secret-change-me}
+      AUTH_SECRET: ${AUTH_SECRET:-dev-auth-secret-change-me-16}
+      AUTH_USERNAME: ${AUTH_USERNAME:-admin}
+      AUTH_PASSWORD: ${AUTH_PASSWORD:-admin-change-me}
+      API_SECRET: ${API_SECRET:-dev-api-secret-change-me}
+      APP_URL: ${APP_URL:-http://localhost:3000}
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "-qO-",
+          "http://127.0.0.1:3000/api/health",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
 
 volumes:
   pgdata:

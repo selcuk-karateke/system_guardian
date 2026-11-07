@@ -24,11 +24,13 @@ export const metadata: Metadata = {
     default: "System Guardian",
     template: "%s · System Guardian",
   },
-  description: "Monitoring, security, and infrastructure for Coolify",
+  description:
+    "Agentless SSH monitoring and security for Linux servers",
   applicationName: "System Guardian",
   openGraph: {
     title: "System Guardian",
-    description: "Monitoring, security, and infrastructure for Coolify",
+    description:
+      "Agentless SSH monitoring and security for Linux servers",
     type: "website",
     locale: "de_DE",
     siteName: "System Guardian",
@@ -36,7 +38,8 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "System Guardian",
-    description: "Monitoring, security, and infrastructure for Coolify",
+    description:
+      "Agentless SSH monitoring and security for Linux servers",
   },
 };
 

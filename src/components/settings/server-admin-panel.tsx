@@ -401,7 +401,11 @@ export function ServerAdminPanel({
                   className="grid gap-3 sm:grid-cols-2 border-t border-zinc-800 pt-4"
                 >
                   <p className="sm:col-span-2 text-xs font-medium text-zinc-300">
-                    Coolify API
+                    Optional: Coolify API
+                  </p>
+                  <p className="sm:col-span-2 text-[11px] text-zinc-500">
+                    Nur nötig für Force-Rebuild / Deploy-Meta. Stack-Check läuft
+                    automatisch, wenn Coolify-Container erkannt werden.
                   </p>
                   <input type="hidden" name="serverId" value={s.id} />
                   <label className="space-y-1 text-xs text-zinc-400 sm:col-span-2">
@@ -441,17 +445,24 @@ export function ServerAdminPanel({
                   className="grid gap-3 sm:grid-cols-2 border-t border-zinc-800 pt-4"
                 >
                   <p className="sm:col-span-2 text-xs font-medium text-zinc-300">
-                    Backup
+                    Backup (optional)
+                  </p>
+                  <p className="sm:col-span-2 text-[11px] text-zinc-500">
+                    Leer = Check übersprungen. Beispiel:{" "}
+                    <code className="text-zinc-400">
+                      /backups/daily,/backups/monthly
+                    </code>
+                    ; bei Coolify oft zusätzlich{" "}
+                    <code className="text-zinc-400">/data/coolify/backups</code>
+                    .
                   </p>
                   <input type="hidden" name="serverId" value={s.id} />
                   <label className="space-y-1 text-xs text-zinc-400 sm:col-span-2">
                     Pfade (kommagetrennt)
                     <input
                       name="backupPaths"
-                      defaultValue={
-                        s.backupPaths ??
-                        "/backups/daily,/backups/monthly,/data/coolify/backups"
-                      }
+                      defaultValue={s.backupPaths ?? ""}
+                      placeholder="/backups/daily,/backups/monthly"
                       className={fieldClass + " font-mono text-xs"}
                     />
                   </label>
@@ -459,9 +470,8 @@ export function ServerAdminPanel({
                     Monitoring-Dir (status.json)
                     <input
                       name="backupMonitoringDir"
-                      defaultValue={
-                        s.backupMonitoringDir ?? "/backups/monitoring"
-                      }
+                      defaultValue={s.backupMonitoringDir ?? ""}
+                      placeholder="/backups/monitoring"
                       className={fieldClass + " font-mono text-xs"}
                     />
                   </label>
@@ -558,8 +568,8 @@ export function ServerAdminPanel({
         </div>
         <p className="text-xs text-zinc-500">
           Secrets verschlüsselt in der DB (
-          <code className="text-zinc-400">AUTH_SECRET</code>). Coolify/Backup
-          danach unter Bearbeiten setzen.
+          <code className="text-zinc-400">AUTH_SECRET</code>). SSH, optionale
+          Backup-Pfade und Coolify-API danach unter Bearbeiten setzen.
         </p>
         <Button type="submit" size="sm" disabled={pending}>
           {pending ? "Speichern…" : "Server anlegen"}

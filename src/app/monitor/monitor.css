@@ -2751,23 +2751,27 @@ a.monitor-cell-link:focus-visible {
   position: relative;
   z-index: 2;
   margin: 0;
-  max-width: min(86vw, 640px);
+  /* Wide enough for Orbitron "S1 · EMERGENCY" / "S4 · ROUTINE" */
+  max-width: min(94vw, 52rem);
   width: 100%;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   text-align: center;
   gap: clamp(12px, 1.5vh, 20px);
+  overflow: visible;
 }
 
 .monitor-tv-shell[data-night="1"] .monitor-status-main {
   width: 100%;
+  max-width: 100%;
   display: flex;
   flex-direction: column;
   flex-wrap: nowrap;
   align-items: center;
   justify-content: center;
   gap: clamp(8px, 1vh, 14px);
+  overflow: visible;
 }
 
 .monitor-tv-shell[data-night="1"] .monitor-status-sub {
@@ -2792,7 +2796,10 @@ a.monitor-cell-link:focus-visible {
 }
 
 .monitor-tv-shell[data-night="1"] .monitor-display {
-  font-size: clamp(32px, 6vmin, 72px);
+  /* Scale to card width so the full stage label stays readable */
+  font-size: clamp(26px, 8.5cqi, 56px);
+  letter-spacing: 0.04em;
+  max-width: 100%;
   overflow: visible;
   text-overflow: clip;
   white-space: nowrap;
@@ -2948,6 +2955,10 @@ a.monitor-cell-link:focus-visible {
   .monitor-display {
     font-size: min(12cqi, 8vh, 128px);
   }
+
+  .monitor-tv-shell[data-night="1"] .monitor-display {
+    font-size: clamp(28px, 8cqi, 64px);
+  }
 }
 
 /* 4K TV — readable from sofa distance */
@@ -2974,6 +2985,10 @@ a.monitor-cell-link:focus-visible {
 
   .monitor-display {
     font-size: min(12cqi, 8.5vh, 148px);
+  }
+
+  .monitor-tv-shell[data-night="1"] .monitor-display {
+    font-size: clamp(32px, 7.5cqi, 72px);
   }
 
   .monitor-status-sub {

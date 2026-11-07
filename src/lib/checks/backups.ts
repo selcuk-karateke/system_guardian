@@ -228,12 +228,29 @@ async function fetchBackupMonitoring(
 export async function runBackupsCheck(serverId: string): Promise<CheckResult> {
   const backupCfg = await resolveBackupConfig(serverId);
   const configuredPaths = backupCfg.paths;
-  const paths = await expandBackupPaths(serverId, configuredPaths);
   const maxAgeDays = getBackupMaxAgeDays();
   const minWarningBytes = getBackupMinSizeWarningBytes();
   const runMaxAgeHours = getBackupRunMaxAgeHours();
   const alerts: AlertInput[] = [];
   const pathResults: Record<string, unknown> = {};
+
+  if (configuredPaths.length === 0 && !backupCfg.monitoringDir) {
+    return {
+      module: "backups",
+      status: "healthy",
+      data: {
+        skipped: true,
+        reason: "not_configured",
+        configuredPaths: [],
+        paths: {},
+        summary: { present: false },
+        monitoring: null,
+      },
+      alerts: [],
+    };
+  }
+
+  const paths = await expandBackupPaths(serverId, configuredPaths);
 
   const monFetch = await fetchBackupMonitoring(
     serverId,
@@ -248,7 +265,7 @@ export async function runBackupsCheck(serverId: string): Promise<CheckResult> {
     : null;
   if (monitoring) alerts.push(...monitoring.alerts);
 
-  if (paths.length === 0) {
+  if (configuredPaths.length > 0 && paths.length === 0) {
     return {
       module: "backups",
       status: "critical",
@@ -266,6 +283,23 @@ export async function runBackupsCheck(serverId: string): Promise<CheckResult> {
         },
         ...alerts,
       ],
+    };
+  }
+
+  if (paths.length === 0) {
+    let status: CheckResult["status"] = "healthy";
+    if (alerts.some((a) => a.level === "critical")) status = "critical";
+    else if (alerts.some((a) => a.level === "warning")) status = "warning";
+    return {
+      module: "backups",
+      status,
+      data: {
+        configuredPaths,
+        paths: pathResults,
+        summary: { present: false, monitoringOnly: true },
+        monitoring: monitoringPayload(monFetch?.dir, monitoring),
+      },
+      alerts,
     };
   }
 

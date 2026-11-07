@@ -23,5 +23,6 @@ describe("profileAllowsModule", () => {
     assert.equal(profileAllowsModule("container", "ssh_keys"), false);
     assert.equal(profileAllowsModule("container", "docker"), true);
     assert.equal(profileAllowsModule("container", "website"), true);
+    assert.equal(profileAllowsModule("container", "coolify"), false);
   });
 });

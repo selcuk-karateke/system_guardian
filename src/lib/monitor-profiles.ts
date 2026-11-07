@@ -1,6 +1,6 @@
 /**
- * Monitoring-Profile je Zieltyp (Marco):
- * - host: voller Coolify-/Debian-Host (RAID, SSH, Users, …)
+ * Monitoring-Profile je Zieltyp:
+ * - host: voller Linux-Host (RAID, SSH, Users, …); Coolify-Modul auto-skipped wenn nicht erkannt
  * - container: App-/Service-Fokus — Host-Härtung & RAID weglassen
  * - full: Alias für host (explizit alles)
  */
@@ -15,11 +15,10 @@ export function parseMonitorProfile(raw: string | null | undefined): MonitorProf
   return "host";
 }
 
-/** Module die im container-Profil laufen (Allowlist). */
+/** Module die im container-Profil laufen (Allowlist). Coolify nur auf host/full. */
 export const CONTAINER_PROFILE_MODULES = new Set([
   "server_health",
   "docker",
-  "coolify",
   "database",
   "ssl",
   "website",

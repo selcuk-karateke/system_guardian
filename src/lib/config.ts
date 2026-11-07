@@ -49,10 +49,7 @@ export const THRESHOLDS = {
 
 /** @deprecated Paths live on the server row — resolveBackupConfig(serverId). */
 export function getBackupPaths(): string[] {
-  return "/backups/daily,/backups/monthly,/data/coolify/backups"
-    .split(",")
-    .map((p) => p.trim())
-    .filter(Boolean);
+  return [];
 }
 
 /** Root/SSH login IPs (DB settings via runtime-config). */

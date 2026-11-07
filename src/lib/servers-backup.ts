@@ -3,10 +3,6 @@ import { db } from "@/db";
 import { servers } from "@/db/schema";
 import { getServerById } from "@/lib/servers";
 
-const DEFAULT_PATHS =
-  "/backups/daily,/backups/monthly,/data/coolify/backups";
-const DEFAULT_MONITORING = "/backups/monitoring";
-
 export type ServerBackupConfig = {
   paths: string[];
   /** Empty string = monitoring JSON checks disabled */
@@ -25,31 +21,28 @@ export async function resolveBackupConfig(
   serverId: string,
 ): Promise<ServerBackupConfig> {
   const server = await getServerById(serverId);
-  const fallbackPaths = splitPaths(DEFAULT_PATHS);
 
   if (!server) {
     return {
-      paths: fallbackPaths,
-      monitoringDir: DEFAULT_MONITORING,
+      paths: [],
+      monitoringDir: "",
       triggerCommand: "",
     };
   }
 
   const paths =
-    server.backupPaths != null
-      ? splitPaths(server.backupPaths)
-      : fallbackPaths;
+    server.backupPaths != null ? splitPaths(server.backupPaths) : [];
   const monitoringDir =
     server.backupMonitoringDir != null
       ? server.backupMonitoringDir.trim()
-      : DEFAULT_MONITORING;
+      : "";
   const triggerCommand =
     server.backupTriggerCommand != null
       ? server.backupTriggerCommand.trim()
       : "";
 
   return {
-    paths: paths.length > 0 ? paths : fallbackPaths,
+    paths,
     monitoringDir,
     triggerCommand,
   };

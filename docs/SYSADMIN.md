@@ -13,9 +13,9 @@ Zielgruppe: Ops / Systemadministration. Du kennst Linux, SSH, Cron, Docker, Fail
 | Zabbix / Nagios / Netdata | Host-Checks (CPU, RAM, Disk, Dienste) per SSH |
 | Wazuh / OSSEC (HIDS-light) | Login-, User-, Port-, FIM-, Process-Checks |
 | Uptime-Robot / Blackbox | Website + SSL |
-| Coolify-UI | Coolify-Container + Deploy-Meta zusätzlich im eigenen Dashboard |
+| Coolify (optional) | Stack-Check + API-Redeploy, wenn Coolify erkannt/konfiguriert |
 
-Alles läuft **ohne Agent** auf dem Zielhost: Guardian verbindet sich per **SSH**, führt bekannte Shell-Befehle aus (`ss`, `docker`, `journalctl`, `mdstat`, …), speichert Ergebnis in **PostgreSQL** und alarmiert per **Telegram / Discord / E-Mail**.
+Alles läuft **ohne Agent** auf dem Zielhost: Guardian verbindet sich per **SSH**, führt bekannte Shell-Befehle aus (`ss`, `docker`, `journalctl`, `mdstat`, …), speichert Ergebnis in **PostgreSQL** und alarmiert per **Telegram / Discord / E-Mail**. Beliebige Linux-Server; Coolify ist kein Muss.
 
 Lokal (Windows-Dev): `CHECK_MODE=mock` – keine echten SSH-Calls, Fixtures in `src/lib/ssh/mock.ts`.
 
@@ -24,8 +24,8 @@ Lokal (Windows-Dev): `CHECK_MODE=mock` – keine echten SSH-Calls, Fixtures in `
 ## 2. Architektur (eine Skizze)
 
 ```
-┌─────────────────┐     Cron (Coolify)      ┌──────────────────────┐
-│  Coolify Host   │◄──── Bearer CRON_SECRET ─│  System Guardian     │
+┌─────────────────┐     Cron / Scheduler    ┌──────────────────────┐
+│  Linux Host     │◄──── Bearer CRON_SECRET ─│  System Guardian     │
 │  (monitored)    │     /api/cron/*          │  (Next.js + Postgres)│
 │                 │◄──── SSH (CHECKS) ───────│                      │
 │  docker, mdadm, │                          │  UI: / /monitor …    │
@@ -76,7 +76,8 @@ src/lib/checks/          ← Check-Logik (hier meist zuarbeiten)
 src/lib/ssh/mock.ts      ← Windows-Dev-Fixtures
 src/lib/alerts/pipeline.ts  ← processAlerts + reconcileOpenAlerts
 .env.example             ← alle Schalter / Thresholds / Allowlists
-docs/COOLIFY.md          ← Production-Deploy + Cron-URLs
+docs/DEPLOY.md           ← Compose / VPS Deploy + Cron
+docs/COOLIFY.md          ← Deploy auf Coolify + optional Stack-Monitoring
 ```
 
 ### 3.3 Datenbank (was du in Ops brauchst)
@@ -103,7 +104,7 @@ Zwei Batches, zwei Cron-Jobs.
 | `server_health` | Host | CPU, RAM, Disk, Load |
 | `raid` | Storage | `/proc/mdstat` (abschaltbar: `RAID_CHECK_ENABLED`) |
 | `docker` | Container | Status, Restarts, unerwartete Images |
-| `coolify` | Platform | Coolify-Core (Realtime/Sentinel optional) |
+| `coolify` | Platform (optional) | Coolify-Core wenn erkannt/API gesetzt; sonst auto-skip |
 | `database` | DB | Erreichbarkeit der konfigurierten DBs |
 | `ssl` | Zertifikate | Ablauf (Warning typisch &lt;30d) |
 | `website` | HTTP(S) | Erreichbarkeit, HTTP→HTTPS-Redirect, HSTS (≥15552000) |
@@ -204,7 +205,7 @@ Der SSH-User braucht Leserechte für: Docker-Socket/CLI, Journal, `/proc`, typis
 
 Key-Setup lokal: `npm run setup:ssh-key` · Test: `npm run test:ssh`.
 
-Production: [COOLIFY.md](./COOLIFY.md).
+Production: [DEPLOY.md](./DEPLOY.md) · Coolify: [COOLIFY.md](./COOLIFY.md).
 
 ---
 

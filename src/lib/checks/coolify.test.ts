@@ -1,10 +1,42 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { evaluateCoolifyServices } from "./coolify";
+import {
+  evaluateCoolifyServices,
+  hasCoolifyContainerSignal,
+} from "./coolify";
 
 const stack = (
   rows: Array<{ Names: string; State: string }>,
 ) => evaluateCoolifyServices(rows);
+
+describe("hasCoolifyContainerSignal", () => {
+  it("is false for empty or generic docker hosts", () => {
+    assert.equal(hasCoolifyContainerSignal([]), false);
+    assert.equal(
+      hasCoolifyContainerSignal([
+        { Names: "nginx" },
+        { Names: "postgres" },
+        { Names: "traefik" },
+        { Names: "redis" },
+      ]),
+      false,
+    );
+  });
+
+  it("is true when any coolify-named container exists", () => {
+    assert.equal(
+      hasCoolifyContainerSignal([{ Names: "coolify-db" }]),
+      true,
+    );
+    assert.equal(
+      hasCoolifyContainerSignal([
+        { Names: "nginx" },
+        { Names: "coolify" },
+      ]),
+      true,
+    );
+  });
+});
 
 describe("evaluateCoolifyServices", () => {
   it("is healthy without realtime when core stack is up", () => {

@@ -1,5 +1,15 @@
+import { resolveCoolifyApi } from "@/lib/servers-coolify";
 import { getSshClient } from "@/lib/ssh";
 import type { AlertInput, CheckResult } from "./types";
+
+/** True when any container name looks like a Coolify install (not bare Traefik/Redis). */
+export function hasCoolifyContainerSignal(
+  containers: Array<{ Names: string }>,
+): boolean {
+  return containers.some((row) =>
+    row.Names.toLowerCase().includes("coolify"),
+  );
+}
 
 type CoolifyServiceSpec = {
   key: string;
@@ -116,6 +126,16 @@ export async function runCoolifyCheck(serverId: string): Promise<CheckResult> {
     } catch {
       /* skip */
     }
+  }
+
+  const api = await resolveCoolifyApi(serverId);
+  if (!api && !hasCoolifyContainerSignal(containers)) {
+    return {
+      module: "coolify",
+      status: "healthy",
+      data: { skipped: true, reason: "not_detected", services: {} },
+      alerts: [],
+    };
   }
 
   const { services, alerts, status } = evaluateCoolifyServices(containers);

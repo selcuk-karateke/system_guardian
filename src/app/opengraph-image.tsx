@@ -57,7 +57,7 @@ export default function OpenGraphImage() {
             Monitoring &amp; Security
           </div>
           <div style={{ fontSize: 28, color: "#94a3b8", maxWidth: 780 }}>
-            Coolify · RAID · Docker · Alerts — S1–S4 Crisis Stages
+            Linux · RAID · Docker · Security — optional Coolify
           </div>
         </div>
         <div style={{ display: "flex", gap: 12, color: "#22d3ee", fontSize: 22 }}>
