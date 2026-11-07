@@ -47,6 +47,9 @@ import {
 } from "@/lib/runtime-config";
 import { listActiveServers } from "@/lib/servers";
 import { formatUptime } from "@/lib/utils";
+import { getSessionUser } from "@/lib/auth/session";
+import { defaultUiLayout } from "@/lib/ui-layout";
+import { getUiLayoutForUser } from "@/lib/ui-layout-store";
 
 function metricToneThresholdsFromRuntime(): MetricToneThresholds {
   const t = getRuntimeConfigSnapshot().thresholds;
@@ -259,6 +262,10 @@ export default async function MonitorPage({
   } = await buildGlobeTints(checkData, { homeIp: homeIpCandidate });
 
   const wallTone = crisisStageToWallTone(crisisStage);
+  const sessionUser = await getSessionUser().catch(() => null);
+  const uiLayout = await getUiLayoutForUser(sessionUser).catch(() =>
+    defaultUiLayout(),
+  );
 
   return (
     <MonitorAutoRefresh>
@@ -291,7 +298,15 @@ export default async function MonitorPage({
           sessionMarkers={sessionMarkers}
           webMarkers={webMarkers}
           homeMarker={homeMarker}
-          egress={egress}
+          egress={
+            egress
+              ? {
+                  ...egress,
+                  txBytes: egress.txBytes ?? undefined,
+                  windowSec: egress.windowSec ?? undefined,
+                }
+              : null
+          }
           liveHost={liveHost}
           cpuCores={cpuCores}
           toneThresholds={toneThresholds}
@@ -301,6 +316,8 @@ export default async function MonitorPage({
             name: s.name,
             host: s.host,
           }))}
+          uiLayout={uiLayout}
+          canPersistLayout={Boolean(sessionUser)}
         />
       </MonitorTvProtection>
     </MonitorAutoRefresh>

@@ -9,9 +9,7 @@ import {
   type TotpSetupState,
 } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
-
-const fieldClass =
-  "w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-sky-600 focus:outline-none focus:ring-1 focus:ring-sky-600";
+import { fieldClass } from "@/lib/ui/field";
 
 export function TotpSetupPanel({
   username,

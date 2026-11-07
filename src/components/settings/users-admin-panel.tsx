@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, type FormEvent } from "react";
+import { useTransition, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import {
   createUserAction,
@@ -9,9 +9,8 @@ import {
 } from "@/app/actions/users";
 import { Button } from "@/components/ui/button";
 import type { AuthUserRow } from "@/lib/auth/users";
-
-const fieldClass =
-  "w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-sky-600 focus:outline-none focus:ring-1 focus:ring-sky-600";
+import { fieldClass } from "@/lib/ui/field";
+import { notifyResult } from "@/lib/ui/notify";
 
 export function UsersAdminPanel({
   users,
@@ -24,16 +23,13 @@ export function UsersAdminPanel({
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [message, setMessage] = useState<string | null>(null);
-  const [isError, setIsError] = useState(false);
 
   function onCreate(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     startTransition(async () => {
       const r = await createUserAction(fd);
-      setIsError(!r.ok);
-      setMessage(r.message);
+      notifyResult(r);
       if (r.ok) {
         (e.target as HTMLFormElement).reset();
         router.refresh();
@@ -74,8 +70,7 @@ export function UsersAdminPanel({
                 const fd = new FormData(e.currentTarget);
                 startTransition(async () => {
                   const r = await setRoleAction(fd);
-                  setIsError(!r.ok);
-                  setMessage(r.message);
+                  notifyResult(r);
                   if (r.ok) router.refresh();
                 });
               }}
@@ -103,8 +98,7 @@ export function UsersAdminPanel({
                   const fd = new FormData(e.currentTarget);
                   startTransition(async () => {
                     const r = await deleteUserAction(fd);
-                    setIsError(!r.ok);
-                    setMessage(r.message);
+                    notifyResult(r);
                     if (r.ok) router.refresh();
                   });
                 }}
@@ -158,11 +152,6 @@ export function UsersAdminPanel({
         alles, operator = Settings ohne User-Mgmt, viewer = lesen.
       </p>
 
-      {message && (
-        <p className={isError ? "text-rose-400" : "text-emerald-400"}>
-          {message}
-        </p>
-      )}
     </div>
   );
 }

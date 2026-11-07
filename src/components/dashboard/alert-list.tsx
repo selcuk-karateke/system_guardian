@@ -1,13 +1,15 @@
 "use client";
 
 import Link from "next/link";
+import { ShieldCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { dismissAlert } from "@/app/actions/alerts";
 import { CopyReportButton } from "@/components/dashboard/copy-report-button";
-import { MODULE_LABELS } from "@/lib/module-labels";
-import { Button } from "@/components/ui/button";
 import { CrisisStageBadge } from "@/components/dashboard/crisis-stage-badge";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Button } from "@/components/ui/button";
+import { MODULE_LABELS } from "@/lib/module-labels";
 import { resolveCrisisStage, type CrisisStage } from "@/lib/crisis/stages";
 
 export type AlertRow = {
@@ -33,7 +35,13 @@ export function AlertList({
 
   if (items.length === 0) {
     return (
-      <p className="text-zinc-500 text-sm py-2">Keine offenen Warnungen.</p>
+      <EmptyState
+        compact={compact}
+        icon={ShieldCheck}
+        title="Alles ruhig"
+        description="Keine offenen Warnungen in S1–S4. Neue Funde erscheinen nach dem nächsten Check."
+        action={{ href: "/monitor", label: "Monitor öffnen" }}
+      />
     );
   }
 

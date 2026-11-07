@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useTransition } from "react";
 import { triggerBackupAction } from "@/app/actions/protect";
 import { wakeBackgroundJobsOverlay } from "@/lib/jobs/wake-client";
 import { Button } from "@/components/ui/button";
+import { notifyResult } from "@/lib/ui/notify";
 
 type Props = {
   autoBlockEnabled: boolean;
@@ -23,8 +24,6 @@ export function ProtectPanel({
   checkMode,
 }: Props) {
   const [pending, startTransition] = useTransition();
-  const [message, setMessage] = useState<string | null>(null);
-  const [isError, setIsError] = useState(false);
 
   return (
     <div className="space-y-4 text-sm">
@@ -91,11 +90,9 @@ export function ProtectPanel({
           size="sm"
           disabled={pending || !backupTriggerEnabled || checkMode !== "ssh"}
           onClick={() => {
-            setMessage(null);
             startTransition(async () => {
               const result = await triggerBackupAction();
-              setIsError(!result.ok);
-              setMessage(result.message);
+              notifyResult(result);
               if (result.ok) {
                 wakeBackgroundJobsOverlay({ label: "Backup" });
               }
@@ -105,12 +102,6 @@ export function ProtectPanel({
           Backup jetzt anstoßen
         </Button>
       </div>
-
-      {message && (
-        <p className={`text-sm ${isError ? "text-amber-400" : "text-emerald-400"}`}>
-          {message}
-        </p>
-      )}
     </div>
   );
 }

@@ -11,6 +11,7 @@
   --sg-warn: #fbbf24;
   --sg-crit: #f87171;
   --sg-accent: #38bdf8;
+  --sg-focus: rgb(56 189 248 / 55%);
   --sg-glass: rgb(14 16 28 / 0.55);
   --sg-edge: rgb(255 255 255 / 0.08);
   --sg-sidebar-width: 14rem;
@@ -27,6 +28,27 @@
   /* Firefox — thin HUD rail (no OS chrome) */
   scrollbar-width: thin;
   scrollbar-color: rgb(56 189 248 / 42%) rgb(9 9 11 / 55%);
+}
+
+/* Interactive chrome — cursor + keyboard focus (UX checklist §14–19) */
+.sg-shell a[href],
+.sg-shell button:not(:disabled),
+.sg-shell [role="button"]:not([aria-disabled="true"]),
+.sg-shell summary {
+  cursor: pointer;
+}
+
+.sg-shell button:disabled,
+.sg-shell [aria-disabled="true"] {
+  cursor: not-allowed;
+}
+
+.sg-shell a[href]:focus-visible,
+.sg-shell button:focus-visible,
+.sg-shell [role="button"]:focus-visible,
+.sg-shell summary:focus-visible {
+  outline: 2px solid var(--sg-focus);
+  outline-offset: 2px;
 }
 
 /* Chromium/WebKit — theme thumb + clickable ↑↓ / ←→ ends */
@@ -636,5 +658,122 @@
   .sg-status-dot--warning,
   .sg-status-dot--critical {
     animation: none !important;
+  }
+}
+
+/* Loading skeletons — Phase 4 */
+.sg-skeleton {
+  border-radius: 0.4rem;
+  background: linear-gradient(
+    90deg,
+    rgb(39 39 42 / 55%) 0%,
+    rgb(56 189 248 / 12%) 45%,
+    rgb(39 39 42 / 55%) 100%
+  );
+  background-size: 200% 100%;
+  animation: sg-skeleton-shimmer 1.35s ease-in-out infinite;
+}
+
+@keyframes sg-skeleton-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sg-skeleton {
+    animation: none;
+    background: rgb(39 39 42 / 70%);
+  }
+}
+
+/* Action toasts — Phase 3 system feedback */
+.sg-toast-host {
+  position: fixed;
+  z-index: 80;
+  right: 1rem;
+  bottom: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-width: min(22rem, calc(100vw - 2rem));
+  pointer-events: none;
+}
+
+.sg-toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  padding: 0.7rem 0.75rem;
+  border-radius: 0.65rem;
+  border: 1px solid rgb(255 255 255 / 10%);
+  background: rgb(9 9 11 / 94%);
+  box-shadow: 0 12px 40px rgb(0 0 0 / 45%);
+  color: #e4e4e7;
+  font-size: 0.8125rem;
+  line-height: 1.35;
+  animation: sg-toast-in 0.22s var(--ease-out-expo, ease-out) both;
+}
+
+.sg-toast--ok {
+  border-color: rgb(74 222 128 / 35%);
+  color: #bbf7d0;
+}
+
+.sg-toast--error {
+  border-color: rgb(251 191 36 / 40%);
+  color: #fde68a;
+}
+
+.sg-toast--info {
+  border-color: rgb(56 189 248 / 35%);
+  color: #bae6fd;
+}
+
+.sg-toast__msg {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+
+.sg-toast__close {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  margin: -0.1rem -0.15rem 0 0;
+  border: none;
+  border-radius: 0.35rem;
+  background: transparent;
+  color: inherit;
+  opacity: 0.65;
+  cursor: pointer;
+}
+
+.sg-toast__close:hover {
+  opacity: 1;
+  background: rgb(255 255 255 / 6%);
+}
+
+@keyframes sg-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sg-toast {
+    animation: none;
   }
 }

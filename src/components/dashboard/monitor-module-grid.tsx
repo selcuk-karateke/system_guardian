@@ -21,6 +21,8 @@ type Props = {
   visibleRows?: number;
   /** Seconds for one tile-row to scroll past */
   secondsPerRow?: number;
+  /** Pause auto-scroll while layout editor is open */
+  layoutEditing?: boolean;
 };
 
 export function MonitorModuleGrid({
@@ -29,6 +31,7 @@ export function MonitorModuleGrid({
   moduleDetails,
   visibleRows = 4,
   secondsPerRow = 3.5,
+  layoutEditing = false,
 }: Props) {
   const totalModules = sections.reduce((n, s) => n + s.modules.length, 0);
   const approxRows = Math.max(1, Math.ceil(totalModules / 4));
@@ -130,6 +133,7 @@ export function MonitorModuleGrid({
 
       const hovering = Boolean(viewportRef.current?.matches(":hover"));
       if (
+        !layoutEditing &&
         !reducedRef.current &&
         !pausedRef.current &&
         !hovering &&
@@ -150,7 +154,7 @@ export function MonitorModuleGrid({
       cancelAnimationFrame(raf);
       mq.removeEventListener("change", onMq);
     };
-  }, [shouldLoop, approxRows, secondsPerRow]);
+  }, [shouldLoop, approxRows, secondsPerRow, layoutEditing]);
 
   useEffect(() => {
     return () => {
@@ -226,7 +230,7 @@ export function MonitorModuleGrid({
   return (
     <div
       className="monitor-grid-shell"
-      data-paused={paused ? "1" : "0"}
+      data-paused={paused || layoutEditing ? "1" : "0"}
       data-loop={shouldLoop ? "1" : "0"}
     >
       <div ref={viewportRef} className="monitor-grid-viewport">

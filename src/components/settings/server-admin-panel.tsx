@@ -13,6 +13,8 @@ import {
   updateServerSshAction,
 } from "@/app/actions/servers";
 import { Button } from "@/components/ui/button";
+import { fieldClass } from "@/lib/ui/field";
+import { notify, notifyResult } from "@/lib/ui/notify";
 
 export type ServerAdminRow = {
   id: string;
@@ -36,9 +38,6 @@ export type ServerAdminRow = {
   agentVersion?: string | null;
 };
 
-const fieldClass =
-  "w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-sky-600 focus:outline-none focus:ring-1 focus:ring-sky-600";
-
 export function ServerAdminPanel({
   servers,
   sshHost,
@@ -50,8 +49,6 @@ export function ServerAdminPanel({
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [message, setMessage] = useState<string | null>(null);
-  const [isError, setIsError] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [installCmd, setInstallCmd] = useState<string | null>(null);
   const [installFor, setInstallFor] = useState<string | null>(null);
@@ -68,12 +65,10 @@ export function ServerAdminPanel({
     e.preventDefault();
     const form = e.currentTarget;
     const formData = new FormData(form);
-    setMessage(null);
     setInstallCmd(null);
     startTransition(async () => {
       const result = await createServerAction(formData);
-      setIsError(!result.ok);
-      setMessage(result.message);
+      notifyResult(result);
       if (result.ok) {
         form.reset();
         if (result.agentInstallCmd) {
@@ -93,11 +88,9 @@ export function ServerAdminPanel({
     ) {
       return;
     }
-    setMessage(null);
     startTransition(async () => {
       const result = await rotateAgentTokenAction(serverId);
-      setIsError(!result.ok);
-      setMessage(result.message);
+      notifyResult(result);
       if (result.ok && result.agentInstallCmd) {
         setInstallCmd(result.agentInstallCmd);
         setInstallFor(serverId);
@@ -114,12 +107,10 @@ export function ServerAdminPanel({
     ) {
       return;
     }
-    setMessage(null);
     setInstallCmd(null);
     startTransition(async () => {
       const result = await installAgentViaSshAction(serverId);
-      setIsError(!result.ok);
-      setMessage(result.message);
+      notifyResult(result);
       if (result.agentInstallCmd) {
         setInstallCmd(result.agentInstallCmd);
         setInstallFor(serverId);
@@ -131,11 +122,9 @@ export function ServerAdminPanel({
   function onSaveSsh(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    setMessage(null);
     startTransition(async () => {
       const result = await updateServerSshAction(formData);
-      setIsError(!result.ok);
-      setMessage(result.message);
+      notifyResult(result);
       if (result.ok) {
         setEditId(null);
         router.refresh();
@@ -146,11 +135,9 @@ export function ServerAdminPanel({
   function onSaveCoolify(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    setMessage(null);
     startTransition(async () => {
       const result = await updateServerCoolifyAction(formData);
-      setIsError(!result.ok);
-      setMessage(result.message);
+      notifyResult(result);
       if (result.ok) router.refresh();
     });
   }
@@ -158,22 +145,18 @@ export function ServerAdminPanel({
   function onSaveBackup(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    setMessage(null);
     startTransition(async () => {
       const result = await updateServerBackupAction(formData);
-      setIsError(!result.ok);
-      setMessage(result.message);
+      notifyResult(result);
       if (result.ok) router.refresh();
     });
   }
 
   function onDeactivate(id: string, name: string) {
     if (!confirm(`Server „${name}“ wirklich deaktivieren?`)) return;
-    setMessage(null);
     startTransition(async () => {
       const result = await deactivateServerAction(id);
-      setIsError(!result.ok);
-      setMessage(result.message);
+      notifyResult(result);
       if (result.ok) router.refresh();
     });
   }
@@ -199,22 +182,12 @@ export function ServerAdminPanel({
             className="text-xs"
             onClick={() => {
               void navigator.clipboard?.writeText(installCmd);
-              setMessage("Install-Befehl kopiert");
-              setIsError(false);
+              notify({ message: "Install-Befehl kopiert", tone: "ok" });
             }}
           >
             Kopieren
           </Button>
         </div>
-      )}
-      {message && (
-        <p
-          className={
-            isError ? "text-sm text-rose-400" : "text-sm text-emerald-400"
-          }
-        >
-          {message}
-        </p>
       )}
       <ul className="space-y-3 text-sm">
         {servers.map((s) => (
@@ -285,11 +258,9 @@ export function ServerAdminPanel({
                   className="text-xs border-amber-800 text-amber-300"
                   disabled={pending}
                   onClick={() => {
-                    setMessage(null);
                     startTransition(async () => {
                       const result = await alignServerWithSshHostAction(s.id);
-                      setIsError(!result.ok);
-                      setMessage(result.message);
+                      notifyResult(result);
                       if (result.ok) router.refresh();
                     });
                   }}

@@ -11,6 +11,14 @@ export type MetricCardProps = {
   series?: number[];
   /** Pin sparkline Y domain (RAM/Disk = 0–100). */
   seriesDomain?: { min: number; max: number };
+  /** Native drag-reorder handle (metric strip). */
+  dragId?: string;
+  dragging?: boolean;
+  dropTarget?: boolean;
+  onDragStartCard?: (id: string) => void;
+  onDragOverCard?: (id: string) => void;
+  onDropCard?: (id: string) => void;
+  onDragEndCard?: () => void;
 };
 
 function MonitorRingGauge({
@@ -66,15 +74,54 @@ export function MonitorHeroMetric({
   tone = "ok",
   series,
   seriesDomain,
+  dragId,
+  dragging = false,
+  dropTarget = false,
+  onDragStartCard,
+  onDragOverCard,
+  onDropCard,
+  onDragEndCard,
 }: MetricCardProps) {
   const pct = value ?? 0;
   const showRing = value != null;
   const isTextValue = displayValue != null;
   const showSpark = series != null && series.length >= 2;
+  const canDrag = Boolean(dragId);
 
   return (
     <div
-      className={`monitor-glass monitor-stat monitor-stat--hud monitor-stat--${tone}`}
+      className={`monitor-glass monitor-stat monitor-stat--hud monitor-stat--${tone}${canDrag ? " monitor-stat--draggable" : ""}`}
+      draggable={canDrag}
+      data-dragging={dragging ? "1" : undefined}
+      data-drop-target={dropTarget ? "1" : undefined}
+      title={canDrag ? "Ziehen zum Umordnen" : undefined}
+      onDragStart={
+        canDrag
+          ? (e) => {
+              e.dataTransfer.effectAllowed = "move";
+              e.dataTransfer.setData("text/plain", dragId!);
+              onDragStartCard?.(dragId!);
+            }
+          : undefined
+      }
+      onDragOver={
+        canDrag
+          ? (e) => {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = "move";
+              onDragOverCard?.(dragId!);
+            }
+          : undefined
+      }
+      onDrop={
+        canDrag
+          ? (e) => {
+              e.preventDefault();
+              onDropCard?.(dragId!);
+            }
+          : undefined
+      }
+      onDragEnd={canDrag ? () => onDragEndCard?.() : undefined}
     >
       {showSpark ? (
         <MonitorSparkline

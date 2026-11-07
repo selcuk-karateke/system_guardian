@@ -56,14 +56,14 @@ export function MonitorAlertTicker({ alerts, intervalMs = 3000 }: Props) {
   );
 
   if (!sorted.length) {
-    return <span className="monitor-bottom-empty">No open alerts</span>;
+    return <span className="monitor-bottom-empty">Keine offenen Alerts</span>;
   }
 
   // Clamp before paint — after refresh, index can briefly exceed length.
   const safeIndex = ((index % sorted.length) + sorted.length) % sorted.length;
   const current = sorted[safeIndex];
   if (!current) {
-    return <span className="monitor-bottom-empty">No open alerts</span>;
+    return <span className="monitor-bottom-empty">Keine offenen Alerts</span>;
   }
   const stage = resolveCrisisStage(current);
   const meta = CRISIS_STAGE_META[stage];

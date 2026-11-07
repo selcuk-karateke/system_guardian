@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, type FormEvent } from "react";
+import { useTransition, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import {
   testDailyReportPreview,
@@ -12,9 +12,8 @@ import {
 } from "@/app/actions/notifications";
 import type { NotificationChannelStatus } from "@/lib/notifications/status";
 import { Button } from "@/components/ui/button";
-
-const fieldClass =
-  "w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-sky-600 focus:outline-none focus:ring-1 focus:ring-sky-600";
+import { fieldClass } from "@/lib/ui/field";
+import { notifyResult } from "@/lib/ui/notify";
 
 type Props = {
   status: NotificationChannelStatus;
@@ -32,8 +31,6 @@ function StatusDot({ ok }: { ok: boolean }) {
 export function NotificationSettingsPanel({ status }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [message, setMessage] = useState<string | null>(null);
-  const [isError, setIsError] = useState(false);
 
   function runSave(
     e: FormEvent<HTMLFormElement>,
@@ -41,21 +38,16 @@ export function NotificationSettingsPanel({ status }: Props) {
   ) {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    setMessage(null);
     startTransition(async () => {
       const result = await fn(formData);
-      setIsError(!result.ok);
-      setMessage(result.message);
+      notifyResult(result);
       if (result.ok) router.refresh();
     });
   }
 
   function runTest(fn: () => Promise<{ ok: boolean; message: string }>) {
-    setMessage(null);
     startTransition(async () => {
-      const result = await fn();
-      setIsError(!result.ok);
-      setMessage(result.message);
+      notifyResult(await fn());
     });
   }
 
@@ -244,12 +236,6 @@ export function NotificationSettingsPanel({ status }: Props) {
           Daily-Report-Format testen
         </Button>
       </div>
-
-      {message && (
-        <p className={`text-sm ${isError ? "text-amber-400" : "text-emerald-400"}`}>
-          {message}
-        </p>
-      )}
 
       <p className="text-xs text-zinc-500">
         Secrets verschlüsselt in der DB (

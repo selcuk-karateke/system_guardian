@@ -1,21 +1,12 @@
-import Link from "next/link";
-import { Suspense } from "react";
 import { MonitorAlertTicker } from "./monitor-alert-ticker";
-import { MonitorClock } from "./monitor-clock";
 import { MonitorGlobe } from "./monitor-globe";
 import { MonitorMatrixRain } from "./monitor-matrix-rain";
-import { MonitorModeSwitch } from "./monitor-mode-switch";
-import { MonitorReloadButton } from "./monitor-reload-button";
 import type { MonitorEgressInfo } from "./monitor-status-band";
-import { MonitorLivePanel } from "./monitor-live-panel";
+import { MonitorCustomArea } from "./monitor-custom-area";
 import {
-  MonitorModuleGrid,
   type MonitorModuleSection,
 } from "./monitor-module-grid";
-import {
-  ServerSelect,
-  type ServerSelectOption,
-} from "./server-select";
+import type { ServerSelectOption } from "./server-select";
 import type { GlobeTint } from "@/lib/geo/attack-markers";
 import type {
   MetricToneThresholds,
@@ -27,6 +18,8 @@ import {
   crisisStageToWallTone,
   type CrisisStage,
 } from "@/lib/crisis/stages";
+import type { UiLayout } from "@/lib/ui-layout";
+import { defaultUiLayout } from "@/lib/ui-layout";
 
 /** Priority stages — most important first; dividers between stages while scrolling. */
 const MODULE_SECTIONS: readonly MonitorModuleSection[] = [
@@ -101,6 +94,9 @@ type Props = {
   toneThresholds?: MetricToneThresholds;
   serverId?: string | null;
   servers?: ServerSelectOption[];
+  /** Per-user monitor layout (metrics + modules). */
+  uiLayout?: UiLayout;
+  canPersistLayout?: boolean;
 };
 
 export function MonitorWall({
@@ -125,9 +121,12 @@ export function MonitorWall({
   toneThresholds,
   serverId = null,
   servers = [],
+  uiLayout,
+  canPersistLayout = false,
 }: Props) {
   const wallTone = crisisStageToWallTone(crisisStage);
   const hero = crisisStageHeroLabel(crisisStage);
+  const layout = uiLayout ?? defaultUiLayout();
 
   return (
     <div className="monitor-wall" data-status={wallTone}>
@@ -171,57 +170,27 @@ export function MonitorWall({
       </div>
 
       <div className="monitor-content">
-        <header className="monitor-top">
-          <div>
-            <div className="monitor-brand">
-              <strong>System Guardian</strong>
-              {checkMode === "ssh" ? " · LIVE" : ""}
-            </div>
-            <div className="monitor-host">
-              {hostLabel} — {hostIp}
-            </div>
-            {hostMeta ? (
-              <div className="monitor-host-meta">{hostMeta}</div>
-            ) : null}
-          </div>
-          <div className="monitor-top-right">
-            {servers.length > 1 && serverId ? (
-              <Suspense fallback={null}>
-                <ServerSelect
-                  servers={servers}
-                  selectedId={serverId}
-                  className="monitor-top-select monitor-top-select--quiet"
-                />
-              </Suspense>
-            ) : null}
-            <MonitorModeSwitch compact />
-            <MonitorClock />
-            <MonitorReloadButton />
-            <Link href="/" className="monitor-top-link">
-              Dashboard
-            </Link>
-          </div>
-        </header>
-
-        <MonitorLivePanel
+        <MonitorCustomArea
+          initialLayout={layout}
+          canPersist={canPersistLayout}
+          catalogSections={MODULE_SECTIONS}
           wallTone={wallTone}
           crisisStage={crisisStage}
           hero={hero}
           counts={counts}
           lastCheck={lastCheck}
           serverId={serverId}
+          servers={servers}
+          hostLabel={hostLabel}
+          hostIp={hostIp}
+          hostMeta={hostMeta}
+          checkMode={checkMode}
           initial={{ egress, host: liveHost }}
           metricCards={metricCards}
           cpuCores={cpuCores}
           toneThresholds={toneThresholds}
-        />
-
-        <MonitorModuleGrid
-          sections={MODULE_SECTIONS}
           severityMap={severityMap}
           moduleDetails={moduleDetails}
-          visibleRows={3}
-          secondsPerRow={3.5}
         />
 
         <footer className="monitor-glass monitor-bottom">

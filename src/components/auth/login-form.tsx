@@ -3,6 +3,8 @@
 import { useActionState } from "react";
 import { loginAction, type LoginState } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
+import { fieldClass } from "@/lib/ui/field";
+import { cn } from "@/lib/utils";
 
 export function LoginForm({ next }: { next?: string }) {
   const [state, formAction, pending] = useActionState(
@@ -36,7 +38,7 @@ export function LoginForm({ next }: { next?: string }) {
               name="username"
               autoComplete="username"
               required
-              className="mt-1 w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100"
+              className={cn(fieldClass, "mt-1 bg-zinc-900")}
             />
           </div>
           <div>
@@ -49,7 +51,7 @@ export function LoginForm({ next }: { next?: string }) {
               type="password"
               autoComplete="current-password"
               required
-              className="mt-1 w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100"
+              className={cn(fieldClass, "mt-1 bg-zinc-900")}
             />
           </div>
         </>
@@ -70,7 +72,10 @@ export function LoginForm({ next }: { next?: string }) {
             placeholder="6-stelliger Code"
             required
             autoFocus
-            className="mt-1 w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 font-mono tracking-widest"
+            className={cn(
+              fieldClass,
+              "mt-1 bg-zinc-900 font-mono tracking-widest",
+            )}
           />
         </div>
       )}

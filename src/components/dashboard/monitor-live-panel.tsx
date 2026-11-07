@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   buildMonitorMetricCardsFromLive,
   type MetricToneThresholds,
@@ -8,7 +14,14 @@ import {
   type MonitorMetricCards,
 } from "@/lib/monitor-metric-cards";
 import type { CrisisStage } from "@/lib/crisis/stages";
+import {
+  moveMetricOrder,
+  type MetricOrderKey,
+} from "@/lib/monitor/metric-order";
 import { formatUptime } from "@/lib/utils";
+import { saveUiLayoutAction } from "@/app/actions/ui-layout";
+import type { UiLayout } from "@/lib/ui-layout";
+import { patchLocalMonitor, readLocalUiLayout } from "@/lib/ui-layout-local";
 import { MonitorHeroMetric } from "./monitor-metric";
 import {
   MonitorStatusBand,
@@ -42,6 +55,13 @@ type Props = {
   metricCards: MonitorMetricCards;
   cpuCores?: number | null;
   toneThresholds?: MetricToneThresholds;
+  /** Controlled metric card order (from ui layout). */
+  metricOrder?: MetricOrderKey[];
+  onMetricOrderChange?: (order: MetricOrderKey[]) => void;
+  canPersistMetrics?: boolean;
+  fullLayout?: UiLayout;
+  /** Disable drag while module layout editor is open */
+  layoutEditing?: boolean;
 };
 
 function egressKey(e: MonitorEgressInfo | null | undefined): string {
@@ -196,6 +216,11 @@ export function MonitorLivePanel({
   metricCards,
   cpuCores = null,
   toneThresholds,
+  metricOrder,
+  onMetricOrderChange,
+  canPersistMetrics = false,
+  fullLayout,
+  layoutEditing = false,
 }: Props) {
   const { egress, host, streamLive, sampleGen } = useMonitorLivePoll(
     serverId,
@@ -231,6 +256,16 @@ export function MonitorLivePanel({
   };
 
   const [series, setSeries] = useState<MetricSeries>(seedSeries);
+  const [order, setOrder] = useState<MetricOrderKey[]>(
+    metricOrder ?? ["load", "ram", "disk", "uptime"],
+  );
+  const [dragId, setDragId] = useState<MetricOrderKey | null>(null);
+  const [overId, setOverId] = useState<MetricOrderKey | null>(null);
+  const dragIdRef = useRef<MetricOrderKey | null>(null);
+
+  useEffect(() => {
+    if (metricOrder) setOrder(metricOrder);
+  }, [metricOrder]);
 
   const prevServerRef = useRef(serverId);
   useEffect(() => {
@@ -267,8 +302,101 @@ export function MonitorLivePanel({
     }));
   }, [sampleGen, initial.host?.uptimeSec]);
 
+  const clearDrag = () => {
+    dragIdRef.current = null;
+    setDragId(null);
+    setOverId(null);
+  };
+
+  const persistOrder = (next: MetricOrderKey[]) => {
+    setOrder(next);
+    onMetricOrderChange?.(next);
+    const baseModules =
+      fullLayout?.monitor.modules ?? readLocalUiLayout().monitor.modules;
+    const monitor = { metrics: next, modules: baseModules };
+    if (canPersistMetrics) {
+      void saveUiLayoutAction({ monitor });
+    } else {
+      patchLocalMonitor(monitor);
+    }
+  };
+
+  const dragProps = (id: MetricOrderKey) =>
+    layoutEditing
+      ? {}
+      : {
+          dragId: id,
+          dragging: dragId === id,
+          dropTarget: overId === id && dragId !== id,
+          onDragStartCard: (startId: string) => {
+            const key = startId as MetricOrderKey;
+            dragIdRef.current = key;
+            setDragId(key);
+          },
+          onDragOverCard: (over: string) => setOverId(over as MetricOrderKey),
+          onDropCard: (target: string) => {
+            const from = dragIdRef.current;
+            if (!from) return;
+            persistOrder(
+              moveMetricOrder(order, from, target as MetricOrderKey),
+            );
+            clearDrag();
+          },
+          onDragEndCard: clearDrag,
+        };
+
+  const cards: Record<MetricOrderKey, ReactNode> = {
+    load: (
+      <MonitorHeroMetric
+        key="load"
+        label="Load"
+        value={liveCards.cpu.value}
+        displayValue={liveCards.cpu.displayValue ?? undefined}
+        lines={liveCards.cpu.lines}
+        tone={liveCards.cpu.tone}
+        series={series.load}
+        {...dragProps("load")}
+      />
+    ),
+    ram: (
+      <MonitorHeroMetric
+        key="ram"
+        label="RAM"
+        value={liveCards.ram.value}
+        lines={liveCards.ram.lines}
+        tone={liveCards.ram.tone}
+        series={series.ram}
+        seriesDomain={{ min: 0, max: 100 }}
+        {...dragProps("ram")}
+      />
+    ),
+    disk: (
+      <MonitorHeroMetric
+        key="disk"
+        label="Disk"
+        value={liveCards.disk.value}
+        lines={liveCards.disk.lines}
+        tone={liveCards.disk.tone}
+        series={series.disk}
+        seriesDomain={{ min: 0, max: 100 }}
+        {...dragProps("disk")}
+      />
+    ),
+    uptime: (
+      <MonitorHeroMetric
+        key="uptime"
+        label="Uptime"
+        value={null}
+        displayValue={liveCards.uptime.display}
+        lines={liveCards.uptime.lines}
+        series={series.uptime}
+        {...dragProps("uptime")}
+      />
+    ),
+  };
+
   return (
-    <>
+    <div className="monitor-live-stack">
       <MonitorStatusBand
         wallTone={wallTone}
         crisisStage={crisisStage}
@@ -279,39 +407,12 @@ export function MonitorLivePanel({
         streamLive={streamLive}
       />
 
-      <section className="monitor-metrics">
-        <MonitorHeroMetric
-          label="Load"
-          value={liveCards.cpu.value}
-          displayValue={liveCards.cpu.displayValue ?? undefined}
-          lines={liveCards.cpu.lines}
-          tone={liveCards.cpu.tone}
-          series={series.load}
-        />
-        <MonitorHeroMetric
-          label="RAM"
-          value={liveCards.ram.value}
-          lines={liveCards.ram.lines}
-          tone={liveCards.ram.tone}
-          series={series.ram}
-          seriesDomain={{ min: 0, max: 100 }}
-        />
-        <MonitorHeroMetric
-          label="Disk"
-          value={liveCards.disk.value}
-          lines={liveCards.disk.lines}
-          tone={liveCards.disk.tone}
-          series={series.disk}
-          seriesDomain={{ min: 0, max: 100 }}
-        />
-        <MonitorHeroMetric
-          label="Uptime"
-          value={null}
-          displayValue={liveCards.uptime.display}
-          lines={liveCards.uptime.lines}
-          series={series.uptime}
-        />
+      <section
+        className="monitor-metrics"
+        aria-label="Host-Metriken — ziehen zum Umordnen"
+      >
+        {order.map((key) => cards[key])}
       </section>
-    </>
+    </div>
   );
 }

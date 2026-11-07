@@ -1,6 +1,9 @@
 import { Suspense } from "react";
 import Link from "next/link";
+import { Activity, Bell, GitCompare, History } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { FilterBarSkeleton } from "@/components/ui/skeleton";
 import { HistoryFilters } from "@/components/history/history-filters";
 import {
   getAlertsInRange,
@@ -95,7 +98,7 @@ export default async function HistoryPage({
         </p>
       </div>
 
-      <Suspense fallback={<p className="text-zinc-500 text-sm">Filter …</p>}>
+      <Suspense fallback={<FilterBarSkeleton />}>
         <HistoryFilters
           defaultFrom={defaultFrom}
           defaultTo={defaultTo}
@@ -120,7 +123,13 @@ export default async function HistoryPage({
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             {pointInTime.length === 0 ? (
-              <p className="text-zinc-500">Keine Daten vor diesem Zeitpunkt.</p>
+              <EmptyState
+                compact
+                icon={History}
+                title="Keine Snapshot-Daten"
+                description="Vor diesem Zeitpunkt gibt es noch keine gespeicherten Checks."
+                action={{ href: "/", label: "Checks auf dem Dashboard starten" }}
+              />
             ) : (
               pointInTime.map((r) => (
                 <div
@@ -157,7 +166,13 @@ export default async function HistoryPage({
             </CardHeader>
             <CardContent className="max-h-96 overflow-auto text-sm space-y-2">
               {runs.length === 0 ? (
-                <p className="text-zinc-500">Keine Checks in diesem Fenster.</p>
+                <EmptyState
+                  compact
+                  icon={Activity}
+                  title="Keine Checks in diesem Fenster"
+                  description="Zeitraum erweitern oder einen Check-Lauf anstoßen."
+                  action={{ href: "/", label: "Zum Dashboard" }}
+                />
               ) : (
                 runs.map((r) => (
                   <div
@@ -191,7 +206,12 @@ export default async function HistoryPage({
             </CardHeader>
             <CardContent className="max-h-80 overflow-auto text-sm space-y-2">
               {changes.length === 0 ? (
-                <p className="text-zinc-500">Keine Diff-Events.</p>
+                <EmptyState
+                  compact
+                  icon={GitCompare}
+                  title="Keine Änderungen"
+                  description="In diesem Fenster wurden keine Diff-Events gespeichert."
+                />
               ) : (
                 changes.map((c) => (
                   <div key={c.id} className="border-b border-zinc-800 py-2">
@@ -217,7 +237,12 @@ export default async function HistoryPage({
         </CardHeader>
         <CardContent className="max-h-80 overflow-auto text-sm space-y-2">
           {alertRows.length === 0 ? (
-            <p className="text-zinc-500">Keine Alerts im Fenster.</p>
+            <EmptyState
+              compact
+              icon={Bell}
+              title="Keine Alerts im Fenster"
+              description="Gut — oder der Filter ist zu eng. Zeitraum / Modul prüfen."
+            />
           ) : (
             alertRows.map((a) => (
               <div key={a.id} className="border-b border-zinc-800 py-2">

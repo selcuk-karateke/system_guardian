@@ -1,6 +1,8 @@
 import Link from "next/link";
+import { Server } from "lucide-react";
 import { AddServerTile } from "@/components/dashboard/add-server-tile";
 import { CrisisStageBadge } from "@/components/dashboard/crisis-stage-badge";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type { GlobalStatus } from "@/lib/dashboard-data";
@@ -50,11 +52,12 @@ export function ServerStatusList({
   if (servers.length === 0) {
     return (
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        <Card>
-          <CardContent className="pt-6 text-sm text-zinc-500">
-            Keine aktiven Server. Leg den ersten unter Einstellungen an.
-          </CardContent>
-        </Card>
+        <EmptyState
+          icon={Server}
+          title="Noch kein Server"
+          description="Leg den ersten Host an — danach laufen Checks und das Dashboard füllt sich."
+          action={{ href: "/settings#servers", label: "Server anlegen" }}
+        />
         <AddServerTile />
       </div>
     );
