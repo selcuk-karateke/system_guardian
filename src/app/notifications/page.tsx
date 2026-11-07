@@ -11,6 +11,7 @@ import {
   getRecentAlerts,
   getServerOverview,
 } from "@/lib/dashboard-data";
+import { displayHostFromServer } from "@/lib/server-scope";
 
 export default async function NotificationsPage() {
   let alertRows: Awaited<ReturnType<typeof getRecentAlerts>> = [];
@@ -41,13 +42,13 @@ export default async function NotificationsPage() {
       : null;
   }
 
-  const sshHost = process.env.SSH_HOST;
-  const hostIp =
-    sshHost ?? overview?.server?.ipv4 ?? overview?.server?.host ?? undefined;
-  const hostLabel =
-    sshHost && overview?.server?.name === "Primary Server"
-      ? "Production"
-      : overview?.server?.name;
+  const display = displayHostFromServer(overview?.server);
+  const hostLabel = overview?.server ? display.hostLabel : undefined;
+  const hostIp = overview?.server
+    ? display.hostIp === "—"
+      ? undefined
+      : display.hostIp
+    : undefined;
 
   const bundleReport = buildAlertsBundleReport(alertRows, {
     hostLabel,

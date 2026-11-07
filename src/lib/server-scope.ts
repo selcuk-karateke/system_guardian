@@ -1,3 +1,4 @@
+import { getCheckMode } from "@/lib/config";
 import { listActiveServers } from "@/lib/servers";
 
 /** Resolve ?server= against active servers (newest first). */
@@ -11,22 +12,39 @@ export async function resolveSelectedServer(queryServer?: string) {
   return { serverRows, selectedServerId, selected };
 }
 
-/** True when inventory host/IP does not match the global SSH check target. */
-export function sshTargetMismatch(server: {
+type DisplayServer = {
+  name?: string | null;
+  host?: string | null;
+  ipv4?: string | null;
+} | null | undefined;
+
+/** Host label / IP for HUD + reports — always from DB server row, never ENV. */
+export function displayHostFromServer(server: DisplayServer): {
+  hostLabel: string;
+  hostIp: string;
+  homeIp: string | null;
+} {
+  const hostIp = server?.ipv4?.trim() || server?.host?.trim() || "—";
+  const hostLabel = server?.name?.trim() || "Server";
+  const ipv4 = server?.ipv4?.trim() || null;
+  const host = server?.host?.trim() || null;
+  const homeIp =
+    ipv4 ||
+    (host && /^\d{1,3}(?:\.\d{1,3}){3}$/.test(host) ? host : null);
+  return { hostLabel, hostIp, homeIp };
+}
+
+/**
+ * Legacy ENV SSH_HOST mismatch check — obsolete with per-server SSH in DB.
+ * Kept for call sites; always reports no mismatch.
+ */
+export function sshTargetMismatch(_server: {
   host: string;
   ipv4: string | null;
 }): { mismatch: boolean; sshHost: string | null; checkMode: string } {
-  const checkMode = process.env.CHECK_MODE ?? "mock";
-  const sshHost = process.env.SSH_HOST?.trim() || null;
-  if (checkMode !== "ssh" || !sshHost) {
-    return { mismatch: false, sshHost, checkMode };
-  }
-  const hosts = new Set(
-    [server.host, server.ipv4].filter(Boolean).map((h) => h!.toLowerCase()),
-  );
   return {
-    mismatch: !hosts.has(sshHost.toLowerCase()),
-    sshHost,
-    checkMode,
+    mismatch: false,
+    sshHost: null,
+    checkMode: getCheckMode(),
   };
 }

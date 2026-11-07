@@ -27,7 +27,8 @@ alwaysApply: true
 
 ## Later (only when user asks)
 
-1. Prefer agent vitals in server-health / metrics_snapshots when agent is fresh (partially done).
+1. Drop leftover ENV bootstrap helpers once all deploys are DB-seeded (`ensurePrimaryServerSshFromEnv`, seed `SSH_*`, ops/allowlists ENV seed).
+2. Domains CRUD UI (currently seed/DB only).
 
 ## Default when unsure
 

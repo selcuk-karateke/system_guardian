@@ -5,20 +5,16 @@ import {
 
 export type NotificationChannelStatus = NotificationPublicStatus;
 
-/** @deprecated Prefer getNotificationPublicStatus (async, DB-backed). */
+/**
+ * @deprecated Prefer getNotificationPublicStatus (async, DB-backed).
+ * Sync stub — notifications live in Settings DB, not ENV.
+ */
 export function getNotificationChannelStatus(): {
   telegram: boolean;
   discord: boolean;
   email: boolean;
 } {
-  return {
-    telegram: !!(
-      process.env.TELEGRAM_BOT_TOKEN?.trim() &&
-      process.env.TELEGRAM_CHAT_ID?.trim()
-    ),
-    discord: !!process.env.DISCORD_WEBHOOK_URL?.trim(),
-    email: !!(process.env.SMTP_HOST?.trim() && process.env.SMTP_TO?.trim()),
-  };
+  return { telegram: false, discord: false, email: false };
 }
 
 export { getNotificationPublicStatus };

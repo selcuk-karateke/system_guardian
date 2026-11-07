@@ -45,6 +45,7 @@ import {
   ensureRuntimeConfig,
   getRuntimeConfigSnapshot,
 } from "@/lib/runtime-config";
+import { displayHostFromServer } from "@/lib/server-scope";
 import { listActiveServers } from "@/lib/servers";
 import { formatUptime } from "@/lib/utils";
 import { getSessionUser } from "@/lib/auth/session";
@@ -173,13 +174,11 @@ export default async function MonitorPage({
     tickerDeduped.push(a);
   }
 
-  const sshHost = process.env.SSH_HOST;
-  const hostIp =
-    sshHost ?? overview?.server?.ipv4 ?? overview?.server?.host ?? "—";
-  const hostLabel =
-    sshHost && overview?.server?.name === "Primary Server"
-      ? "Production"
-      : (overview?.server?.name ?? "Server");
+  const {
+    hostLabel,
+    hostIp,
+    homeIp: homeIpCandidate,
+  } = displayHostFromServer(overview?.server);
 
   const uptimeFormatted =
     overview?.metrics?.uptimeSeconds != null
@@ -249,10 +248,6 @@ export default async function MonitorPage({
         }
       : null;
   const egress = agentEgress ?? checkEgress;
-
-  const homeIpCandidate =
-    overview?.server?.ipv4 ??
-    (sshHost && /^\d{1,3}(?:\.\d{1,3}){3}$/.test(sshHost) ? sshHost : null);
 
   const {
     attacks: attackMarkers,

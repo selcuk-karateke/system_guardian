@@ -17,6 +17,7 @@ import {
 } from "@/lib/dashboard-data";
 import { MODULE_LABELS } from "@/lib/module-labels";
 import { formatModuleDetailLines } from "@/lib/monitor-details";
+import { displayHostFromServer } from "@/lib/server-scope";
 
 function checkStatusClass(status: string) {
   if (status === "critical") return "text-red-400";
@@ -72,13 +73,13 @@ export default async function AlertDetailPage({
     | { criticalLines?: string[]; warningLines?: string[] }
     | undefined;
 
-  const sshHost = process.env.SSH_HOST;
-  const hostIp =
-    sshHost ?? overview?.server?.ipv4 ?? overview?.server?.host ?? undefined;
-  const hostLabel =
-    sshHost && overview?.server?.name === "Primary Server"
-      ? "Production"
-      : overview?.server?.name;
+  const display = displayHostFromServer(overview?.server);
+  const hostLabel = overview?.server ? display.hostLabel : undefined;
+  const hostIp = overview?.server
+    ? display.hostIp === "—"
+      ? undefined
+      : display.hostIp
+    : undefined;
 
   const reportText = buildAlertReport(alert, {
     hostLabel,

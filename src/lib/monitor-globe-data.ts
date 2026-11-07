@@ -5,6 +5,7 @@ import {
 import { crisisStageToWallTone } from "@/lib/crisis/stages";
 import { buildGlobeTints } from "@/lib/geo/attack-markers";
 import { getLatestCheckDataByModule } from "@/lib/monitor-details";
+import { displayHostFromServer } from "@/lib/server-scope";
 import { listActiveServers } from "@/lib/servers";
 
 export async function loadMonitorGlobeView(serverParam?: string) {
@@ -31,19 +32,11 @@ export async function loadMonitorGlobeView(serverParam?: string) {
     /* empty */
   }
 
-  const sshHost = process.env.SSH_HOST;
-  const hostIp =
-    sshHost ?? overview?.server?.ipv4 ?? overview?.server?.host ?? "—";
-  const hostLabel =
-    sshHost && overview?.server?.name === "Primary Server"
-      ? "Production"
-      : (overview?.server?.name ?? "Server");
+  const { hostLabel, hostIp, homeIp } = displayHostFromServer(
+    overview?.server,
+  );
 
-  const homeIpCandidate =
-    overview?.server?.ipv4 ??
-    (sshHost && /^\d{1,3}(?:\.\d{1,3}){3}$/.test(sshHost) ? sshHost : null);
-
-  const tints = await buildGlobeTints(checkData, { homeIp: homeIpCandidate });
+  const tints = await buildGlobeTints(checkData, { homeIp });
 
   return {
     serverRows,
