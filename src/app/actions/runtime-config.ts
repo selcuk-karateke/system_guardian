@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireSettingsWrite } from "@/lib/auth/require-role";
 import { updateAllowlistsConfig } from "@/lib/runtime-allowlists";
+import { updateOpsConfig } from "@/lib/runtime-ops";
 import {
   DEFAULT_THRESHOLDS,
   type ThresholdKey,
@@ -99,6 +100,42 @@ export async function updateAllowlistsAction(
     });
     revalidate();
     return { ok: true, message: "Allowlists gespeichert" };
+  } catch (e) {
+    return {
+      ok: false,
+      message: e instanceof Error ? e.message : "Speichern fehlgeschlagen",
+    };
+  }
+}
+
+export async function updateOpsAction(
+  formData: FormData,
+): Promise<RuntimeConfigActionResult> {
+  const gate = await requireSettingsWrite();
+  if (!gate.ok) return { ok: false, message: gate.message };
+  try {
+    const num = (name: string) => {
+      const raw = String(formData.get(name) ?? "").trim();
+      if (!raw) return undefined;
+      const n = parseInt(raw, 10);
+      return Number.isFinite(n) ? n : undefined;
+    };
+    await updateOpsConfig({
+      trivyCronEnabled: formData.get("trivyCronEnabled") === "on",
+      trivyScanLimit: num("trivyScanLimit"),
+      trivyMaxAgeDays: num("trivyMaxAgeDays"),
+      monitorNightMode: formData.get("monitorNightMode") === "on",
+      monitorNightStart: num("monitorNightStart"),
+      monitorNightEnd: num("monitorNightEnd"),
+      monitorPixelShiftSec: num("monitorPixelShiftSec"),
+      observationHours: num("observationHours"),
+      incidentUseFixedWindow: formData.get("incidentUseFixedWindow") === "on",
+      incidentLogSince: String(formData.get("incidentLogSince") ?? "").trim() || undefined,
+      incidentLogUntil: String(formData.get("incidentLogUntil") ?? "").trim() || undefined,
+      raidCheckEnabled: formData.get("raidCheckEnabled") === "on",
+    });
+    revalidate();
+    return { ok: true, message: "Ops-Einstellungen gespeichert" };
   } catch (e) {
     return {
       ok: false,

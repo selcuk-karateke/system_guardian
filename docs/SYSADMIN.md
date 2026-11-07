@@ -104,7 +104,7 @@ Zwei Batches, zwei Cron-Jobs.
 | Modul-ID | Ops-Thema | Kurz was geprüft wird |
 |----------|-----------|------------------------|
 | `server_health` | Host | CPU, RAM, Disk, Load |
-| `raid` | Storage | `/proc/mdstat` (abschaltbar: `RAID_CHECK_ENABLED`) |
+| `raid` | Storage | `/proc/mdstat` (abschaltbar: Settings → Ops / `runtime.ops`) |
 | `docker` | Container | Status, Restarts, unerwartete Images |
 | `coolify` | Platform (optional) | Coolify-Core wenn erkannt/API gesetzt; sonst auto-skip |
 | `database` | DB | Erreichbarkeit der konfigurierten DBs |
@@ -128,7 +128,7 @@ Zwei Batches, zwei Cron-Jobs.
 | `scanner` | Tools | nmap/masscan o.ä. |
 | `services` | systemd | failed units (`EXPECTED_FAILED_UNITS`) |
 | `security_posture` | IOC-light | Blocklist, verdächtige Connections/Prozesse |
-| `trivy` | Image-CVEs | HIGH/CRITICAL nur für **laufende** Container; Preview (`-pr-N`) ignoriert; Batch `TRIVY_SCAN_LIMIT` |
+| `trivy` | Image-CVEs | HIGH/CRITICAL nur für **laufende** Container; Preview (`-pr-N`) ignoriert; Batch-Limit Settings → Ops |
 
 **Baseline-Regel:** Erster Scan speichert nur Snapshot → **keine Diff-Spam-Alerts**. Ab Scan 2: echte Änderungen.
 

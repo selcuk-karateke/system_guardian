@@ -1,5 +1,6 @@
 import type { CheckStatus } from "@/lib/checks/types";
 import { getCachedAllowlists } from "@/lib/runtime-allowlists";
+import { getCachedOps } from "@/lib/runtime-ops";
 import {
   DEFAULT_THRESHOLDS,
   getCachedThreshold,
@@ -208,42 +209,36 @@ export function isCoolifyRedeployConfigured(): boolean {
 
 /** Security-Cron: Trivy-Batch für ungecachte/alte Images (default an). */
 export function isTrivyCronEnabled(): boolean {
-  return process.env.TRIVY_CRON_ENABLED !== "false";
+  return getCachedOps().trivyCronEnabled;
 }
 
 /** Max container scans per trivy check run (default 8 — Trivy ist langsam). */
 export function getTrivyScanLimit(): number {
-  const v = process.env.TRIVY_SCAN_LIMIT;
-  const n = v ? parseInt(v, 10) : 8;
-  return Number.isFinite(n) && n > 0 ? Math.min(n, 20) : 8;
+  return getCachedOps().trivyScanLimit;
 }
 
 /** Rescan if cached result older than N days (default 7). */
 export function getTrivyMaxAgeDays(): number {
-  const v = process.env.TRIVY_MAX_AGE_DAYS;
-  return v ? parseInt(v, 10) : 7;
+  return getCachedOps().trivyMaxAgeDays;
 }
 
 /** TV monitor: night mode start hour (local browser time, 0–23). */
 export function getMonitorNightStartHour(): number {
-  const v = process.env.MONITOR_NIGHT_START;
-  return v ? parseInt(v, 10) : 22;
+  return getCachedOps().monitorNightStart;
 }
 
 /** TV monitor: night mode end hour (local browser time, 0–23). */
 export function getMonitorNightEndHour(): number {
-  const v = process.env.MONITOR_NIGHT_END;
-  return v ? parseInt(v, 10) : 7;
+  return getCachedOps().monitorNightEnd;
 }
 
 /** TV monitor: pixel-shift cycle interval in seconds. */
 export function getMonitorPixelShiftSec(): number {
-  const v = process.env.MONITOR_PIXEL_SHIFT_SEC;
-  return v ? parseInt(v, 10) : 180;
+  return getCachedOps().monitorPixelShiftSec;
 }
 
 export function isMonitorNightModeEnabled(): boolean {
-  return process.env.MONITOR_NIGHT_MODE !== "false";
+  return getCachedOps().monitorNightMode;
 }
 
 /** Docker image prefixes considered trusted (case-insensitive prefix match) */
@@ -257,11 +252,23 @@ export function getIncidentIocDomains(): string[] {
 }
 
 export function getIncidentLogSince(): string {
-  return process.env.INCIDENT_LOG_SINCE ?? "2026-06-02T07:15:00";
+  return getCachedOps().incidentLogSince;
 }
 
 export function getIncidentLogUntil(): string {
-  return process.env.INCIDENT_LOG_UNTIL ?? "2026-06-02T07:45:00";
+  return getCachedOps().incidentLogUntil;
+}
+
+export function getObservationHours(): number {
+  return getCachedOps().observationHours;
+}
+
+export function isIncidentFixedWindowEnabled(): boolean {
+  return getCachedOps().incidentUseFixedWindow;
+}
+
+export function isRaidCheckEnabled(): boolean {
+  return getCachedOps().raidCheckEnabled;
 }
 
 /** Outbound IPs from incident reports (e.g. BSI) – always CRITICAL if seen in ss */

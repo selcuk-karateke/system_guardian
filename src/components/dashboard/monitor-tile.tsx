@@ -74,23 +74,41 @@ export function MonitorTile({
     : getModulePageForAlert(module).href;
   const className = `monitor-glass monitor-cell ${s.cell}${href ? " monitor-cell-link" : ""}`;
 
+  const sparse = lines.length <= 2 && lines.every((l) => l.length <= 48);
+
   const body = (
     <>
       <div className="monitor-cell-main">
         <span className="monitor-cell-name">
           {MODULE_LABELS[module] ?? module}
         </span>
-        <div className="monitor-cell-chips">
-          {lines.map((line, i) => (
-            <span
-              key={`${i}-${line}`}
-              className="monitor-cell-chip"
-              title={line}
-            >
-              {line}
-            </span>
-          ))}
-        </div>
+        {sparse ? (
+          <div className="monitor-cell-results">
+            {lines.map((line, i) => (
+              <div
+                key={`${i}-${line}`}
+                className={
+                  i === 0 ? "monitor-cell-result" : "monitor-cell-result-meta"
+                }
+                title={line}
+              >
+                {line}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="monitor-cell-chips">
+            {lines.map((line, i) => (
+              <span
+                key={`${i}-${line}`}
+                className="monitor-cell-chip"
+                title={line}
+              >
+                {line}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
       <span className={`monitor-cell-status monitor-cell-status-ring ${s.text}`}>
         {s.label}

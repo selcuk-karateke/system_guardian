@@ -1,9 +1,8 @@
+import { isRaidCheckEnabled } from "@/lib/config";
 import { getSshClient } from "@/lib/ssh";
 import type { AlertInput, CheckResult } from "./types";
 
-export function isRaidCheckEnabled(): boolean {
-  return process.env.RAID_CHECK_ENABLED !== "false";
-}
+export { isRaidCheckEnabled };
 
 export async function runRaidCheck(serverId: string): Promise<CheckResult> {
   void serverId;
@@ -12,7 +11,7 @@ export async function runRaidCheck(serverId: string): Promise<CheckResult> {
     return {
       module: "raid",
       status: "healthy",
-      data: { skipped: true, reason: "RAID_CHECK_ENABLED=false" },
+      data: { skipped: true, reason: "raid_check_disabled" },
       alerts: [],
     };
   }

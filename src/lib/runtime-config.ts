@@ -1,5 +1,6 @@
 import { getSetting, setSetting } from "@/lib/app-settings";
 import { ensureAllowlistsConfig } from "@/lib/runtime-allowlists";
+import { ensureOpsConfig } from "@/lib/runtime-ops";
 
 const THRESHOLDS_KEY = "runtime.thresholds";
 const TRUSTED_KEY = "runtime.trusted";
@@ -155,9 +156,14 @@ export function getRuntimeConfigSnapshot(): {
   };
 }
 
+async function ensureSiblingRuntimeBlobs(): Promise<void> {
+  await ensureAllowlistsConfig().catch(() => null);
+  await ensureOpsConfig().catch(() => null);
+}
+
 export async function ensureRuntimeConfig(): Promise<void> {
   if (ready) {
-    await ensureAllowlistsConfig().catch(() => null);
+    await ensureSiblingRuntimeBlobs();
     return;
   }
   if (loading) return loading;
@@ -188,7 +194,7 @@ export async function ensureRuntimeConfig(): Promise<void> {
         trusted: parseTrusted(storedTr),
       };
       ready = true;
-      await ensureAllowlistsConfig().catch(() => null);
+      await ensureSiblingRuntimeBlobs();
     } catch {
       cache = defaultsCache();
       ready = false;

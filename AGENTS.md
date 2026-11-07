@@ -2,7 +2,7 @@
 
 ## Multi-server truth (read this)
 
-SSH / Coolify / Backup / Notify / Thresholds / Trusted IPs live in DB (Settings UI). ENV is deploy-runtime only (`DATABASE_URL`, `CHECK_MODE`, `CRON_SECRET`, `AUTH_*`). Details: `.cursor/rules/multi-server-truth.mdc`.
+SSH / Coolify / Backup / Notify / Thresholds / Trusted IPs / Allowlists / Ops (Trivy, Monitor night, Observation, RAID) live in DB (Settings UI). ENV is deploy-runtime only (`DATABASE_URL`, `CHECK_MODE`, `CRON_SECRET`, `AUTH_*`, `API_SECRET`, `APP_URL`). Details: `.cursor/rules/multi-server-truth.mdc`.
 
 ## Start here
 
@@ -45,7 +45,7 @@ src/
 | `DATABASE_URL` | PostgreSQL connection |
 | `CHECK_MODE` | `mock` (Windows) or `ssh` (production) |
 | `CRON_SECRET` / `AUTH_*` / `API_SECRET` | Deploy secrets |
-| SSH / Coolify / Backup / Notify | Settings UI (DB), not ENV |
+| SSH / Coolify / Backup / Notify / Ops | Settings UI (DB), not ENV |
 
 Deploy: [docs/DEPLOY.md](docs/DEPLOY.md) · Coolify: [docs/COOLIFY.md](docs/COOLIFY.md)
 

@@ -4,10 +4,12 @@ import { useTransition, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import {
   updateAllowlistsAction,
+  updateOpsAction,
   updateThresholdsAction,
   updateTrustedIpsAction,
 } from "@/app/actions/runtime-config";
 import type { AllowlistsConfig } from "@/lib/runtime-allowlists";
+import type { OpsConfig } from "@/lib/runtime-ops";
 import type { ThresholdsMap, TrustedConfig } from "@/lib/runtime-config";
 import { Button } from "@/components/ui/button";
 import { fieldClass } from "@/lib/ui/field";
@@ -39,12 +41,14 @@ type Props = {
   thresholds: ThresholdsMap;
   trusted: TrustedConfig;
   allowlists: AllowlistsConfig;
+  ops: OpsConfig;
 };
 
 export function RuntimeConfigPanel({
   thresholds,
   trusted,
   allowlists,
+  ops,
 }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -227,6 +231,144 @@ export function RuntimeConfigPanel({
         <div className="sm:col-span-2">
           <Button type="submit" size="sm" disabled={pending}>
             Allowlists speichern
+          </Button>
+        </div>
+      </form>
+
+      <form
+        onSubmit={(e) => save(e, updateOpsAction)}
+        className="grid gap-3 sm:grid-cols-2 border-t border-zinc-800 pt-4"
+      >
+        <p className="sm:col-span-2 text-xs font-medium text-zinc-300">
+          Ops · Trivy · Monitor · Beobachtung
+        </p>
+        <p className="sm:col-span-2 text-[11px] text-zinc-500">
+          Einmalig aus ENV geseedet, danach gilt nur die DB.
+        </p>
+
+        <label className="flex items-center gap-2 text-xs text-zinc-400 sm:col-span-2">
+          <input
+            type="checkbox"
+            name="trivyCronEnabled"
+            defaultChecked={ops.trivyCronEnabled}
+          />
+          Trivy im Security-Cron
+        </label>
+        <label className="space-y-1 text-xs text-zinc-400">
+          Trivy Scan-Limit / Lauf
+          <input
+            name="trivyScanLimit"
+            type="number"
+            min={1}
+            max={20}
+            defaultValue={ops.trivyScanLimit}
+            className={fieldClass}
+          />
+        </label>
+        <label className="space-y-1 text-xs text-zinc-400">
+          Trivy max. Cache-Alter (Tage)
+          <input
+            name="trivyMaxAgeDays"
+            type="number"
+            min={1}
+            max={90}
+            defaultValue={ops.trivyMaxAgeDays}
+            className={fieldClass}
+          />
+        </label>
+
+        <label className="flex items-center gap-2 text-xs text-zinc-400 sm:col-span-2">
+          <input
+            type="checkbox"
+            name="monitorNightMode"
+            defaultChecked={ops.monitorNightMode}
+          />
+          Monitor Night Mode
+        </label>
+        <label className="space-y-1 text-xs text-zinc-400">
+          Night Start (Stunde 0–23)
+          <input
+            name="monitorNightStart"
+            type="number"
+            min={0}
+            max={23}
+            defaultValue={ops.monitorNightStart}
+            className={fieldClass}
+          />
+        </label>
+        <label className="space-y-1 text-xs text-zinc-400">
+          Night Ende (Stunde 0–23)
+          <input
+            name="monitorNightEnd"
+            type="number"
+            min={0}
+            max={23}
+            defaultValue={ops.monitorNightEnd}
+            className={fieldClass}
+          />
+        </label>
+        <label className="space-y-1 text-xs text-zinc-400">
+          Pixel-Shift Intervall (Sek.)
+          <input
+            name="monitorPixelShiftSec"
+            type="number"
+            min={30}
+            max={3600}
+            defaultValue={ops.monitorPixelShiftSec}
+            className={fieldClass}
+          />
+        </label>
+
+        <label className="space-y-1 text-xs text-zinc-400">
+          Beobachtungsfenster (Stunden)
+          <input
+            name="observationHours"
+            type="number"
+            min={1}
+            max={168}
+            defaultValue={ops.observationHours}
+            className={fieldClass}
+          />
+        </label>
+        <label className="flex items-center gap-2 text-xs text-zinc-400 sm:col-span-2">
+          <input
+            type="checkbox"
+            name="incidentUseFixedWindow"
+            defaultChecked={ops.incidentUseFixedWindow}
+          />
+          Festes Incident-Fenster statt rollierend
+        </label>
+        <label className="space-y-1 text-xs text-zinc-400">
+          Incident seit (ISO lokal)
+          <input
+            name="incidentLogSince"
+            defaultValue={ops.incidentLogSince}
+            className={fieldClass + " font-mono text-xs"}
+            placeholder="2026-06-02T07:15:00"
+          />
+        </label>
+        <label className="space-y-1 text-xs text-zinc-400">
+          Incident bis (ISO lokal)
+          <input
+            name="incidentLogUntil"
+            defaultValue={ops.incidentLogUntil}
+            className={fieldClass + " font-mono text-xs"}
+            placeholder="2026-06-02T07:45:00"
+          />
+        </label>
+
+        <label className="flex items-center gap-2 text-xs text-zinc-400 sm:col-span-2">
+          <input
+            type="checkbox"
+            name="raidCheckEnabled"
+            defaultChecked={ops.raidCheckEnabled}
+          />
+          Software-RAID Check (/proc/mdstat)
+        </label>
+
+        <div className="sm:col-span-2">
+          <Button type="submit" size="sm" disabled={pending}>
+            Ops speichern
           </Button>
         </div>
       </form>

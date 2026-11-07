@@ -13,6 +13,7 @@ import {
   DEFAULT_ALLOWLISTS,
   getCachedAllowlists,
 } from "@/lib/runtime-allowlists";
+import { DEFAULT_OPS, getCachedOps } from "@/lib/runtime-ops";
 import {
   DEFAULT_THRESHOLDS,
   ensureRuntimeConfig,
@@ -139,13 +140,14 @@ export default async function SettingsPage() {
 
       <Card id="runtime">
         <CardHeader>
-          <CardTitle>Schwellen, Trusted IPs &amp; Allowlists</CardTitle>
+          <CardTitle>Schwellen, Trusted IPs, Allowlists &amp; Ops</CardTitle>
         </CardHeader>
         <CardContent>
           <RuntimeConfigPanel
             thresholds={runtime.thresholds ?? { ...DEFAULT_THRESHOLDS }}
             trusted={runtime.trusted}
             allowlists={getCachedAllowlists() ?? { ...DEFAULT_ALLOWLISTS }}
+            ops={getCachedOps() ?? { ...DEFAULT_OPS }}
           />
         </CardContent>
       </Card>
@@ -188,8 +190,11 @@ export default async function SettingsPage() {
         <CardContent className="text-sm text-zinc-400 space-y-2">
           <p>
             <strong className="text-zinc-200">Rollierendes Fenster:</strong>{" "}
-            <code className="text-zinc-300">OBSERVATION_HOURS</code> (Standard 24)
-            für IOC-Log-Grep in <code>security_posture</code>.
+            unter{" "}
+            <a href="#runtime" className="text-sky-400 underline">
+              Ops
+            </a>{" "}
+            (Beobachtungsfenster / Incident) — Standard 24h für IOC-Log-Grep.
           </p>
           <p>
             <strong className="text-zinc-200">Historie:</strong>{" "}
@@ -202,18 +207,15 @@ export default async function SettingsPage() {
           <p>
             API: <code className="text-zinc-300">GET /api/history?from=&to=&module=</code>
           </p>
-          <p className="text-xs">
-            Festes Incident-Fenster nur mit{" "}
-            <code>INCIDENT_USE_FIXED_WINDOW=true</code> + INCIDENT_LOG_SINCE/UNTIL
-            in .env.local.
-          </p>
           <p className="text-xs pt-2 border-t border-zinc-800">
             Nur noch Deploy-Runtime in ENV:{" "}
             <code className="text-zinc-300">DATABASE_URL</code>,{" "}
             <code className="text-zinc-300">CRON_SECRET</code>,{" "}
             <code className="text-zinc-300">CHECK_MODE</code>,{" "}
-            <code className="text-zinc-300">AUTH_*</code>. Alles andere in der DB
-            (Server / Schwellen / Benachrichtigungen).
+            <code className="text-zinc-300">AUTH_*</code>,{" "}
+            <code className="text-zinc-300">API_SECRET</code>,{" "}
+            <code className="text-zinc-300">APP_URL</code>. Ops/Schwellen/Allowlists
+            in der DB.
           </p>
         </CardContent>
       </Card>

@@ -13,7 +13,7 @@ export type ModuleCatalogEntry = {
 
 export const MODULE_CATALOG: readonly ModuleCatalogEntry[] = [
   { id: "server_health", batch: "server", summary: "CPU, RAM, Disk, Load" },
-  { id: "raid", batch: "server", summary: "/proc/mdstat (RAID_CHECK_ENABLED)" },
+  { id: "raid", batch: "server", summary: "/proc/mdstat (Settings → Ops)" },
   { id: "docker", batch: "server", summary: "Container-Status, Images, Restarts" },
   { id: "coolify", batch: "server", summary: "Coolify-Core (Realtime/Sentinel optional)" },
   { id: "database", batch: "server", summary: "DB-Erreichbarkeit" },

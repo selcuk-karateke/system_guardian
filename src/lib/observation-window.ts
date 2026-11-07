@@ -1,6 +1,8 @@
 import {
   getIncidentLogSince,
   getIncidentLogUntil,
+  getObservationHours,
+  isIncidentFixedWindowEnabled,
 } from "@/lib/config";
 
 export interface ObservationWindow {
@@ -12,11 +14,7 @@ export interface ObservationWindow {
 
 /** Rolling window for ongoing monitoring (default). */
 export function getRollingObservationWindow(hours?: number): ObservationWindow {
-  const h =
-    hours ??
-    (process.env.OBSERVATION_HOURS
-      ? parseInt(process.env.OBSERVATION_HOURS, 10)
-      : 24);
+  const h = hours ?? getObservationHours();
   const until = new Date();
   const since = new Date(until.getTime() - h * 3600 * 1000);
   return {
@@ -35,9 +33,9 @@ export function getFixedIncidentWindow(): ObservationWindow {
   };
 }
 
-/** Log/journal checks: rolling 24h unless INCIDENT_USE_FIXED_WINDOW=true */
+/** Log/journal checks: rolling window unless fixed incident window is enabled. */
 export function getActiveObservationWindow(): ObservationWindow {
-  if (process.env.INCIDENT_USE_FIXED_WINDOW === "true") {
+  if (isIncidentFixedWindowEnabled()) {
     return getFixedIncidentWindow();
   }
   return getRollingObservationWindow();

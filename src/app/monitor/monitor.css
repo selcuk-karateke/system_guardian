@@ -571,7 +571,18 @@
   position: absolute;
   inset: -2px;
   border-radius: 50%;
-  border-top: 2px solid rgb(34 211 238 / 35%);
+  border-top: 2px solid rgb(34 211 238 / 55%);
+  border-right: 2px solid transparent;
+  border-bottom: 2px solid transparent;
+  border-left: 2px solid transparent;
+}
+
+.monitor-hud-ring--3::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: 50%;
+  border-top: 2px solid rgb(74 222 128 / 40%);
   border-right: 2px solid transparent;
   border-bottom: 2px solid transparent;
   border-left: 2px solid transparent;
@@ -1198,16 +1209,12 @@
 
 /* No backdrop-filter anywhere on the wall — smart-TV Chromium draws it as opaque white */
 
-/* Drop animated chrome (flicker on LED/OLED) */
-.monitor-hud-ring,
-.monitor-hud-ring--1,
-.monitor-hud-ring--2,
-.monitor-hud-ring--3,
+/*
+ * Kill short/noisy chrome that flickers on LED/OLED.
+ * Slow ring spin stays — turquoise limb arcs must keep rotating.
+ */
 .monitor-hud-scan,
-.monitor-aurora,
-.monitor-hud-grid,
-.monitor-wave,
-.monitor-bg {
+.monitor-hud-grid {
   animation: none !important;
 }
 
@@ -2276,13 +2283,16 @@
 .monitor-cell {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
+  /* Title + result sit in the glass corner (not vertically centered) */
+  align-items: start;
+  align-content: start;
   gap: clamp(6px, 0.7vmin, 12px);
   min-height: 0;
   height: 100%;
   max-height: 100%;
   overflow: hidden;
-  padding: clamp(8px, 0.9vh, 14px) clamp(10px, 1.2vmin, 14px);
+  padding: clamp(10px, 1.1vmin, 16px) clamp(10px, 1.2vmin, 14px)
+    clamp(8px, 0.9vh, 14px);
   border-radius: clamp(10px, 1.1vmin, var(--m-radius-cell));
 }
 
@@ -2315,16 +2325,75 @@ a.monitor-cell-link:focus-visible {
   overflow: hidden;
 }
 
+/* Exact match: .monitor-brand / strong (top-left) */
 .monitor-cell-name {
   font-family: var(--monitor-sans);
-  font-size: clamp(11px, 1.35vmin, 22px);
+  font-size: clamp(14px, 1.4vmin, var(--m-cap-md));
   font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--hud-cyan);
+  text-shadow: 0 0 24px rgb(34 211 238 / 35%);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   line-height: 1.15;
   flex-shrink: 0;
+}
+
+.monitor-cell--warning .monitor-cell-name {
+  color: var(--warn);
+  text-shadow: 0 0 24px rgb(251 191 36 / 35%);
+}
+
+.monitor-cell--critical .monitor-cell-name {
+  color: var(--crit);
+  text-shadow: 0 0 24px rgb(248 113 113 / 40%);
+}
+
+.monitor-cell--unknown .monitor-cell-name {
+  color: var(--muted);
+  text-shadow: none;
+}
+
+/* Sparse results: same stack as .monitor-host / .monitor-host-meta */
+.monitor-cell-results {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.monitor-cell-result {
+  font-family: var(--monitor-mono);
+  font-size: clamp(12px, 1.2vmin, var(--m-cap-md));
+  color: var(--muted);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.2;
+}
+
+.monitor-cell-result-meta {
+  font-family: var(--monitor-mono);
+  font-size: clamp(11px, 1.05vmin, var(--m-cap-sm));
+  color: rgb(148 163 184 / 75%);
+  margin-top: 1px;
   letter-spacing: 0.02em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.2;
+}
+
+.monitor-cell--warning .monitor-cell-result {
+  color: rgb(253 230 138 / 80%);
+}
+
+.monitor-cell--critical .monitor-cell-result {
+  color: rgb(254 202 202 / 80%);
 }
 
 .monitor-cell-chips {
@@ -2341,12 +2410,14 @@ a.monitor-cell-link:focus-visible {
   max-width: 100%;
   font-family: var(--monitor-mono);
   font-size: clamp(8px, 0.95vmin, 13px);
+  font-weight: 500;
+  letter-spacing: 0.04em;
   line-height: 1.2;
   color: rgb(186 230 253 / 85%);
-  background: rgb(34 211 238 / 10%);
-  border: 1px solid rgb(34 211 238 / 22%);
+  background: rgb(34 211 238 / 8%);
+  border: 1px solid rgb(34 211 238 / 18%);
   border-radius: 999px;
-  padding: 0.12em 0.5em;
+  padding: 0.12em 0.55em;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2374,9 +2445,10 @@ a.monitor-cell-link:focus-visible {
   position: relative;
   flex-shrink: 0;
   font-family: var(--monitor-mono);
-  font-size: clamp(9px, 1.1vmin, var(--m-cap-sm));
+  font-size: clamp(9px, 1.05vmin, var(--m-cap-sm));
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
   line-height: 1;
   text-align: center;
   z-index: 1;
@@ -2386,7 +2458,8 @@ a.monitor-cell-link:focus-visible {
   display: flex;
   align-items: center;
   justify-content: center;
-  align-self: center;
+  align-self: start;
+  margin-top: 0.1em;
   width: clamp(30px, 3.4vmin, var(--m-cap-ring));
   height: clamp(30px, 3.4vmin, var(--m-cap-ring));
   flex-shrink: 0;

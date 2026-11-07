@@ -13,22 +13,21 @@ alwaysApply: true
 - **Notifications**: `settings` via `src/lib/notifications/config.ts`.
 - **Thresholds + Trusted IPs**: `settings` keys `runtime.thresholds` / `runtime.trusted` via `ensureRuntimeConfig()`.
 - **Allowlists + Auto-Block**: `settings` key `runtime.allowlists` via `ensureAllowlistsConfig()` (seeded once from ENV if missing).
+- **Ops knobs**: `settings` key `runtime.ops` via `ensureOpsConfig()` — Trivy, Monitor night, Observation hours, Incident fixed window, RAID check (seeded once from ENV if missing).
 
 ## Still global env (ok)
 
 - Deploy: `DATABASE_URL`, `CRON_SECRET`, `CHECK_MODE`, `AUTH_*`, `API_SECRET`, `APP_URL`
-- Ops knobs not yet migrated: Trivy (`TRIVY_*`), Monitor night (`MONITOR_*`), `OBSERVATION_HOURS`, `RAID_CHECK_ENABLED`, incident log window (`INCIDENT_LOG_SINCE` / `UNTIL`)
 
 ## Do not
 
-- Re-introduce ENV fallbacks for SSH/Coolify/Backup/Notify/Thresholds/Trusted IPs/Allowlists.
+- Re-introduce ENV fallbacks for SSH/Coolify/Backup/Notify/Thresholds/Trusted IPs/Allowlists/Ops.
 - Call `getSshClient()` without `serverId`.
 - Mass-edit unrelated docs while touching this.
 
 ## Later (only when user asks)
 
-1. Migrate remaining Trivy / Monitor / observation knobs into settings UI.
-2. Prefer agent vitals in server-health / metrics_snapshots when agent is fresh.
+1. Prefer agent vitals in server-health / metrics_snapshots when agent is fresh (partially done).
 
 ## Default when unsure
 
