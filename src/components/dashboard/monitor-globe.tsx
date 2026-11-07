@@ -80,6 +80,17 @@ const ARC_STEPS = 48;
 /** Mid-arc lift — needs RAY_PAD_FRAC so limbs aren't canvas-clipped. */
 const ARC_BULGE = 0.1;
 const ARC_MAX = 14;
+/** Match marker ray stroke weight. */
+const MARKER_LINE_W = 3.2;
+const MARKER_LINE_W_PULSE = 4.0;
+const MARKER_LINE_W_HOT = 5.2;
+
+/** `rgb(r g b)` / `rgb(r, g, b)` → rgba for tip gradients. */
+function rgbAlpha(css: string, a: number): string {
+  const m = css.match(/(\d+)\s*,?\s*(\d+)\s*,?\s*(\d+)/);
+  if (!m) return css;
+  return `rgba(${m[1]},${m[2]},${m[3]},${Math.max(0, Math.min(1, a))})`;
+}
 /**
  * Rays canvas pad vs land box (must match CSS inset on .monitor-hud-globe-rays).
  * Bulge 0.1 @ GLOBE_SCALE 0.97 needs ~3.5% + stub room → 8%.
@@ -475,6 +486,56 @@ function arcDepthFade(z: number): number {
 }
 
 /**
+ * One continuous stroke: North Pole → center → South Pole → rim.
+ * Gray, quiet; tips fade out via gradient (no segmented alpha steps).
+ */
+function drawPoleAxis(
+  ctx: CanvasRenderingContext2D,
+  rot: Float32Array,
+  css: number,
+  scale: number,
+  pad: number,
+): void {
+  const cx = pad + css / 2;
+  const cy = pad + css / 2;
+  const R = (css / 2) * scale;
+  const edgeR = css / 2 + pad - RAY_EDGE_INSET_PX;
+  const tMax = edgeR / R;
+
+  const [nx, ny] = mulRot(rot, 0, 1, 0);
+  const x0 = cx + nx * -tMax * R;
+  const y0 = cy - ny * -tMax * R;
+  const x1 = cx + nx * tMax * R;
+  const y1 = cy - ny * tMax * R;
+
+  // Tips fade out; center (through the globe) fades inward too —
+  // peaks near the surface poles (~±1 on the unit sphere).
+  const tPole = R / edgeR; // |t|=1 → sphere surface along this diameter
+  const pN = (1 - tPole) * 0.5;
+  const pS = (1 + tPole) * 0.5;
+  const grad = ctx.createLinearGradient(x0, y0, x1, y1);
+  grad.addColorStop(0, "rgba(148,163,184,0)");
+  grad.addColorStop(Math.max(0.02, pN - 0.08), "rgba(148,163,184,0)");
+  grad.addColorStop(pN, "rgba(148,163,184,0.22)");
+  grad.addColorStop(0.5, "rgba(148,163,184,0)");
+  grad.addColorStop(pS, "rgba(148,163,184,0.22)");
+  grad.addColorStop(Math.min(0.98, pS + 0.08), "rgba(148,163,184,0)");
+  grad.addColorStop(1, "rgba(148,163,184,0)");
+
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.strokeStyle = grad;
+  ctx.shadowBlur = 0;
+  ctx.shadowColor = "transparent";
+  ctx.lineWidth = MARKER_LINE_W;
+  ctx.globalAlpha = 1;
+  ctx.beginPath();
+  ctx.moveTo(x0, y0);
+  ctx.lineTo(x1, y1);
+  ctx.stroke();
+}
+
+/**
  * Attack arcs: great-circle flight paths attacker → home (lifted mid-arc).
  * Segment strokes + depth fade (no hard path breaks on the front limb).
  */
@@ -578,6 +639,7 @@ function drawRayStubs(
 
   const home = marks.find((m) => m.kind === "home");
   const attacks = marks.filter((m) => m.kind === "attack");
+  drawPoleAxis(ctx, rot, css, scale, pad);
   if (home) {
     drawAttackArcs(ctx, rot, css, scale, pad, home, attacks, hoverId);
   }
@@ -612,7 +674,7 @@ function drawRayStubs(
     const hot = hoverId != null && mark.tint.id === hoverId;
     const dim = hoverId != null && !hot ? 0.28 : 1;
 
-    // Static base alpha — pulsing stubs flicker on LED/OLED TVs
+    // Colored line only — no tip dots; alpha fades toward the tip.
     const alpha =
       Math.min(1, Math.max(0.7, mark.tint.weight)) *
       (0.75 + 0.25 * mark.tint.freshness) *
@@ -620,25 +682,14 @@ function drawRayStubs(
       dim *
       depth;
 
-    ctx.strokeStyle = mark.color;
-    ctx.fillStyle = mark.color;
-    ctx.shadowColor = mark.color;
+    const color = mark.color;
+    ctx.shadowBlur = 0;
+    ctx.shadowColor = "transparent";
     ctx.lineCap = "round";
-
-    // Face-on bloom = foreshortened ray coming at the camera.
-    if (faceOn > 0.04) {
-      const bloom = (hot ? 18 : mark.pulse ? 14 : 11) * faceOn * (0.55 + 0.45 * z);
-      ctx.globalAlpha = alpha * faceOn * 0.35;
-      ctx.shadowBlur = 16 * faceOn * depth;
-      ctx.beginPath();
-      ctx.arc(sx, sy, bloom, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.globalAlpha = alpha * faceOn;
-      ctx.shadowBlur = 10 * faceOn * depth;
-      ctx.beginPath();
-      ctx.arc(sx, sy, bloom * 0.38, 0, Math.PI * 2);
-      ctx.fill();
-    }
+    ctx.lineWidth =
+      (hot ? MARKER_LINE_W_HOT : mark.pulse ? MARKER_LINE_W_PULSE : MARKER_LINE_W) *
+      (0.55 + 0.45 * Math.max(limb, faceOn));
+    ctx.globalAlpha = 1;
 
     // Lateral ray along true projected radial; stretch toward rim at the limb.
     if (limb > 0.04 && vlen > 0.5) {
@@ -647,26 +698,34 @@ function drawRayStubs(
       const rim = rimAlong(sx, sy, dx, dy, cx, cy, edgeR);
       const x2 = tipX + (rim.x - tipX) * limb;
       const y2 = tipY + (rim.y - tipY) * limb;
+      const a0 = alpha * Math.max(limb, 0.2);
 
-      ctx.globalAlpha = alpha * Math.max(limb, 0.2);
-      ctx.shadowBlur = (hot ? 14 : mark.pulse ? 10 : 6) * depth * limb;
-      ctx.lineWidth = (hot ? 5.2 : mark.pulse ? 4.0 : 3.2) * (0.55 + 0.45 * limb);
+      const grad = ctx.createLinearGradient(sx, sy, x2, y2);
+      grad.addColorStop(0, rgbAlpha(color, a0));
+      grad.addColorStop(0.55, rgbAlpha(color, a0 * 0.65));
+      grad.addColorStop(1, rgbAlpha(color, 0));
+      ctx.strokeStyle = grad;
       ctx.beginPath();
       ctx.moveTo(sx, sy);
       ctx.lineTo(x2, y2);
       ctx.stroke();
-      ctx.beginPath();
-      ctx.arc(
-        x2,
-        y2,
-        (hot ? 6.5 : mark.pulse ? 5.2 : 4.0) * (0.45 + 0.55 * limb),
-        0,
-        Math.PI * 2,
-      );
-      ctx.fill();
     }
 
-    ctx.shadowBlur = 0;
+    // Face-on: short foreshortened stub toward camera (no fill disc).
+    if (faceOn > 0.04) {
+      const reach = (hot ? 14 : mark.pulse ? 11 : 9) * faceOn * (0.4 + 0.6 * z);
+      const x2 = sx;
+      const y2 = sy - reach * 0.15;
+      const a0 = alpha * faceOn;
+      const grad = ctx.createLinearGradient(sx, sy, x2, y2);
+      grad.addColorStop(0, rgbAlpha(color, a0));
+      grad.addColorStop(1, rgbAlpha(color, 0));
+      ctx.strokeStyle = grad;
+      ctx.beginPath();
+      ctx.moveTo(sx, sy);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+    }
   }
   ctx.globalAlpha = 1;
   ctx.shadowBlur = 0;
