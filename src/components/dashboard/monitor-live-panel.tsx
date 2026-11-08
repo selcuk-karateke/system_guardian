@@ -110,6 +110,8 @@ function useMonitorLivePoll(
   egress: MonitorEgressInfo | null;
   host: MonitorLiveHostVitals | null;
   streamLive: boolean;
+  /** Refresh mode is Live / timed poll (even if agent is stale). */
+  livePolling: boolean;
   sampleGen: number;
 } {
   const [egress, setEgress] = useState<MonitorEgressInfo | null>(
@@ -199,7 +201,7 @@ function useMonitorLivePoll(
     };
   }, [serverId, liveEnabled, egressMs]);
 
-  return { egress, host, streamLive, sampleGen };
+  return { egress, host, streamLive, livePolling: liveEnabled, sampleGen };
 }
 
 /**
@@ -222,10 +224,8 @@ export function MonitorLivePanel({
   fullLayout,
   layoutEditing = false,
 }: Props) {
-  const { egress, host, streamLive, sampleGen } = useMonitorLivePoll(
-    serverId,
-    initial,
-  );
+  const { egress, host, streamLive, livePolling, sampleGen } =
+    useMonitorLivePoll(serverId, initial);
 
   const liveCards = useMemo(() => {
     if (!host) return metricCards;
@@ -405,6 +405,7 @@ export function MonitorLivePanel({
         lastCheck={lastCheck}
         egress={egress}
         streamLive={streamLive}
+        livePolling={livePolling}
       />
 
       <section

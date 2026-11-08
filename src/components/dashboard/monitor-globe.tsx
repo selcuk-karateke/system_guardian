@@ -92,15 +92,12 @@ function rgbAlpha(css: string, a: number): string {
   return `rgba(${m[1]},${m[2]},${m[3]},${Math.max(0, Math.min(1, a))})`;
 }
 
-/**
- * Soft tips + soft center (peaks ~0.22 / ~0.78).
- * Same envelope as the N–S pierce gradient — use on arcs / stubs.
- */
-function tipInwardFade(t: number): number {
+/** Soft only at path ends — mid-path stays solid (not the N–S center fade). */
+function tipFade(t: number): number {
   const u = Math.min(1, Math.max(0, t));
-  const a = Math.exp(-(((u - 0.22) / 0.14) ** 2));
-  const b = Math.exp(-(((u - 0.78) / 0.14) ** 2));
-  return Math.min(1, a + b);
+  if (u < 0.12) return u / 0.12;
+  if (u > 0.88) return (1 - u) / 0.12;
+  return 1;
 }
 /**
  * Rays canvas pad vs land box (must match CSS inset on .monitor-hud-globe-rays).
@@ -613,7 +610,7 @@ function drawAttackArcs(
       const b = pts[i + 1]!;
       const depth = (arcDepthFade(a.z) + arcDepthFade(b.z)) * 0.5;
       if (depth < 0.04) continue;
-      const along = tipInwardFade((a.t + b.t) * 0.5);
+      const along = tipFade((a.t + b.t) * 0.5);
       if (along < 0.03) continue;
       ctx.globalAlpha = baseAlpha * 0.98 * depth * along;
       ctx.beginPath();
@@ -713,12 +710,10 @@ function drawRayStubs(
       const y2 = tipY + (rim.y - tipY) * limb;
       const a0 = alpha * Math.max(limb, 0.2);
 
-      // Tips + inward: soft at surface, peak mid-stub, transparent at rim.
+      // Solid from surface; only the outer tip fades (center fade = pole axis only).
       const grad = ctx.createLinearGradient(sx, sy, x2, y2);
-      grad.addColorStop(0, rgbAlpha(color, 0));
-      grad.addColorStop(0.22, rgbAlpha(color, a0));
-      grad.addColorStop(0.5, rgbAlpha(color, a0 * 0.2));
-      grad.addColorStop(0.78, rgbAlpha(color, a0 * 0.85));
+      grad.addColorStop(0, rgbAlpha(color, a0));
+      grad.addColorStop(0.62, rgbAlpha(color, a0));
       grad.addColorStop(1, rgbAlpha(color, 0));
       ctx.strokeStyle = grad;
       ctx.beginPath();
@@ -734,8 +729,8 @@ function drawRayStubs(
       const y2 = sy - reach * 0.15;
       const a0 = alpha * faceOn;
       const grad = ctx.createLinearGradient(sx, sy, x2, y2);
-      grad.addColorStop(0, rgbAlpha(color, 0));
-      grad.addColorStop(0.35, rgbAlpha(color, a0));
+      grad.addColorStop(0, rgbAlpha(color, a0));
+      grad.addColorStop(0.55, rgbAlpha(color, a0));
       grad.addColorStop(1, rgbAlpha(color, 0));
       ctx.strokeStyle = grad;
       ctx.beginPath();

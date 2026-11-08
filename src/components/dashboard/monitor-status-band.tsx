@@ -32,7 +32,10 @@ type Props = {
   lastCheck: Date | null;
   /** From parent `/api/monitor/live` poll */
   egress?: MonitorEgressInfo | null;
+  /** Agent returned a fresh sample on the live poll. */
   streamLive?: boolean;
+  /** Refresh mode is Live / timed poll (even if agent is stale). */
+  livePolling?: boolean;
 };
 
 function stageShort(stage: CrisisStage | null): string {
@@ -114,6 +117,7 @@ export const MonitorStatusBand = memo(function MonitorStatusBand({
   lastCheck,
   egress = null,
   streamLive = false,
+  livePolling = false,
 }: Props) {
   const jobs = useLiveJobs();
   const live = jobs[0] ?? null;
@@ -195,7 +199,12 @@ export const MonitorStatusBand = memo(function MonitorStatusBand({
           </p>
         )}
         <div className="monitor-status-info">
-          {rateLine ? (
+          {livePolling && !streamLive ? (
+            <p className="monitor-status-egress monitor-status-egress--muted">
+              Agent offline · Load/RAM/Disk/Sparklines eingefroren
+              {rateLine ? ` · zuletzt ${rateLine}` : ""}
+            </p>
+          ) : rateLine ? (
             <p
               className={cn(
                 "monitor-status-egress",

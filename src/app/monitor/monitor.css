@@ -1857,6 +1857,42 @@
   transition: d 0.45s cubic-bezier(0.2, 0.75, 0.2, 1);
 }
 
+.monitor-stat-spark-line--ok {
+  stroke: var(--hud-cyan);
+}
+
+.monitor-stat-spark-line--warn {
+  stroke: var(--warn);
+}
+
+.monitor-stat-spark-line--crit {
+  stroke: var(--crit);
+}
+
+.monitor-stat-spark-area--ok {
+  fill: rgb(34 211 238 / 14%);
+}
+
+.monitor-stat-spark-area--warn {
+  fill: rgb(251 191 36 / 12%);
+}
+
+.monitor-stat-spark-area--crit {
+  fill: rgb(248 113 113 / 14%);
+}
+
+.monitor-stat-spark-dot--ok {
+  fill: var(--hud-cyan);
+}
+
+.monitor-stat-spark-dot--warn {
+  fill: var(--warn);
+}
+
+.monitor-stat-spark-dot--crit {
+  fill: var(--crit);
+}
+
 .monitor-stat-head {
   position: relative;
   z-index: 1;
@@ -1911,6 +1947,7 @@
   stroke-width: 7;
   stroke-linecap: round;
   opacity: 0.12;
+  transition: stroke-dasharray 0.5s ease;
 }
 
 .monitor-stat-ring-glow--ok {
@@ -1951,25 +1988,6 @@
   transition:
     stroke-dasharray 0.5s ease,
     stroke 0.35s ease;
-  /* Tip + inward fade along the filled arc (--ring-* on wrap) */
-  -webkit-mask-image: conic-gradient(
-    from -90deg,
-    transparent 0deg,
-    rgb(0 0 0 / 90%) 14deg,
-    rgb(0 0 0 / 30%) var(--ring-mid, 180deg),
-    rgb(0 0 0 / 90%) var(--ring-tail, 346deg),
-    transparent var(--ring-span, 360deg),
-    transparent 360deg
-  );
-  mask-image: conic-gradient(
-    from -90deg,
-    transparent 0deg,
-    rgb(0 0 0 / 90%) 14deg,
-    rgb(0 0 0 / 30%) var(--ring-mid, 180deg),
-    rgb(0 0 0 / 90%) var(--ring-tail, 346deg),
-    transparent var(--ring-span, 360deg),
-    transparent 360deg
-  );
 }
 
 .monitor-stat-ring-fill--ok {

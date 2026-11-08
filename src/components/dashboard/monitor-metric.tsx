@@ -1,4 +1,3 @@
-import type { CSSProperties } from "react";
 import { MonitorSparkline } from "./monitor-sparkline";
 
 export type MetricCardProps = {
@@ -33,31 +32,15 @@ function MonitorRingGauge({
   const c = 2 * Math.PI * r;
   const clamped = Math.min(100, Math.max(0, pct));
   const filled = (clamped / 100) * c;
-  const spanDeg = (clamped / 100) * 360;
+  const dash = `${filled} ${c}`;
 
   return (
-    <span
-      className={`monitor-stat-ring-wrap monitor-stat-ring-wrap--${tone}`}
-      style={
-        {
-          ["--ring-span"]: `${spanDeg}deg`,
-          ["--ring-mid"]: `${spanDeg * 0.5}deg`,
-          ["--ring-tail"]: `${Math.max(0, spanDeg - 14)}deg`,
-        } as CSSProperties
-      }
-    >
+    <span className={`monitor-stat-ring-wrap monitor-stat-ring-wrap--${tone}`}>
       <svg
         className={`monitor-stat-ring monitor-stat-ring--${tone}`}
         viewBox="0 0 100 100"
         aria-hidden
       >
-        {/* Soft bloom on the stroke path — not on the outer wrap */}
-        <circle
-          className={`monitor-stat-ring-glow monitor-stat-ring-glow--${tone}`}
-          cx="50"
-          cy="50"
-          r={r}
-        />
         <circle
           className={`monitor-stat-ring-track monitor-stat-ring-track--${tone}`}
           cx="50"
@@ -65,11 +48,19 @@ function MonitorRingGauge({
           r={r}
         />
         <circle
+          className={`monitor-stat-ring-glow monitor-stat-ring-glow--${tone}`}
+          cx="50"
+          cy="50"
+          r={r}
+          strokeDasharray={dash}
+          transform="rotate(-90 50 50)"
+        />
+        <circle
           className={`monitor-stat-ring-fill monitor-stat-ring-fill--${tone}`}
           cx="50"
           cy="50"
           r={r}
-          strokeDasharray={`${filled} ${c}`}
+          strokeDasharray={dash}
           transform="rotate(-90 50 50)"
         />
       </svg>

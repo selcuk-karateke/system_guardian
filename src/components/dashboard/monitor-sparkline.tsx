@@ -1,7 +1,3 @@
-"use client";
-
-import { useId } from "react";
-
 /** Soft sparkline area — decorative backdrop for monitor metric cards. */
 
 const VB_W = 120;
@@ -76,26 +72,15 @@ type Props = {
   className?: string;
 };
 
-const TONE_RGB: Record<"ok" | "warn" | "crit", string> = {
-  ok: "34,211,238",
-  warn: "251,191,36",
-  crit: "248,113,113",
-};
-
 export function MonitorSparkline({
   values,
   tone = "ok",
   fixedDomain,
   className,
 }: Props) {
-  const uid = useId().replace(/:/g, "");
   if (values.length < 2) return null;
-  const { line, area } = buildSparkPaths(values, { fixedDomain });
-  if (!line) return null;
-
-  const rgb = TONE_RGB[tone];
-  const gid = `spark-fade-${uid}`;
-  const aid = `spark-area-${uid}`;
+  const { line, area, end } = buildSparkPaths(values, { fixedDomain });
+  if (!line || !end) return null;
 
   return (
     <svg
@@ -104,29 +89,20 @@ export function MonitorSparkline({
       preserveAspectRatio="none"
       aria-hidden
     >
-      <defs>
-        {/* Tips + inward fade along the time axis */}
-        <linearGradient id={gid} x1="0" y1="0" x2={VB_W} y2="0" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor={`rgba(${rgb},0)`} />
-          <stop offset="18%" stopColor={`rgba(${rgb},0.95)`} />
-          <stop offset="50%" stopColor={`rgba(${rgb},0.22)`} />
-          <stop offset="82%" stopColor={`rgba(${rgb},0.9)`} />
-          <stop offset="100%" stopColor={`rgba(${rgb},0)`} />
-        </linearGradient>
-        <linearGradient id={aid} x1="0" y1="0" x2={VB_W} y2="0" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor={`rgba(${rgb},0)`} />
-          <stop offset="18%" stopColor={`rgba(${rgb},0.14)`} />
-          <stop offset="50%" stopColor={`rgba(${rgb},0.04)`} />
-          <stop offset="82%" stopColor={`rgba(${rgb},0.12)`} />
-          <stop offset="100%" stopColor={`rgba(${rgb},0)`} />
-        </linearGradient>
-      </defs>
-      <path d={area} fill={`url(#${aid})`} className="monitor-stat-spark-area" />
+      <path
+        d={area}
+        className={`monitor-stat-spark-area monitor-stat-spark-area--${tone}`}
+      />
       <path
         d={line}
         fill="none"
-        stroke={`url(#${gid})`}
-        className="monitor-stat-spark-line"
+        className={`monitor-stat-spark-line monitor-stat-spark-line--${tone}`}
+      />
+      <circle
+        cx={end.x}
+        cy={end.y}
+        r={1.6}
+        className={`monitor-stat-spark-dot monitor-stat-spark-dot--${tone}`}
       />
     </svg>
   );
