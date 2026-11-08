@@ -22,6 +22,8 @@ export type LiveAircraft = {
   lon: number;
   altKm: number;
   track: number | null;
+  /** Ground speed m/s — used for short dead-reckoning between polls. */
+  velocity: number | null;
   country?: string;
 };
 
@@ -41,19 +43,38 @@ export type LiveSkyPayload = {
   satellites: LiveSatellite[];
   flightsSource: "live" | "unavailable";
   satellitesSource: "live" | "unavailable";
+  /** From OpenSky `X-Rate-Limit-Remaining` when present. */
+  openskyRemaining?: number;
   error?: string;
 };
 
-const FLIGHT_CACHE_MS = 15_000;
+/**
+ * Success TTL for Standard (4 000 credits/day).
+ * ~90s ≈ <1 000 pulls/day if the globe stays open — comfortable headroom.
+ */
+const FLIGHT_CACHE_MS = 90_000;
+/** After 429, stop hammering — credits reset on a rolling/daily window. */
+const FLIGHT_BACKOFF_MS = 15 * 60_000;
+/** Stretch poll further when remaining credits are low. */
+const FLIGHT_LOW_CREDIT_MS = 5 * 60_000;
 const TLE_CACHE_MS = 2 * 60 * 60_000;
 const MAX_FLIGHTS = 280;
 const MAX_SATS = 420;
 
 type FlightCache = {
-  at: number;
+  /** Wall time of the OpenSky snapshot (dead-reckoning base). */
+  observedAt: number;
+  /** Do not call OpenSky again before this. */
+  nextAttemptAt: number;
   flights: LiveAircraft[];
   ok: boolean;
+  remaining?: number;
   error?: string;
+};
+
+type OpenSkyFetch = {
+  states: unknown[][] | null;
+  remaining?: number;
 };
 
 type TleRecord = Record<string, unknown>;
@@ -85,7 +106,7 @@ function satKind(altKm: number): LiveSatellite["kind"] {
   return "geo";
 }
 
-async function fetchOpenSkyStates(): Promise<unknown[][] | null> {
+async function fetchOpenSkyStates(): Promise<OpenSkyFetch> {
   const headers: Record<string, string> = {
     Accept: "application/json",
     "User-Agent": "system-guardian-monitor/1.0",
@@ -127,8 +148,23 @@ async function fetchOpenSkyStates(): Promise<unknown[][] | null> {
   if (!res.ok) {
     throw new Error(`OpenSky HTTP ${res.status}`);
   }
+  const remRaw = res.headers.get("x-rate-limit-remaining");
+  const remaining =
+    remRaw != null && remRaw !== "" ? Number.parseInt(remRaw, 10) : undefined;
   const body = (await res.json()) as { states?: unknown[][] | null };
-  return body.states ?? null;
+  return {
+    states: body.states ?? null,
+    remaining: Number.isFinite(remaining) ? remaining : undefined,
+  };
+}
+
+function flightTtlMs(remaining?: number): number {
+  if (remaining != null && remaining < 200) return FLIGHT_LOW_CREDIT_MS;
+  return FLIGHT_CACHE_MS;
+}
+
+function asNum(v: unknown): number | null {
+  return typeof v === "number" && Number.isFinite(v) ? v : null;
 }
 
 function normalizeFlights(states: unknown[][]): LiveAircraft[] {
@@ -139,14 +175,16 @@ function normalizeFlights(states: unknown[][]): LiveAircraft[] {
     const callsign =
       typeof row[1] === "string" ? row[1].trim() : "";
     const country = typeof row[2] === "string" ? row[2] : undefined;
-    const lon = typeof row[5] === "number" ? row[5] : null;
-    const lat = typeof row[6] === "number" ? row[6] : null;
-    const altM = typeof row[7] === "number" ? row[7] : null;
+    const lon = asNum(row[5]);
+    const lat = asNum(row[6]);
+    // Prefer baro, fall back to geo (index 13) — many vectors lack one or the other.
+    const altM = asNum(row[7]) ?? asNum(row[13]);
     const onGround = row[8] === true;
-    const track = typeof row[10] === "number" ? row[10] : null;
+    const velocity = asNum(row[9]);
+    const track = asNum(row[10]);
     if (!icao || lon == null || lat == null || onGround) continue;
     if (altM == null || altM < 400) continue;
-    if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+    if (lat < -90 || lat > 90 || lon < -180 || lon > 180) continue;
     raw.push({
       id: icao,
       name: callsign || icao.toUpperCase(),
@@ -154,46 +192,80 @@ function normalizeFlights(states: unknown[][]): LiveAircraft[] {
       lon,
       altKm: altM / 1000,
       track,
+      velocity,
       country,
     });
   }
 
   if (raw.length <= MAX_FLIGHTS) return raw;
 
-  // Spatial-ish downsample: keep evenly spaced by hash of id
-  const step = Math.ceil(raw.length / MAX_FLIGHTS);
+  // Spatial grid downsample so the globe isn't striped by API order.
+  const cellDeg = 6;
+  const buckets = new Map<string, LiveAircraft[]>();
+  for (const ac of raw) {
+    const key = `${Math.floor((ac.lat + 90) / cellDeg)}:${Math.floor((ac.lon + 180) / cellDeg)}`;
+    const list = buckets.get(key);
+    if (list) list.push(ac);
+    else buckets.set(key, [ac]);
+  }
+  const cells = [...buckets.values()];
   const picked: LiveAircraft[] = [];
-  for (let i = 0; i < raw.length && picked.length < MAX_FLIGHTS; i += step) {
-    picked.push(raw[i]!);
+  let round = 0;
+  while (picked.length < MAX_FLIGHTS && cells.some((c) => c.length > round)) {
+    for (const cell of cells) {
+      const ac = cell[round];
+      if (!ac) continue;
+      picked.push(ac);
+      if (picked.length >= MAX_FLIGHTS) break;
+    }
+    round += 1;
   }
   return picked;
 }
 
 async function loadFlights(): Promise<FlightCache> {
   const now = Date.now();
-  if (flightCache && now - flightCache.at < FLIGHT_CACHE_MS) {
+  if (flightCache && now < flightCache.nextAttemptAt) {
     return flightCache;
   }
   if (flightInflight) return flightInflight;
 
   flightInflight = (async () => {
     try {
-      const states = await fetchOpenSkyStates();
-      const flights = states ? normalizeFlights(states) : [];
+      const fetched = await fetchOpenSkyStates();
+      const flights = fetched.states
+        ? normalizeFlights(fetched.states)
+        : [];
+      const t = Date.now();
       flightCache = {
-        at: Date.now(),
+        observedAt: t,
+        nextAttemptAt: t + flightTtlMs(fetched.remaining),
         flights,
-        ok: true,
+        ok: flights.length > 0,
+        remaining: fetched.remaining,
+        error:
+          flights.length > 0
+            ? undefined
+            : "OpenSky returned no airborne states",
       };
       return flightCache;
     } catch (err) {
       const message = err instanceof Error ? err.message : "OpenSky failed";
-      if (flightCache?.ok) {
-        // Serve stale briefly
+      const t = Date.now();
+      const rateLimited = /429/.test(message);
+      const wait = rateLimited ? FLIGHT_BACKOFF_MS : FLIGHT_CACHE_MS;
+      if (flightCache?.ok && flightCache.flights.length > 0) {
+        // Keep last good snapshot; push nextAttempt so we don't burn more credits.
+        flightCache = {
+          ...flightCache,
+          nextAttemptAt: t + wait,
+          error: message,
+        };
         return flightCache;
       }
       flightCache = {
-        at: Date.now(),
+        observedAt: t,
+        nextAttemptAt: t + wait,
         flights: [],
         ok: false,
         error: message,
@@ -318,13 +390,18 @@ export async function getLiveSky(): Promise<LiveSkyPayload> {
     satellitesSource = "unavailable";
   }
 
+  const flightsLive = flightsRes.ok && flightsRes.flights.length > 0;
   return {
-    ok: flightsRes.ok || satellitesSource === "live",
-    at: new Date().toISOString(),
-    flights: flightsRes.flights,
+    ok: flightsLive || satellitesSource === "live",
+    // Prefer flight snapshot time so client dead-reckoning stays honest on stale/429 cache.
+    at: new Date(
+      flightsLive ? flightsRes.observedAt : Date.now(),
+    ).toISOString(),
+    flights: flightsLive ? flightsRes.flights : [],
     satellites,
-    flightsSource: flightsRes.ok ? "live" : "unavailable",
+    flightsSource: flightsLive ? "live" : "unavailable",
     satellitesSource,
+    openskyRemaining: flightsRes.remaining,
     error: flightsRes.error,
   };
 }

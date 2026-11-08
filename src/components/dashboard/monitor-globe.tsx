@@ -20,6 +20,12 @@ import {
   type GlobeRoute,
 } from "@/lib/geo/globe-routes";
 import {
+  GLOBE_PLATES,
+  PLATE_STYLE,
+  formatPlateKind,
+  type GlobePlate,
+} from "@/lib/geo/globe-plates";
+import {
   GLOBE_ORBIT_PLANES,
   GLOBE_SATELLITES,
   SAT_STYLE,
@@ -62,6 +68,8 @@ type Props = {
   showCables?: boolean;
   /** Oil/gas corridor overlay (default on). */
   showPipelines?: boolean;
+  /** Tectonic plate boundaries (default on). */
+  showPlates?: boolean;
   /** Orbital satellites overlay (default on). */
   showSats?: boolean;
   /** Air-traffic overlay (default on). */
@@ -70,6 +78,8 @@ type Props = {
   showAstro?: boolean;
   /** Live OpenSky positions — null = stylized demo corridors. */
   liveFlights?: LiveAircraft[] | null;
+  /** ISO time of the flight snapshot (dead-reckoning base). */
+  liveFlightsAt?: string | null;
   /** Live CelesTrak/SGP4 positions — null = stylized demo orbits. */
   liveSatellites?: LiveSatellite[] | null;
 };
@@ -542,6 +552,8 @@ function arcDepthFade(z: number): number {
 
 /** Slight lift so routes sit above land dots without fighting markers. */
 const ROUTE_ELEV = GLOBE_ALT.cable;
+/** Slightly under cables so plates read as geology, not infra. */
+const PLATE_ELEV = 1.008;
 /** Max densify steps per waypoint segment. */
 const ROUTE_SEG_STEPS = 18;
 
@@ -551,14 +563,22 @@ type RouteHit = {
   tipY: number;
 };
 
+type PlateHit = {
+  plate: GlobePlate;
+  tipX: number;
+  tipY: number;
+};
+
 
 type RouteLayers = {
   showCables: boolean;
   showPipelines: boolean;
+  showPlates: boolean;
   showSats: boolean;
   showFlights: boolean;
   showAstro: boolean;
   hoverRouteId: string | null;
+  hoverPlateId: string | null;
   hoverSatId: string | null;
   hoverFlightId: string | null;
   hoverAstroId: string | null;
@@ -599,8 +619,32 @@ function densifyRoute(route: GlobeRoute): [number, number, number][] {
   return pts;
 }
 
+function densifyPlate(plate: GlobePlate): [number, number, number][] {
+  const pts: [number, number, number][] = [];
+  const path = plate.path;
+  for (let i = 0; i < path.length - 1; i++) {
+    const a = path[i]!;
+    const b = path[i + 1]!;
+    const [ax, ay, az] = attackToXyz(a[0], a[1]);
+    const [bx, by, bz] = attackToXyz(b[0], b[1]);
+    const dot = Math.min(1, Math.max(-1, ax * bx + ay * by + az * bz));
+    const ang = Math.acos(dot);
+    const steps = Math.max(2, Math.min(ROUTE_SEG_STEPS, Math.ceil(ang / 0.08)));
+    for (let s = 0; s < steps; s++) {
+      const t = s / steps;
+      const [x, y, z] = slerpUnit(ax, ay, az, bx, by, bz, t);
+      pts.push([x * PLATE_ELEV, y * PLATE_ELEV, z * PLATE_ELEV]);
+    }
+  }
+  const last = path[path.length - 1]!;
+  const [lx, ly, lz] = attackToXyz(last[0], last[1]);
+  pts.push([lx * PLATE_ELEV, ly * PLATE_ELEV, lz * PLATE_ELEV]);
+  return pts;
+}
+
 /** Static routes → densified once (draw loop is hot). */
 const ROUTE_XYZ: [number, number, number][][] = GLOBE_ROUTES.map(densifyRoute);
+const PLATE_XYZ: [number, number, number][][] = GLOBE_PLATES.map(densifyPlate);
 
 /**
  * Quiet undersea fiber + oil/gas corridors under markers/arcs.
@@ -673,6 +717,104 @@ function drawInfraRoutes(
   ctx.globalAlpha = 1;
 }
 
+/** Major plate boundaries (PB2002-inspired sketches). */
+function drawPlates(
+  ctx: CanvasRenderingContext2D,
+  rot: Float32Array,
+  css: number,
+  scale: number,
+  pad: number,
+  layers: RouteLayers,
+): void {
+  if (!layers.showPlates) return;
+  const cx = pad + css / 2;
+  const cy = pad + css / 2;
+  const R = (css / 2) * scale;
+  const style = PLATE_STYLE;
+
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.shadowBlur = 0;
+  ctx.shadowColor = "transparent";
+  ctx.strokeStyle = style.css;
+
+  for (let p = 0; p < GLOBE_PLATES.length; p++) {
+    const plate = GLOBE_PLATES[p]!;
+    const xyz = PLATE_XYZ[p]!;
+    if (xyz.length < 2) continue;
+    const hot = layers.hoverPlateId === plate.id;
+    const dim =
+      layers.hoverPlateId != null && !hot
+        ? 0.28
+        : layers.hoverRouteId
+          ? 0.45
+          : 1;
+
+    const projected: { sx: number; sy: number; z: number; t: number }[] = [];
+    for (let i = 0; i < xyz.length; i++) {
+      const pt = xyz[i]!;
+      const [x, y, z] = mulRot(rot, pt[0], pt[1], pt[2]);
+      projected.push({
+        sx: cx + x * R,
+        sy: cy - y * R,
+        z,
+        t: i / (xyz.length - 1),
+      });
+    }
+
+    ctx.lineWidth = style.width * (hot ? 1.9 : 1);
+    for (let i = 0; i < projected.length - 1; i++) {
+      const a = projected[i]!;
+      const b = projected[i + 1]!;
+      const depth = (arcDepthFade(a.z) + arcDepthFade(b.z)) * 0.5;
+      if (depth < 0.05) continue;
+      const along = tipFade((a.t + b.t) * 0.5);
+      if (along < 0.04) continue;
+      ctx.globalAlpha =
+        style.alpha * Math.max(0.55, depth) * along * dim * (hot ? 1.4 : 1);
+      ctx.beginPath();
+      ctx.moveTo(a.sx, a.sy);
+      ctx.lineTo(b.sx, b.sy);
+      ctx.stroke();
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
+function nearestPlate(
+  rot: Float32Array,
+  css: number,
+  scale: number,
+  mx: number,
+  my: number,
+  layers: RouteLayers,
+  maxDist = 14,
+): PlateHit | null {
+  if (!layers.showPlates) return null;
+  const cx = css / 2;
+  const cy = css / 2;
+  const R = (css / 2) * scale;
+  let best: PlateHit | null = null;
+  let bestD = maxDist;
+
+  for (let p = 0; p < GLOBE_PLATES.length; p++) {
+    const plate = GLOBE_PLATES[p]!;
+    const xyz = PLATE_XYZ[p]!;
+    for (const pt of xyz) {
+      const [x, y, z] = mulRot(rot, pt[0], pt[1], pt[2]);
+      if (arcDepthFade(z) < 0.12) continue;
+      const sx = cx + x * R;
+      const sy = cy - y * R;
+      const d = Math.hypot(sx - mx, sy - my);
+      if (d <= bestD) {
+        bestD = d;
+        best = { plate, tipX: sx, tipY: sy };
+      }
+    }
+  }
+  return best;
+}
+
 /** Nearest visible route sample in wrap/layout space (markers win first). */
 function nearestRoute(
   rot: Float32Array,
@@ -713,6 +855,10 @@ function formatRouteHover(route: GlobeRoute): string {
   return `${kind} · ${route.name}`;
 }
 
+function formatPlateHover(plate: GlobePlate): string {
+  return `Platte · ${plate.name} · ${formatPlateKind(plate.kind)}`;
+}
+
 function formatSatHover(name: string, kind: string, live: boolean): string {
   const band = kind === "geo" ? "GEO" : kind === "meo" ? "MEO" : "LEO";
   return live
@@ -738,16 +884,43 @@ function trackLookahead(
   lat: number,
   lon: number,
   trackDeg: number,
-  distDeg = 0.35,
+  /** ~2.5° ≈ readable screen heading on the HUD globe (0.35° was ≈1px). */
+  distDeg = 2.5,
 ): [number, number] {
   const rad = (trackDeg * Math.PI) / 180;
   const dLat = distDeg * Math.cos(rad);
   const cosLat = Math.cos((lat * Math.PI) / 180);
-  const dLon = distDeg * Math.sin(rad) / Math.max(0.2, cosLat);
+  const dLon = (distDeg * Math.sin(rad)) / Math.max(0.2, cosLat);
   return [
     Math.max(-90, Math.min(90, lat + dLat)),
     ((lon + dLon + 540) % 360) - 180,
   ];
+}
+
+/** Coast a live state vector forward a few seconds between OpenSky polls. */
+function deadReckonAircraft(
+  ac: LiveAircraft,
+  skyAtMs: number | null,
+): { lat: number; lon: number } {
+  if (
+    skyAtMs == null ||
+    ac.track == null ||
+    ac.velocity == null ||
+    ac.velocity < 40
+  ) {
+    return { lat: ac.lat, lon: ac.lon };
+  }
+  const dt = Math.min(40, Math.max(0, (Date.now() - skyAtMs) / 1000));
+  if (dt < 0.2) return { lat: ac.lat, lon: ac.lon };
+  const rad = (ac.track * Math.PI) / 180;
+  const distM = ac.velocity * dt;
+  const dLat = (distM * Math.cos(rad)) / 111_320;
+  const cosLat = Math.cos((ac.lat * Math.PI) / 180);
+  const dLon = (distM * Math.sin(rad)) / (111_320 * Math.max(0.2, cosLat));
+  return {
+    lat: Math.max(-90, Math.min(90, ac.lat + dLat)),
+    lon: ((ac.lon + dLon + 540) % 360) - 180,
+  };
 }
 
 function drawPlaneMark(
@@ -836,6 +1009,7 @@ function drawFlights(
   tMs: number,
   layers: RouteLayers,
   liveFlights: LiveAircraft[] | null,
+  liveFlightsAtMs: number | null = null,
 ): void {
   if (!layers.showFlights) return;
   const cx = pad + css / 2;
@@ -850,10 +1024,11 @@ function drawFlights(
   ctx.strokeStyle = style.css;
   ctx.fillStyle = style.css;
 
-  if (liveFlights) {
+  if (liveFlights && liveFlights.length > 0) {
     for (const ac of liveFlights) {
+      const pos = deadReckonAircraft(ac, liveFlightsAtMs);
       const softElev = visualFlightElev(ac.altKm);
-      const [px, py, pz] = elevXyz(ac.lat, ac.lon, softElev);
+      const [px, py, pz] = elevXyz(pos.lat, pos.lon, softElev);
       const [x, y, z] = mulRot(rot, px, py, pz);
       const depth = arcDepthFade(z);
       if (depth < 0.1) continue;
@@ -862,7 +1037,7 @@ function drawFlights(
       let dx = 0;
       let dy = -1;
       if (ac.track != null) {
-        const [la, lo] = trackLookahead(ac.lat, ac.lon, ac.track);
+        const [la, lo] = trackLookahead(pos.lat, pos.lon, ac.track);
         const [ax, ay, az] = elevXyz(la, lo, softElev);
         const [hx, hy] = mulRot(rot, ax, ay, az);
         dx = cx + hx * R - sx;
@@ -870,14 +1045,25 @@ function drawFlights(
       }
       const hot = layers.hoverFlightId === ac.id;
       const dim = layers.hoverFlightId != null && !hot;
+      // Short wake so craft read as moving, not static dots.
+      if (Math.hypot(dx, dy) > 1.2) {
+        const wake = Math.hypot(dx, dy) || 1;
+        ctx.globalAlpha =
+          style.alpha * depth * (hot ? 0.55 : dim ? 0.08 : 0.28);
+        ctx.lineWidth = hot ? 1.6 : 1.1;
+        ctx.beginPath();
+        ctx.moveTo(sx, sy);
+        ctx.lineTo(sx - (dx / wake) * 7, sy - (dy / wake) * 7);
+        ctx.stroke();
+      }
       drawPlaneMark(
         ctx,
         sx,
         sy,
         dx,
         dy,
-        style.size * (hot ? 1.55 : 0.95),
-        style.alpha * depth * (hot ? 1 : dim ? 0.2 : 0.88),
+        style.size * (hot ? 1.55 : 1.05),
+        style.alpha * depth * (hot ? 1 : dim ? 0.2 : 0.92),
       );
     }
     ctx.globalAlpha = 1;
@@ -959,6 +1145,7 @@ function nearestFlight(
   tMs: number,
   layers: RouteLayers,
   liveFlights: LiveAircraft[] | null,
+  liveFlightsAtMs: number | null = null,
   maxDist = 16,
 ): FlightDrawHit | null {
   if (!layers.showFlights) return null;
@@ -968,10 +1155,11 @@ function nearestFlight(
   let best: FlightDrawHit | null = null;
   let bestD = maxDist;
 
-  if (liveFlights) {
+  if (liveFlights && liveFlights.length > 0) {
     for (const ac of liveFlights) {
+      const pos = deadReckonAircraft(ac, liveFlightsAtMs);
       const softElev = visualFlightElev(ac.altKm);
-      const [px, py, pz] = elevXyz(ac.lat, ac.lon, softElev);
+      const [px, py, pz] = elevXyz(pos.lat, pos.lon, softElev);
       const [x, y, z] = mulRot(rot, px, py, pz);
       if (arcDepthFade(z) < 0.12) continue;
       const sx = cx + x * R;
@@ -1489,16 +1677,19 @@ function drawRayStubs(
   layers: RouteLayers = {
     showCables: true,
     showPipelines: true,
+    showPlates: true,
     showSats: true,
     showFlights: true,
     showAstro: true,
     hoverRouteId: null,
+    hoverPlateId: null,
     hoverSatId: null,
     hoverFlightId: null,
     hoverAstroId: null,
   },
   tMs = 0,
   liveFlights: LiveAircraft[] | null = null,
+  liveFlightsAtMs: number | null = null,
   liveSats: LiveSatellite[] | null = null,
   date = new Date(),
 ): void {
@@ -1515,8 +1706,19 @@ function drawRayStubs(
 
   const home = marks.find((m) => m.kind === "home");
   const attacks = marks.filter((m) => m.kind === "attack");
+  drawPlates(ctx, rot, css, scale, pad, layers);
   drawInfraRoutes(ctx, rot, css, scale, pad, layers);
-  drawFlights(ctx, rot, css, scale, pad, tMs, layers, liveFlights);
+  drawFlights(
+    ctx,
+    rot,
+    css,
+    scale,
+    pad,
+    tMs,
+    layers,
+    liveFlights,
+    liveFlightsAtMs,
+  );
   drawSatellites(ctx, rot, css, scale, pad, tMs, layers, liveSats);
   drawAstro(ctx, rot, css, scale, pad, layers, date);
   drawPoleAxis(ctx, rot, css, scale, pad);
@@ -1628,10 +1830,12 @@ export const MonitorGlobe = forwardRef<MonitorGlobeHandle, Props>(
       interactive = false,
       showCables = true,
       showPipelines = true,
+      showPlates = true,
       showSats = true,
       showFlights = true,
       showAstro = true,
       liveFlights = null,
+      liveFlightsAt = null,
       liveSatellites = null,
     },
     ref,
@@ -1649,10 +1853,12 @@ export const MonitorGlobe = forwardRef<MonitorGlobeHandle, Props>(
   const interactiveRef = useRef(interactive);
   const showCablesRef = useRef(showCables);
   const showPipelinesRef = useRef(showPipelines);
+  const showPlatesRef = useRef(showPlates);
   const showSatsRef = useRef(showSats);
   const showFlightsRef = useRef(showFlights);
   const showAstroRef = useRef(showAstro);
   const liveFlightsRef = useRef(liveFlights);
+  const liveFlightsAtRef = useRef(liveFlightsAt);
   const liveSatsRef = useRef(liveSatellites);
   statusRef.current = status;
   attacksRef.current = attackMarkers;
@@ -1662,10 +1868,12 @@ export const MonitorGlobe = forwardRef<MonitorGlobeHandle, Props>(
   interactiveRef.current = interactive;
   showCablesRef.current = showCables;
   showPipelinesRef.current = showPipelines;
+  showPlatesRef.current = showPlates;
   showSatsRef.current = showSats;
   showFlightsRef.current = showFlights;
   showAstroRef.current = showAstro;
   liveFlightsRef.current = liveFlights;
+  liveFlightsAtRef.current = liveFlightsAt;
   liveSatsRef.current = liveSatellites;
 
   useImperativeHandle(ref, () => ({
@@ -1856,6 +2064,17 @@ export const MonitorGlobe = forwardRef<MonitorGlobeHandle, Props>(
         `route:${hit.route.id}`,
         formatRouteHover(hit.route),
         ROUTE_STYLE[hit.route.kind].css,
+        hit.tipX,
+        hit.tipY,
+        css,
+      );
+    };
+
+    const showPlateTip = (hit: PlateHit, css: number) => {
+      placeTip(
+        `plate:${hit.plate.id}`,
+        formatPlateHover(hit.plate),
+        PLATE_STYLE.css,
         hit.tipX,
         hit.tipY,
         css,
@@ -2124,6 +2343,7 @@ export const MonitorGlobe = forwardRef<MonitorGlobeHandle, Props>(
 
       let hoverId: string | null = null;
       let hoverRouteId: string | null = null;
+      let hoverPlateId: string | null = null;
       let hoverSatId: string | null = null;
       let hoverFlightId: string | null = null;
       let hoverAstroId: string | null = null;
@@ -2131,10 +2351,12 @@ export const MonitorGlobe = forwardRef<MonitorGlobeHandle, Props>(
       const routeLayers: RouteLayers = {
         showCables: showCablesRef.current,
         showPipelines: showPipelinesRef.current,
+        showPlates: showPlatesRef.current,
         showSats: showSatsRef.current,
         showFlights: showFlightsRef.current,
         showAstro: showAstroRef.current,
         hoverRouteId: null,
+        hoverPlateId: null,
         hoverSatId: null,
         hoverFlightId: null,
         hoverAstroId: null,
@@ -2162,6 +2384,12 @@ export const MonitorGlobe = forwardRef<MonitorGlobeHandle, Props>(
             hoverAstroId = astroHit.body.id;
             showAstroTip(astroHit, css);
           } else {
+            const flightsAtMs = (() => {
+              const iso = liveFlightsAtRef.current;
+              if (!iso) return null;
+              const t = Date.parse(iso);
+              return Number.isFinite(t) ? t : null;
+            })();
             const flightHit = nearestFlight(
               rot,
               css,
@@ -2171,10 +2399,15 @@ export const MonitorGlobe = forwardRef<MonitorGlobeHandle, Props>(
               now,
               routeLayers,
               liveFlightsRef.current,
+              flightsAtMs,
             );
             if (flightHit) {
               hoverFlightId = flightHit.id;
-              showFlightTip(flightHit, css, liveFlightsRef.current != null);
+              showFlightTip(
+                flightHit,
+                css,
+                (liveFlightsRef.current?.length ?? 0) > 0,
+              );
             } else {
               const satHit = nearestSat(
                 rot,
@@ -2202,7 +2435,20 @@ export const MonitorGlobe = forwardRef<MonitorGlobeHandle, Props>(
                   hoverRouteId = routeHit.route.id;
                   showRouteTip(routeHit, css);
                 } else {
-                  hideTip();
+                  const plateHit = nearestPlate(
+                    rot,
+                    css,
+                    GLOBE_SCALE,
+                    pointerCssX,
+                    pointerCssY,
+                    routeLayers,
+                  );
+                  if (plateHit) {
+                    hoverPlateId = plateHit.plate.id;
+                    showPlateTip(plateHit, css);
+                  } else {
+                    hideTip();
+                  }
                 }
               }
             }
@@ -2210,6 +2456,7 @@ export const MonitorGlobe = forwardRef<MonitorGlobeHandle, Props>(
         }
       }
       routeLayers.hoverRouteId = hoverRouteId;
+      routeLayers.hoverPlateId = hoverPlateId;
       routeLayers.hoverSatId = hoverSatId;
       routeLayers.hoverFlightId = hoverFlightId;
       routeLayers.hoverAstroId = hoverAstroId;
@@ -2255,6 +2502,12 @@ export const MonitorGlobe = forwardRef<MonitorGlobeHandle, Props>(
 
       if (count > 0) gl.drawArrays(gl.POINTS, 0, count);
 
+      const flightsAtMs = (() => {
+        const iso = liveFlightsAtRef.current;
+        if (!iso) return null;
+        const t = Date.parse(iso);
+        return Number.isFinite(t) ? t : null;
+      })();
       drawRayStubs(
         rayCtx,
         rot,
@@ -2266,6 +2519,7 @@ export const MonitorGlobe = forwardRef<MonitorGlobeHandle, Props>(
         routeLayers,
         now,
         liveFlightsRef.current,
+        flightsAtMs,
         liveSatsRef.current,
         nowDate,
       );

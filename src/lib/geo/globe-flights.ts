@@ -4,6 +4,8 @@
  * Points are [lat, lon] degrees.
  */
 
+import { GLOBE_ALT } from "@/lib/geo/globe-altitude";
+
 export type GlobeFlight = {
   id: string;
   /** Callsign-ish label for hover. */
@@ -19,11 +21,11 @@ export type GlobeFlight = {
 /** Elemental --ok (same family as SSH/session markers). */
 export const FLIGHT_STYLE = {
   css: "rgb(74 222 128)",
-  alpha: 0.92,
-  corridorAlpha: 0.14,
-  size: 3.4,
-  elev: 1.04,
-  bulge: 0.02,
+  alpha: 0.95,
+  corridorAlpha: 0.22,
+  size: 4.6,
+  elev: (GLOBE_ALT.flightMin + GLOBE_ALT.flightMax) / 2,
+  bulge: 0.012,
 };
 
 /**

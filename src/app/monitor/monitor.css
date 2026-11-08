@@ -387,6 +387,17 @@
   border-color: color-mix(in oklab, var(--layer) 50%, transparent);
 }
 
+.monitor-globe-layer--plate {
+  --layer: rgb(251 113 133);
+  border-color: color-mix(in oklab, var(--layer) 28%, transparent);
+  color: var(--layer);
+}
+
+.monitor-globe-layer--plate[data-on="1"] {
+  background: color-mix(in oklab, var(--layer) 14%, transparent);
+  border-color: color-mix(in oklab, var(--layer) 50%, transparent);
+}
+
 .monitor-globe-layer--flight {
   --layer: var(--ok);
   border-color: color-mix(in oklab, var(--layer) 28%, transparent);

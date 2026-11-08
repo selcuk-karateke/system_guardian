@@ -20,11 +20,18 @@ type Props = {
   homeMarker?: GlobeTint | null;
 };
 
-const SKY_POLL_MS = 15_000;
+/** Client poll — sats re-propagate locally; OpenSky is server-cached/backed-off. */
+const SKY_POLL_MS = 30_000;
 
 const LAYERS = [
   { id: "cable", label: "Kabel", title: "Seekabel", key: "cables" as const },
   { id: "pipe", label: "Pipelines", title: "Öl/Gas", key: "pipelines" as const },
+  {
+    id: "plate",
+    label: "Platten",
+    title: "Tektonik · Grenzen",
+    key: "plates" as const,
+  },
   {
     id: "flight",
     label: "Flieger",
@@ -58,6 +65,7 @@ export function MonitorGlobeStage({
   const globeRef = useRef<MonitorGlobeHandle>(null);
   const [showCables, setShowCables] = useState(true);
   const [showPipelines, setShowPipelines] = useState(true);
+  const [showPlates, setShowPlates] = useState(true);
   const [showSats, setShowSats] = useState(true);
   const [showFlights, setShowFlights] = useState(true);
   const [showAstro, setShowAstro] = useState(true);
@@ -83,19 +91,28 @@ export function MonitorGlobeStage({
   }, []);
 
   const liveFlights =
-    sky?.flightsSource === "live" ? sky.flights : null;
+    sky?.flightsSource === "live" && sky.flights.length > 0
+      ? sky.flights
+      : null;
   const liveSatellites =
-    sky?.satellitesSource === "live" ? sky.satellites : null;
+    sky?.satellitesSource === "live" && sky.satellites.length > 0
+      ? sky.satellites
+      : null;
   const skyLive =
     liveFlights != null || liveSatellites != null
       ? " · SKY"
       : sky
         ? " · …"
         : "";
+  const openskyCredits =
+    sky?.openskyRemaining != null
+      ? ` · OS ${sky.openskyRemaining}`
+      : "";
 
   const layerOn = {
     cables: showCables,
     pipelines: showPipelines,
+    plates: showPlates,
     flights: showFlights,
     sats: showSats,
     astro: showAstro,
@@ -103,6 +120,7 @@ export function MonitorGlobeStage({
   const toggleLayer = {
     cables: () => setShowCables((v) => !v),
     pipelines: () => setShowPipelines((v) => !v),
+    plates: () => setShowPlates((v) => !v),
     flights: () => setShowFlights((v) => !v),
     sats: () => setShowSats((v) => !v),
     astro: () => setShowAstro((v) => !v),
@@ -124,10 +142,12 @@ export function MonitorGlobeStage({
             interactive
             showCables={showCables}
             showPipelines={showPipelines}
+            showPlates={showPlates}
             showSats={showSats}
             showFlights={showFlights}
             showAstro={showAstro}
             liveFlights={liveFlights}
+            liveFlightsAt={liveFlights ? sky?.at ?? null : null}
             liveSatellites={liveSatellites}
             attackMarkers={attackMarkers}
             sessionMarkers={sessionMarkers}
@@ -148,6 +168,7 @@ export function MonitorGlobeStage({
               <strong>Globus</strong>
               {checkMode === "ssh" ? " · LIVE" : ""}
               {skyLive}
+              {openskyCredits}
               <MonitorLiveActionSuffix />
             </div>
             <div className="monitor-host">
