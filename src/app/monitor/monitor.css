@@ -310,23 +310,41 @@
   border-color: rgb(34 211 238 / 45%);
 }
 
+.monitor-top--globe {
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.monitor-globe-head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
 .monitor-globe-layers {
-  display: inline-flex;
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 0.35em;
+  gap: 0.28em;
+  margin-top: 0.15rem;
 }
 
 .monitor-globe-layer {
   display: inline-flex;
   align-items: center;
-  padding: 0.35em 0.7em;
+  gap: 0.35em;
+  padding: 0.28em 0.55em;
+  border: 1px solid transparent;
   border-radius: 999px;
+  background: rgb(15 23 42 / 35%);
   font-family: var(--monitor-sans);
-  font-size: clamp(11px, 1.1vmin, var(--m-cap-sm));
+  font-size: clamp(10px, 1vmin, 12px);
   line-height: 1;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.03em;
   cursor: pointer;
-  opacity: 0.42;
+  color: rgb(148 163 184 / 88%);
+  opacity: 0.45;
   transition:
     background 0.15s ease,
     border-color 0.15s ease,
@@ -334,52 +352,72 @@
     color 0.15s ease;
 }
 
+.monitor-globe-layer-dot {
+  width: 0.45em;
+  height: 0.45em;
+  border-radius: 999px;
+  background: currentColor;
+  box-shadow: 0 0 7px color-mix(in oklab, currentColor 45%, transparent);
+  flex-shrink: 0;
+}
+
 .monitor-globe-layer[data-on="1"] {
   opacity: 1;
 }
 
 .monitor-globe-layer--cable {
-  border: 1px solid rgb(34 211 238 / 28%);
-  background: rgb(34 211 238 / 8%);
-  color: var(--hud-cyan);
+  --layer: var(--hud-cyan);
+  border-color: color-mix(in oklab, var(--layer) 28%, transparent);
+  color: var(--layer);
 }
 
 .monitor-globe-layer--cable[data-on="1"] {
-  border-color: rgb(34 211 238 / 55%);
-  background: rgb(34 211 238 / 16%);
+  background: color-mix(in oklab, var(--layer) 14%, transparent);
+  border-color: color-mix(in oklab, var(--layer) 50%, transparent);
 }
 
 .monitor-globe-layer--pipe {
-  border: 1px solid rgb(251 191 36 / 28%);
-  background: rgb(251 191 36 / 8%);
-  color: var(--warn);
+  --layer: var(--warn);
+  border-color: color-mix(in oklab, var(--layer) 28%, transparent);
+  color: var(--layer);
 }
 
 .monitor-globe-layer--pipe[data-on="1"] {
-  border-color: rgb(251 191 36 / 55%);
-  background: rgb(251 191 36 / 16%);
+  background: color-mix(in oklab, var(--layer) 14%, transparent);
+  border-color: color-mix(in oklab, var(--layer) 50%, transparent);
 }
 
 .monitor-globe-layer--flight {
-  border: 1px solid rgb(74 222 128 / 28%);
-  background: rgb(74 222 128 / 8%);
-  color: var(--ok);
+  --layer: var(--ok);
+  border-color: color-mix(in oklab, var(--layer) 28%, transparent);
+  color: var(--layer);
 }
 
 .monitor-globe-layer--flight[data-on="1"] {
-  border-color: rgb(74 222 128 / 55%);
-  background: rgb(74 222 128 / 16%);
+  background: color-mix(in oklab, var(--layer) 14%, transparent);
+  border-color: color-mix(in oklab, var(--layer) 50%, transparent);
 }
 
 .monitor-globe-layer--sat {
-  border: 1px solid rgb(167 243 208 / 28%);
-  background: rgb(167 243 208 / 8%);
-  color: rgb(167 243 208);
+  --layer: rgb(167 243 208);
+  border-color: color-mix(in oklab, var(--layer) 28%, transparent);
+  color: var(--layer);
 }
 
 .monitor-globe-layer--sat[data-on="1"] {
-  border-color: rgb(167 243 208 / 55%);
-  background: rgb(167 243 208 / 16%);
+  background: color-mix(in oklab, var(--layer) 14%, transparent);
+  border-color: color-mix(in oklab, var(--layer) 50%, transparent);
+}
+
+.monitor-globe-layer--astro {
+  --layer: rgb(253 224 71);
+  border-color: color-mix(in oklab, var(--layer) 28%, transparent);
+  color: var(--layer);
+}
+
+.monitor-globe-layer--astro[data-on="1"] {
+  background: color-mix(in oklab, var(--layer) 14%, transparent);
+  border-color: color-mix(in oklab, var(--layer) 50%, transparent);
 }
 
 .monitor-globe-layer:hover {
@@ -460,13 +498,6 @@
 .monitor-wall--globe .monitor-mode-switch,
 .monitor-wall--globe .monitor-top-select--quiet {
   pointer-events: auto;
-}
-
-.monitor-globe-hint {
-  margin: 0.35rem 0 0;
-  font-size: 0.72rem;
-  letter-spacing: 0.04em;
-  color: rgb(148 163 184 / 85%);
 }
 
 .monitor-globe-tip {
@@ -586,8 +617,8 @@
 }
 
 .monitor-hud-globe-rays {
-  /* Must match RAY_PAD_FRAC (0.1) in monitor-globe.tsx — arcs + GEO belt */
-  inset: -10%;
+  /* Must match GLOBE_RAY_PAD_FRAC (0.24) — GEO + symbolic sun/moon */
+  inset: -24%;
   width: auto;
   height: auto;
   z-index: 1;

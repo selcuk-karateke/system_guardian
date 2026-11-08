@@ -85,13 +85,6 @@ function satKind(altKm: number): LiveSatellite["kind"] {
   return "geo";
 }
 
-/** Compress real altitude into globe radius bands (surface=1 … GEO≈1.19). */
-export function visualOrbitRadius(altKm: number): number {
-  const a = Math.max(0, altKm);
-  const t = Math.log1p(a / 180) / Math.log1p(36_000 / 180);
-  return 1 + Math.min(0.195, Math.max(0.02, t * 0.195));
-}
-
 async function fetchOpenSkyStates(): Promise<unknown[][] | null> {
   const headers: Record<string, string> = {
     Accept: "application/json",

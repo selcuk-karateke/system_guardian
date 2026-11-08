@@ -35,11 +35,18 @@ import {
   flightProgress,
   type GlobeFlight,
 } from "@/lib/geo/globe-flights";
+import type { LiveAircraft, LiveSatellite } from "@/lib/geo/live-sky";
 import {
+  liveAstro,
+  sunDirection,
+  type AstroBody,
+} from "@/lib/geo/astro";
+import {
+  GLOBE_ALT,
+  GLOBE_RAY_PAD_FRAC,
+  visualFlightElev,
   visualOrbitRadius,
-  type LiveAircraft,
-  type LiveSatellite,
-} from "@/lib/geo/live-sky";
+} from "@/lib/geo/globe-altitude";
 
 type Status = "healthy" | "warning" | "critical";
 
@@ -59,6 +66,8 @@ type Props = {
   showSats?: boolean;
   /** Air-traffic overlay (default on). */
   showFlights?: boolean;
+  /** Live sun + moon + day/night lighting (default on). */
+  showAstro?: boolean;
   /** Live OpenSky positions — null = stylized demo corridors. */
   liveFlights?: LiveAircraft[] | null;
   /** Live CelesTrak/SGP4 positions — null = stylized demo orbits. */
@@ -139,9 +148,9 @@ function tipFade(t: number): number {
 }
 /**
  * Rays canvas pad vs land box (must match CSS inset on .monitor-hud-globe-rays).
- * Arc bulge + GEO belt (~1.19R) need ~10%.
+ * Must fit compressed GEO + symbolic sun (~1.49R × GLOBE_SCALE).
  */
-const RAY_PAD_FRAC = 0.1;
+const RAY_PAD_FRAC = GLOBE_RAY_PAD_FRAC;
 
 const WEB_CSS = "rgb(180 245 255)";
 const SESSION_CSS = "rgb(90 255 140)";
@@ -532,7 +541,7 @@ function arcDepthFade(z: number): number {
 }
 
 /** Slight lift so routes sit above land dots without fighting markers. */
-const ROUTE_ELEV = 1.012;
+const ROUTE_ELEV = GLOBE_ALT.cable;
 /** Max densify steps per waypoint segment. */
 const ROUTE_SEG_STEPS = 18;
 
@@ -548,10 +557,17 @@ type RouteLayers = {
   showPipelines: boolean;
   showSats: boolean;
   showFlights: boolean;
+  showAstro: boolean;
   hoverRouteId: string | null;
   hoverSatId: string | null;
   hoverFlightId: string | null;
+  hoverAstroId: string | null;
 };
+
+const SUN_CSS = "rgb(251 191 36)"; // --warn
+const MOON_CSS = "rgb(226 232 240)";
+const SUN_ELEV = GLOBE_ALT.sun;
+const MOON_ELEV = GLOBE_ALT.moon;
 
 const ORBIT_RING_STEPS = 72;
 
@@ -836,8 +852,7 @@ function drawFlights(
 
   if (liveFlights) {
     for (const ac of liveFlights) {
-      // Keep air traffic close to surface visually (alt is real km).
-      const softElev = 1.02 + Math.min(0.04, ac.altKm / 400);
+      const softElev = visualFlightElev(ac.altKm);
       const [px, py, pz] = elevXyz(ac.lat, ac.lon, softElev);
       const [x, y, z] = mulRot(rot, px, py, pz);
       const depth = arcDepthFade(z);
@@ -955,7 +970,7 @@ function nearestFlight(
 
   if (liveFlights) {
     for (const ac of liveFlights) {
-      const softElev = 1.02 + Math.min(0.04, ac.altKm / 400);
+      const softElev = visualFlightElev(ac.altKm);
       const [px, py, pz] = elevXyz(ac.lat, ac.lon, softElev);
       const [x, y, z] = mulRot(rot, px, py, pz);
       if (arcDepthFade(z) < 0.12) continue;
@@ -1324,6 +1339,141 @@ function drawAttackArcs(
   ctx.shadowBlur = 0;
 }
 
+type AstroHit = {
+  body: AstroBody;
+  tipX: number;
+  tipY: number;
+};
+
+function formatAstroHover(body: AstroBody): string {
+  if (body.id === "sun") return `Sonne · LIVE · ${body.lat.toFixed(1)}° / ${body.lon.toFixed(1)}°`;
+  const pct = Math.round(body.phase * 100);
+  return `Mond · LIVE · ${pct}% · ${body.lat.toFixed(1)}° / ${body.lon.toFixed(1)}°`;
+}
+
+/**
+ * Live sun / moon discs + soft night wash on the dark hemisphere.
+ */
+function drawAstro(
+  ctx: CanvasRenderingContext2D,
+  rot: Float32Array,
+  css: number,
+  scale: number,
+  pad: number,
+  layers: RouteLayers,
+  date: Date,
+): void {
+  if (!layers.showAstro) return;
+  const cx = pad + css / 2;
+  const cy = pad + css / 2;
+  const R = (css / 2) * scale;
+  const sky = liveAstro(date);
+
+  // Soft night overlay (terminator) — sample sun-facing limb
+  const [sx0, sy0, sz0] = sunDirection(date);
+  const [slx, sly, slz] = mulRot(rot, sx0, sy0, sz0);
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, R * 1.02, 0, Math.PI * 2);
+  ctx.clip();
+  // Gradient from sun side → night
+  const gx = cx + slx * R * 0.55;
+  const gy = cy - sly * R * 0.55;
+  const grad = ctx.createRadialGradient(
+    gx,
+    gy,
+    R * 0.15,
+    cx - slx * R * 0.2,
+    cy + sly * R * 0.2,
+    R * 1.15,
+  );
+  grad.addColorStop(0, "rgba(0,0,0,0)");
+  grad.addColorStop(0.45, "rgba(0,0,0,0)");
+  grad.addColorStop(0.78, "rgba(2,6,18,0.18)");
+  grad.addColorStop(1, "rgba(2,6,18,0.42)");
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = grad;
+  ctx.fillRect(cx - R * 1.05, cy - R * 1.05, R * 2.1, R * 2.1);
+  ctx.restore();
+  void slz;
+
+  const bodies: { body: AstroBody; elev: number; css: string; r: number }[] = [
+    { body: sky.sun, elev: SUN_ELEV, css: SUN_CSS, r: 5.2 },
+    { body: sky.moon, elev: MOON_ELEV, css: MOON_CSS, r: 3.6 },
+  ];
+
+  for (const item of bodies) {
+    const [px, py, pz] = elevXyz(item.body.lat, item.body.lon, item.elev);
+    const [x, y, z] = mulRot(rot, px, py, pz);
+    const depth = arcDepthFade(z);
+    if (depth < 0.06) continue;
+    const sx = cx + x * R;
+    const sy = cy - y * R;
+    const hot = layers.hoverAstroId === item.body.id;
+    const dim = layers.hoverAstroId != null && !hot;
+    const alpha = depth * (hot ? 1 : dim ? 0.28 : 0.95);
+    const rad = item.r * (hot ? 1.35 : 1);
+
+    // Bloom
+    ctx.globalAlpha = 0.28 * alpha;
+    ctx.fillStyle = item.css;
+    ctx.beginPath();
+    ctx.arc(sx, sy, rad * 2.6, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.globalAlpha = alpha;
+    ctx.beginPath();
+    ctx.arc(sx, sy, rad, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Moon: dark crescent overlay by phase
+    if (item.body.id === "moon" && item.body.phase < 0.98) {
+      ctx.globalAlpha = alpha * (1 - item.body.phase) * 0.85;
+      ctx.fillStyle = "rgb(8 12 22)";
+      ctx.beginPath();
+      ctx.arc(sx + rad * 0.28, sy, rad * 0.92, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = item.css;
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
+function nearestAstro(
+  rot: Float32Array,
+  css: number,
+  scale: number,
+  mx: number,
+  my: number,
+  layers: RouteLayers,
+  date: Date,
+  maxDist = 22,
+): AstroHit | null {
+  if (!layers.showAstro) return null;
+  const cx = css / 2;
+  const cy = css / 2;
+  const R = (css / 2) * scale;
+  const sky = liveAstro(date);
+  let best: AstroHit | null = null;
+  let bestD = maxDist;
+
+  for (const body of [sky.sun, sky.moon]) {
+    const elev = body.id === "sun" ? SUN_ELEV : MOON_ELEV;
+    const [px, py, pz] = elevXyz(body.lat, body.lon, elev);
+    const [x, y, z] = mulRot(rot, px, py, pz);
+    if (arcDepthFade(z) < 0.08) continue;
+    const sx = cx + x * R;
+    const sy = cy - y * R;
+    const d = Math.hypot(sx - mx, sy - my);
+    if (d <= bestD) {
+      bestD = d;
+      best = { body, tipX: sx, tipY: sy };
+    }
+  }
+  return best;
+}
+
 /**
  * Overlay: attack→home arcs, then 3D-radial rays.
  * Limb → extend to rim; face-on → foreshorten + bloom toward camera.
@@ -1341,13 +1491,16 @@ function drawRayStubs(
     showPipelines: true,
     showSats: true,
     showFlights: true,
+    showAstro: true,
     hoverRouteId: null,
     hoverSatId: null,
     hoverFlightId: null,
+    hoverAstroId: null,
   },
   tMs = 0,
   liveFlights: LiveAircraft[] | null = null,
   liveSats: LiveSatellite[] | null = null,
+  date = new Date(),
 ): void {
   const pad = css * RAY_PAD_FRAC;
   const full = css + pad * 2;
@@ -1365,6 +1518,7 @@ function drawRayStubs(
   drawInfraRoutes(ctx, rot, css, scale, pad, layers);
   drawFlights(ctx, rot, css, scale, pad, tMs, layers, liveFlights);
   drawSatellites(ctx, rot, css, scale, pad, tMs, layers, liveSats);
+  drawAstro(ctx, rot, css, scale, pad, layers, date);
   drawPoleAxis(ctx, rot, css, scale, pad);
   if (home) {
     drawAttackArcs(ctx, rot, css, scale, pad, home, attacks, hoverId);
@@ -1476,6 +1630,7 @@ export const MonitorGlobe = forwardRef<MonitorGlobeHandle, Props>(
       showPipelines = true,
       showSats = true,
       showFlights = true,
+      showAstro = true,
       liveFlights = null,
       liveSatellites = null,
     },
@@ -1496,6 +1651,7 @@ export const MonitorGlobe = forwardRef<MonitorGlobeHandle, Props>(
   const showPipelinesRef = useRef(showPipelines);
   const showSatsRef = useRef(showSats);
   const showFlightsRef = useRef(showFlights);
+  const showAstroRef = useRef(showAstro);
   const liveFlightsRef = useRef(liveFlights);
   const liveSatsRef = useRef(liveSatellites);
   statusRef.current = status;
@@ -1508,6 +1664,7 @@ export const MonitorGlobe = forwardRef<MonitorGlobeHandle, Props>(
   showPipelinesRef.current = showPipelines;
   showSatsRef.current = showSats;
   showFlightsRef.current = showFlights;
+  showAstroRef.current = showAstro;
   liveFlightsRef.current = liveFlights;
   liveSatsRef.current = liveSatellites;
 
@@ -1725,6 +1882,17 @@ export const MonitorGlobe = forwardRef<MonitorGlobeHandle, Props>(
         `flight:${hit.id}`,
         formatFlightHover(hit.name, live),
         FLIGHT_STYLE.css,
+        hit.tipX,
+        hit.tipY,
+        css,
+      );
+    };
+
+    const showAstroTip = (hit: AstroHit, css: number) => {
+      placeTip(
+        `astro:${hit.body.id}`,
+        formatAstroHover(hit.body),
+        hit.body.id === "sun" ? SUN_CSS : MOON_CSS,
         hit.tipX,
         hit.tipY,
         css,
@@ -1958,14 +2126,18 @@ export const MonitorGlobe = forwardRef<MonitorGlobeHandle, Props>(
       let hoverRouteId: string | null = null;
       let hoverSatId: string | null = null;
       let hoverFlightId: string | null = null;
+      let hoverAstroId: string | null = null;
+      const nowDate = new Date();
       const routeLayers: RouteLayers = {
         showCables: showCablesRef.current,
         showPipelines: showPipelinesRef.current,
         showSats: showSatsRef.current,
         showFlights: showFlightsRef.current,
+        showAstro: showAstroRef.current,
         hoverRouteId: null,
         hoverSatId: null,
         hoverFlightId: null,
+        hoverAstroId: null,
       };
       if (canInteract && !dragging && !pinching && pointerCssX >= 0) {
         const hit = nearestTip(
@@ -1977,21 +2149,20 @@ export const MonitorGlobe = forwardRef<MonitorGlobeHandle, Props>(
           hoverId = hit.mark.tint.id;
           showTip(hit, css);
         } else {
-          const flightHit = nearestFlight(
+          const astroHit = nearestAstro(
             rot,
             css,
             GLOBE_SCALE,
             pointerCssX,
             pointerCssY,
-            now,
             routeLayers,
-            liveFlightsRef.current,
+            nowDate,
           );
-          if (flightHit) {
-            hoverFlightId = flightHit.id;
-            showFlightTip(flightHit, css, liveFlightsRef.current != null);
+          if (astroHit) {
+            hoverAstroId = astroHit.body.id;
+            showAstroTip(astroHit, css);
           } else {
-            const satHit = nearestSat(
+            const flightHit = nearestFlight(
               rot,
               css,
               GLOBE_SCALE,
@@ -1999,25 +2170,40 @@ export const MonitorGlobe = forwardRef<MonitorGlobeHandle, Props>(
               pointerCssY,
               now,
               routeLayers,
-              liveSatsRef.current,
+              liveFlightsRef.current,
             );
-            if (satHit) {
-              hoverSatId = satHit.id;
-              showSatTip(satHit, css, liveSatsRef.current != null);
+            if (flightHit) {
+              hoverFlightId = flightHit.id;
+              showFlightTip(flightHit, css, liveFlightsRef.current != null);
             } else {
-              const routeHit = nearestRoute(
+              const satHit = nearestSat(
                 rot,
                 css,
                 GLOBE_SCALE,
                 pointerCssX,
                 pointerCssY,
+                now,
                 routeLayers,
+                liveSatsRef.current,
               );
-              if (routeHit) {
-                hoverRouteId = routeHit.route.id;
-                showRouteTip(routeHit, css);
+              if (satHit) {
+                hoverSatId = satHit.id;
+                showSatTip(satHit, css, liveSatsRef.current != null);
               } else {
-                hideTip();
+                const routeHit = nearestRoute(
+                  rot,
+                  css,
+                  GLOBE_SCALE,
+                  pointerCssX,
+                  pointerCssY,
+                  routeLayers,
+                );
+                if (routeHit) {
+                  hoverRouteId = routeHit.route.id;
+                  showRouteTip(routeHit, css);
+                } else {
+                  hideTip();
+                }
               }
             }
           }
@@ -2026,6 +2212,7 @@ export const MonitorGlobe = forwardRef<MonitorGlobeHandle, Props>(
       routeLayers.hoverRouteId = hoverRouteId;
       routeLayers.hoverSatId = hoverSatId;
       routeLayers.hoverFlightId = hoverFlightId;
+      routeLayers.hoverAstroId = hoverAstroId;
 
       const nextKey = `${tintKey(
         attacksRef.current,
@@ -2048,8 +2235,15 @@ export const MonitorGlobe = forwardRef<MonitorGlobeHandle, Props>(
       gl.uniformMatrix3fv(uRot, false, rot);
       gl.uniform1f(uScale, GLOBE_SCALE);
       gl.uniform1f(uPoint, Math.max(1.4, (css / 300) * dpr * GLOBE_POINT_MUL));
-      gl.uniform3f(uLight, 0.35, 0.55, 0.85);
-      gl.uniform1f(uAmb, GLOBE_AMB);
+      if (showAstroRef.current) {
+        const [sx, sy, sz] = sunDirection(nowDate);
+        const [lx, ly, lz] = mulRot(rot, sx, sy, sz);
+        gl.uniform3f(uLight, lx, ly, lz);
+        gl.uniform1f(uAmb, 0.32);
+      } else {
+        gl.uniform3f(uLight, 0.35, 0.55, 0.85);
+        gl.uniform1f(uAmb, GLOBE_AMB);
+      }
 
       gl.bindBuffer(gl.ARRAY_BUFFER, posBuf);
       gl.enableVertexAttribArray(aPos);
@@ -2073,6 +2267,7 @@ export const MonitorGlobe = forwardRef<MonitorGlobeHandle, Props>(
         now,
         liveFlightsRef.current,
         liveSatsRef.current,
+        nowDate,
       );
     };
 

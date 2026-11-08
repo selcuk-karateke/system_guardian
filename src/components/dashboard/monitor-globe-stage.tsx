@@ -22,6 +22,29 @@ type Props = {
 
 const SKY_POLL_MS = 15_000;
 
+const LAYERS = [
+  { id: "cable", label: "Kabel", title: "Seekabel", key: "cables" as const },
+  { id: "pipe", label: "Pipelines", title: "Öl/Gas", key: "pipelines" as const },
+  {
+    id: "flight",
+    label: "Flieger",
+    title: "~10 km",
+    key: "flights" as const,
+  },
+  {
+    id: "sat",
+    label: "Orbit",
+    title: "LEO · MEO · GEO",
+    key: "sats" as const,
+  },
+  {
+    id: "astro",
+    label: "Sonne",
+    title: "Sonne/Mond · Richtung",
+    key: "astro" as const,
+  },
+] as const;
+
 export function MonitorGlobeStage({
   globalStatus,
   hostLabel,
@@ -37,6 +60,7 @@ export function MonitorGlobeStage({
   const [showPipelines, setShowPipelines] = useState(true);
   const [showSats, setShowSats] = useState(true);
   const [showFlights, setShowFlights] = useState(true);
+  const [showAstro, setShowAstro] = useState(true);
   const [sky, setSky] = useState<LiveSkyPayload | null>(null);
 
   useEffect(() => {
@@ -64,10 +88,25 @@ export function MonitorGlobeStage({
     sky?.satellitesSource === "live" ? sky.satellites : null;
   const skyLive =
     liveFlights != null || liveSatellites != null
-      ? " · SKY LIVE"
+      ? " · SKY"
       : sky
-        ? " · SKY …"
+        ? " · …"
         : "";
+
+  const layerOn = {
+    cables: showCables,
+    pipelines: showPipelines,
+    flights: showFlights,
+    sats: showSats,
+    astro: showAstro,
+  };
+  const toggleLayer = {
+    cables: () => setShowCables((v) => !v),
+    pipelines: () => setShowPipelines((v) => !v),
+    flights: () => setShowFlights((v) => !v),
+    sats: () => setShowSats((v) => !v),
+    astro: () => setShowAstro((v) => !v),
+  };
 
   return (
     <div className="monitor-wall monitor-wall--globe" data-status={globalStatus}>
@@ -87,6 +126,7 @@ export function MonitorGlobeStage({
             showPipelines={showPipelines}
             showSats={showSats}
             showFlights={showFlights}
+            showAstro={showAstro}
             liveFlights={liveFlights}
             liveSatellites={liveSatellites}
             attackMarkers={attackMarkers}
@@ -102,8 +142,8 @@ export function MonitorGlobeStage({
       </div>
 
       <div className="monitor-content monitor-content--globe">
-        <header className="monitor-top">
-          <div>
+        <header className="monitor-top monitor-top--globe">
+          <div className="monitor-globe-head">
             <div className="monitor-brand">
               <strong>Globus</strong>
               {checkMode === "ssh" ? " · LIVE" : ""}
@@ -113,49 +153,24 @@ export function MonitorGlobeStage({
             <div className="monitor-host">
               {hostLabel} — {hostIp}
             </div>
-            <p className="monitor-globe-hint">
-              Ziehen · Zoom · Live Flieger/Orbit · Hover · Attack → Home
-            </p>
+            <div className="monitor-globe-layers" role="group" aria-label="Layer">
+              {LAYERS.map((layer) => (
+                <button
+                  key={layer.id}
+                  type="button"
+                  className={`monitor-globe-layer monitor-globe-layer--${layer.id}`}
+                  data-on={layerOn[layer.key] ? "1" : "0"}
+                  aria-pressed={layerOn[layer.key]}
+                  title={layer.title}
+                  onClick={toggleLayer[layer.key]}
+                >
+                  <span className="monitor-globe-layer-dot" aria-hidden />
+                  {layer.label}
+                </button>
+              ))}
+            </div>
           </div>
           <div className="monitor-top-right">
-            <div className="monitor-globe-layers" role="group" aria-label="Layer">
-              <button
-                type="button"
-                className="monitor-globe-layer monitor-globe-layer--cable"
-                data-on={showCables ? "1" : "0"}
-                aria-pressed={showCables}
-                onClick={() => setShowCables((v) => !v)}
-              >
-                Kabel
-              </button>
-              <button
-                type="button"
-                className="monitor-globe-layer monitor-globe-layer--pipe"
-                data-on={showPipelines ? "1" : "0"}
-                aria-pressed={showPipelines}
-                onClick={() => setShowPipelines((v) => !v)}
-              >
-                Pipelines
-              </button>
-              <button
-                type="button"
-                className="monitor-globe-layer monitor-globe-layer--flight"
-                data-on={showFlights ? "1" : "0"}
-                aria-pressed={showFlights}
-                onClick={() => setShowFlights((v) => !v)}
-              >
-                Flieger
-              </button>
-              <button
-                type="button"
-                className="monitor-globe-layer monitor-globe-layer--sat"
-                data-on={showSats ? "1" : "0"}
-                aria-pressed={showSats}
-                onClick={() => setShowSats((v) => !v)}
-              >
-                Orbit
-              </button>
-            </div>
             <button
               type="button"
               className="monitor-globe-reset"

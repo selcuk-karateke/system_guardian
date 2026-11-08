@@ -2,7 +2,18 @@
  * Stylized orbital layer for the monitor globe (v1).
  * Elements are simplified circular orbits — not TLEs / SGP4.
  * Time is sped up so LEO motion is readable on a wall display.
+ * Radii use the same compressed bands as live sats (see globe-altitude).
  */
+
+import { GLOBE_ALT, visualOrbitRadius } from "@/lib/geo/globe-altitude";
+
+/** Demo shells within the LEO band (ISS mid, Starlink/Iridium/OneWeb). */
+const R_LEO = visualOrbitRadius(420);
+const R_LEO_STARLINK = visualOrbitRadius(550);
+const R_LEO_IRIDIUM = visualOrbitRadius(780);
+const R_LEO_ONEWEB = visualOrbitRadius(1200);
+const R_MEO = (GLOBE_ALT.meoMin + GLOBE_ALT.meoMax) / 2;
+const R_GEO = (GLOBE_ALT.geoMin + GLOBE_ALT.geoMax) / 2;
 
 export type SatKind = "leo" | "meo" | "geo";
 
@@ -74,12 +85,12 @@ function planeSats(opts: {
  * Starlink/OneWeb are plane samples, not the full catalog.
  */
 export const GLOBE_SATELLITES: GlobeSatellite[] = [
-  // Radii compressed for HUD framing (real GEO≈6.6R would leave the canvas).
+  // Radii = compressed bands from globe-altitude (same as live layer).
   {
     id: "iss",
     name: "ISS",
     kind: "leo",
-    radius: 1.055,
+    radius: R_LEO,
     incl: 51.6,
     raan: 40,
     omega: LEO_OMEGA * 1.05,
@@ -89,7 +100,7 @@ export const GLOBE_SATELLITES: GlobeSatellite[] = [
     id: "tiangong",
     name: "Tiangong",
     kind: "leo",
-    radius: 1.05,
+    radius: R_LEO,
     incl: 41.5,
     raan: 110,
     omega: LEO_OMEGA,
@@ -99,7 +110,7 @@ export const GLOBE_SATELLITES: GlobeSatellite[] = [
     id: "hubble",
     name: "Hubble",
     kind: "leo",
-    radius: 1.06,
+    radius: R_LEO,
     incl: 28.5,
     raan: 200,
     omega: LEO_OMEGA * 0.98,
@@ -109,7 +120,7 @@ export const GLOBE_SATELLITES: GlobeSatellite[] = [
     id: "css-cargo",
     name: "Tianzhou",
     kind: "leo",
-    radius: 1.048,
+    radius: R_LEO,
     incl: 41.5,
     raan: 112,
     omega: LEO_OMEGA,
@@ -121,7 +132,7 @@ export const GLOBE_SATELLITES: GlobeSatellite[] = [
     planeId: "starlink-a",
     name: "Starlink",
     kind: "leo",
-    radius: 1.065,
+    radius: R_LEO_STARLINK,
     incl: 53,
     raan: 15,
     count: 10,
@@ -131,7 +142,7 @@ export const GLOBE_SATELLITES: GlobeSatellite[] = [
     planeId: "starlink-b",
     name: "Starlink",
     kind: "leo",
-    radius: 1.065,
+    radius: R_LEO_STARLINK,
     incl: 53,
     raan: 75,
     count: 10,
@@ -142,7 +153,7 @@ export const GLOBE_SATELLITES: GlobeSatellite[] = [
     planeId: "starlink-c",
     name: "Starlink",
     kind: "leo",
-    radius: 1.07,
+    radius: R_LEO,
     incl: 70,
     raan: 140,
     count: 8,
@@ -153,7 +164,7 @@ export const GLOBE_SATELLITES: GlobeSatellite[] = [
     planeId: "starlink-d",
     name: "Starlink",
     kind: "leo",
-    radius: 1.07,
+    radius: R_LEO,
     incl: 97.6,
     raan: 210,
     count: 8,
@@ -166,7 +177,7 @@ export const GLOBE_SATELLITES: GlobeSatellite[] = [
     planeId: "oneweb-a",
     name: "OneWeb",
     kind: "leo",
-    radius: 1.078,
+    radius: R_LEO_ONEWEB,
     incl: 87.4,
     raan: 30,
     count: 8,
@@ -176,7 +187,7 @@ export const GLOBE_SATELLITES: GlobeSatellite[] = [
     planeId: "oneweb-b",
     name: "OneWeb",
     kind: "leo",
-    radius: 1.078,
+    radius: R_LEO_ONEWEB,
     incl: 87.4,
     raan: 120,
     count: 8,
@@ -189,7 +200,7 @@ export const GLOBE_SATELLITES: GlobeSatellite[] = [
     planeId: "iridium-a",
     name: "Iridium",
     kind: "leo",
-    radius: 1.072,
+    radius: R_LEO_IRIDIUM,
     incl: 86.4,
     raan: 0,
     count: 6,
@@ -199,7 +210,7 @@ export const GLOBE_SATELLITES: GlobeSatellite[] = [
     planeId: "iridium-b",
     name: "Iridium",
     kind: "leo",
-    radius: 1.072,
+    radius: R_LEO_IRIDIUM,
     incl: 86.4,
     raan: 60,
     count: 6,
@@ -212,7 +223,7 @@ export const GLOBE_SATELLITES: GlobeSatellite[] = [
     planeId: "gps-a",
     name: "GPS",
     kind: "meo",
-    radius: 1.13,
+    radius: R_MEO,
     incl: 55,
     raan: 0,
     count: 4,
@@ -222,7 +233,7 @@ export const GLOBE_SATELLITES: GlobeSatellite[] = [
     planeId: "gps-b",
     name: "GPS",
     kind: "meo",
-    radius: 1.13,
+    radius: R_MEO,
     incl: 55,
     raan: 60,
     count: 4,
@@ -233,7 +244,7 @@ export const GLOBE_SATELLITES: GlobeSatellite[] = [
     planeId: "gps-c",
     name: "GPS",
     kind: "meo",
-    radius: 1.13,
+    radius: R_MEO,
     incl: 55,
     raan: 120,
     count: 4,
@@ -244,7 +255,7 @@ export const GLOBE_SATELLITES: GlobeSatellite[] = [
     planeId: "galileo-a",
     name: "Galileo",
     kind: "meo",
-    radius: 1.14,
+    radius: R_MEO,
     incl: 56,
     raan: 25,
     count: 4,
@@ -254,7 +265,7 @@ export const GLOBE_SATELLITES: GlobeSatellite[] = [
     planeId: "glonass-a",
     name: "GLONASS",
     kind: "meo",
-    radius: 1.125,
+    radius: R_MEO,
     incl: 64.8,
     raan: 80,
     count: 4,
@@ -266,7 +277,7 @@ export const GLOBE_SATELLITES: GlobeSatellite[] = [
     id: "goes-e",
     name: "GOES-East",
     kind: "geo",
-    radius: 1.185,
+    radius: R_GEO,
     incl: 0,
     raan: 0,
     omega: GEO_OMEGA,
@@ -276,7 +287,7 @@ export const GLOBE_SATELLITES: GlobeSatellite[] = [
     id: "goes-w",
     name: "GOES-West",
     kind: "geo",
-    radius: 1.185,
+    radius: R_GEO,
     incl: 0,
     raan: 0,
     omega: GEO_OMEGA,
@@ -286,7 +297,7 @@ export const GLOBE_SATELLITES: GlobeSatellite[] = [
     id: "meteo-eu",
     name: "Meteosat",
     kind: "geo",
-    radius: 1.185,
+    radius: R_GEO,
     incl: 0,
     raan: 0,
     omega: GEO_OMEGA,
@@ -296,7 +307,7 @@ export const GLOBE_SATELLITES: GlobeSatellite[] = [
     id: "himawari",
     name: "Himawari",
     kind: "geo",
-    radius: 1.185,
+    radius: R_GEO,
     incl: 0,
     raan: 0,
     omega: GEO_OMEGA,
@@ -306,7 +317,7 @@ export const GLOBE_SATELLITES: GlobeSatellite[] = [
     id: "insat",
     name: "INSAT",
     kind: "geo",
-    radius: 1.185,
+    radius: R_GEO,
     incl: 0,
     raan: 0,
     omega: GEO_OMEGA,
@@ -316,7 +327,7 @@ export const GLOBE_SATELLITES: GlobeSatellite[] = [
     id: "eutelsat",
     name: "Eutelsat",
     kind: "geo",
-    radius: 1.185,
+    radius: R_GEO,
     incl: 0,
     raan: 0,
     omega: GEO_OMEGA,
@@ -326,7 +337,7 @@ export const GLOBE_SATELLITES: GlobeSatellite[] = [
     id: "astra",
     name: "Astra",
     kind: "geo",
-    radius: 1.185,
+    radius: R_GEO,
     incl: 0,
     raan: 0,
     omega: GEO_OMEGA,
@@ -336,7 +347,7 @@ export const GLOBE_SATELLITES: GlobeSatellite[] = [
     id: "ses",
     name: "SES",
     kind: "geo",
-    radius: 1.185,
+    radius: R_GEO,
     incl: 0,
     raan: 0,
     omega: GEO_OMEGA,

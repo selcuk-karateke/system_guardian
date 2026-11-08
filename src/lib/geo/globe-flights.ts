@@ -22,8 +22,8 @@ export const FLIGHT_STYLE = {
   alpha: 0.92,
   corridorAlpha: 0.14,
   size: 3.4,
-  elev: 1.028,
-  bulge: 0.045,
+  elev: 1.04,
+  bulge: 0.02,
 };
 
 /**
