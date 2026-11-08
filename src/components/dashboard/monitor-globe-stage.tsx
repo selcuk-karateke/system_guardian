@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { MonitorGlobe, type MonitorGlobeHandle } from "./monitor-globe";
 import { MonitorLiveActionSuffix } from "./monitor-live-action";
 import { MonitorMatrixRain } from "./monitor-matrix-rain";
@@ -30,6 +30,9 @@ export function MonitorGlobeStage({
   homeMarker = null,
 }: Props) {
   const globeRef = useRef<MonitorGlobeHandle>(null);
+  const [showCables, setShowCables] = useState(true);
+  const [showPipelines, setShowPipelines] = useState(true);
+  const [showSats, setShowSats] = useState(true);
 
   return (
     <div className="monitor-wall monitor-wall--globe" data-status={globalStatus}>
@@ -45,6 +48,9 @@ export function MonitorGlobeStage({
             ref={globeRef}
             status={globalStatus}
             interactive
+            showCables={showCables}
+            showPipelines={showPipelines}
+            showSats={showSats}
             attackMarkers={attackMarkers}
             sessionMarkers={sessionMarkers}
             webMarkers={webMarkers}
@@ -69,10 +75,39 @@ export function MonitorGlobeStage({
               {hostLabel} — {hostIp}
             </div>
             <p className="monitor-globe-hint">
-              Ziehen · Scroll/Pinch zoom · Attack → Home · Hover
+              Ziehen · Zoom · Hover Kabel/Pipeline/Sat · Attack → Home
             </p>
           </div>
           <div className="monitor-top-right">
+            <div className="monitor-globe-layers" role="group" aria-label="Layer">
+              <button
+                type="button"
+                className="monitor-globe-layer monitor-globe-layer--cable"
+                data-on={showCables ? "1" : "0"}
+                aria-pressed={showCables}
+                onClick={() => setShowCables((v) => !v)}
+              >
+                Kabel
+              </button>
+              <button
+                type="button"
+                className="monitor-globe-layer monitor-globe-layer--pipe"
+                data-on={showPipelines ? "1" : "0"}
+                aria-pressed={showPipelines}
+                onClick={() => setShowPipelines((v) => !v)}
+              >
+                Pipelines
+              </button>
+              <button
+                type="button"
+                className="monitor-globe-layer monitor-globe-layer--sat"
+                data-on={showSats ? "1" : "0"}
+                aria-pressed={showSats}
+                onClick={() => setShowSats((v) => !v)}
+              >
+                Orbit
+              </button>
+            </div>
             <button
               type="button"
               className="monitor-globe-reset"

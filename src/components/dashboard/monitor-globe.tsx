@@ -14,6 +14,19 @@ import {
   tintLandColors,
   type TintLayer,
 } from "@/lib/geo/globe-land";
+import {
+  GLOBE_ROUTES,
+  ROUTE_STYLE,
+  type GlobeRoute,
+} from "@/lib/geo/globe-routes";
+import {
+  GLOBE_ORBIT_PLANES,
+  GLOBE_SATELLITES,
+  SAT_STYLE,
+  orbitPoint,
+  satelliteXyz,
+  type GlobeSatellite,
+} from "@/lib/geo/globe-satellites";
 
 type Status = "healthy" | "warning" | "critical";
 
@@ -25,6 +38,12 @@ type Props = {
   homeMarker?: GlobeTint | null;
   /** Drag + hover readout only — look/brightness is shared everywhere. */
   interactive?: boolean;
+  /** Undersea fiber overlay (default on). */
+  showCables?: boolean;
+  /** Oil/gas corridor overlay (default on). */
+  showPipelines?: boolean;
+  /** Orbital satellites overlay (default on). */
+  showSats?: boolean;
 };
 
 export type MonitorGlobeHandle = {
@@ -101,9 +120,9 @@ function tipFade(t: number): number {
 }
 /**
  * Rays canvas pad vs land box (must match CSS inset on .monitor-hud-globe-rays).
- * Bulge 0.1 @ GLOBE_SCALE 0.97 needs ~3.5% + stub room → 8%.
+ * Arc bulge + GEO belt (~1.19R) need ~10%.
  */
-const RAY_PAD_FRAC = 0.08;
+const RAY_PAD_FRAC = 0.1;
 
 const WEB_CSS = "rgb(180 245 255)";
 const SESSION_CSS = "rgb(90 255 140)";
@@ -493,6 +512,324 @@ function arcDepthFade(z: number): number {
   return (z + 0.12) / 0.34;
 }
 
+/** Slight lift so routes sit above land dots without fighting markers. */
+const ROUTE_ELEV = 1.012;
+/** Max densify steps per waypoint segment. */
+const ROUTE_SEG_STEPS = 18;
+
+type RouteHit = {
+  route: GlobeRoute;
+  tipX: number;
+  tipY: number;
+};
+
+type SatHit = {
+  sat: GlobeSatellite;
+  tipX: number;
+  tipY: number;
+};
+
+type RouteLayers = {
+  showCables: boolean;
+  showPipelines: boolean;
+  showSats: boolean;
+  hoverRouteId: string | null;
+  hoverSatId: string | null;
+};
+
+const ORBIT_RING_STEPS = 72;
+
+function routeVisible(route: GlobeRoute, layers: RouteLayers): boolean {
+  if (route.kind === "cable") return layers.showCables;
+  return layers.showPipelines;
+}
+
+function densifyRoute(route: GlobeRoute): [number, number, number][] {
+  const pts: [number, number, number][] = [];
+  const path = route.path;
+  for (let i = 0; i < path.length - 1; i++) {
+    const a = path[i]!;
+    const b = path[i + 1]!;
+    const [ax, ay, az] = attackToXyz(a[0], a[1]);
+    const [bx, by, bz] = attackToXyz(b[0], b[1]);
+    const dot = Math.min(1, Math.max(-1, ax * bx + ay * by + az * bz));
+    const ang = Math.acos(dot);
+    const steps = Math.max(2, Math.min(ROUTE_SEG_STEPS, Math.ceil(ang / 0.08)));
+    for (let s = 0; s < steps; s++) {
+      const t = s / steps;
+      const [x, y, z] = slerpUnit(ax, ay, az, bx, by, bz, t);
+      pts.push([x * ROUTE_ELEV, y * ROUTE_ELEV, z * ROUTE_ELEV]);
+    }
+  }
+  const last = path[path.length - 1]!;
+  const [lx, ly, lz] = attackToXyz(last[0], last[1]);
+  pts.push([lx * ROUTE_ELEV, ly * ROUTE_ELEV, lz * ROUTE_ELEV]);
+  return pts;
+}
+
+/** Static routes → densified once (draw loop is hot). */
+const ROUTE_XYZ: [number, number, number][][] = GLOBE_ROUTES.map(densifyRoute);
+
+/**
+ * Quiet undersea fiber + oil/gas corridors under markers/arcs.
+ * Colors = elemental HUD tones (--hud-cyan / --warn). Pipelines on top.
+ * Tip-fade only; center fade stays exclusive to the N–S pole axis.
+ */
+function drawInfraRoutes(
+  ctx: CanvasRenderingContext2D,
+  rot: Float32Array,
+  css: number,
+  scale: number,
+  pad: number,
+  layers: RouteLayers,
+): void {
+  const cx = pad + css / 2;
+  const cy = pad + css / 2;
+  const R = (css / 2) * scale;
+
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.shadowBlur = 0;
+  ctx.shadowColor = "transparent";
+
+  // Cables first, pipelines on top (warn yellow must not sit under cyan).
+  const order = [0, 1].flatMap((pass) =>
+    GLOBE_ROUTES.map((route, r) => ({ route, r })).filter(({ route }) =>
+      pass === 0 ? route.kind === "cable" : route.kind === "pipeline",
+    ),
+  );
+
+  for (const { route, r } of order) {
+    if (!routeVisible(route, layers)) continue;
+    const style = ROUTE_STYLE[route.kind];
+    const xyz = ROUTE_XYZ[r]!;
+    if (xyz.length < 2) continue;
+    const hot = layers.hoverRouteId === route.id;
+    const isPipe = route.kind === "pipeline";
+
+    const projected: { sx: number; sy: number; z: number; t: number }[] = [];
+    for (let i = 0; i < xyz.length; i++) {
+      const p = xyz[i]!;
+      const [x, y, z] = mulRot(rot, p[0], p[1], p[2]);
+      projected.push({
+        sx: cx + x * R,
+        sy: cy - y * R,
+        z,
+        t: i / (xyz.length - 1),
+      });
+    }
+
+    ctx.lineWidth = style.width * (hot ? 1.85 : 1);
+    ctx.strokeStyle = style.css;
+    const alphaMul = hot ? 1 : layers.hoverRouteId ? (isPipe ? 0.4 : 0.28) : 1;
+    for (let i = 0; i < projected.length - 1; i++) {
+      const a = projected[i]!;
+      const b = projected[i + 1]!;
+      const depth = (arcDepthFade(a.z) + arcDepthFade(b.z)) * 0.5;
+      if (depth < 0.05) continue;
+      const along = tipFade((a.t + b.t) * 0.5);
+      if (along < 0.04) continue;
+      // Pipelines: floor depth so warn yellow stays visible over land dots.
+      const d = isPipe ? Math.max(0.62, depth) : depth;
+      ctx.globalAlpha = style.alpha * d * along * alphaMul * (hot ? 1.35 : 1);
+      ctx.beginPath();
+      ctx.moveTo(a.sx, a.sy);
+      ctx.lineTo(b.sx, b.sy);
+      ctx.stroke();
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
+/** Nearest visible route sample in wrap/layout space (markers win first). */
+function nearestRoute(
+  rot: Float32Array,
+  css: number,
+  scale: number,
+  mx: number,
+  my: number,
+  layers: RouteLayers,
+  maxDist = 15,
+): RouteHit | null {
+  const cx = css / 2;
+  const cy = css / 2;
+  const R = (css / 2) * scale;
+  let best: RouteHit | null = null;
+  let bestD = maxDist;
+
+  for (let r = 0; r < GLOBE_ROUTES.length; r++) {
+    const route = GLOBE_ROUTES[r]!;
+    if (!routeVisible(route, layers)) continue;
+    const xyz = ROUTE_XYZ[r]!;
+    for (const p of xyz) {
+      const [x, y, z] = mulRot(rot, p[0], p[1], p[2]);
+      if (arcDepthFade(z) < 0.12) continue;
+      const sx = cx + x * R;
+      const sy = cy - y * R;
+      const d = Math.hypot(sx - mx, sy - my);
+      if (d <= bestD) {
+        bestD = d;
+        best = { route, tipX: sx, tipY: sy };
+      }
+    }
+  }
+  return best;
+}
+
+function formatRouteHover(route: GlobeRoute): string {
+  const kind = route.kind === "cable" ? "Kabel" : "Pipeline";
+  return `${kind} · ${route.name}`;
+}
+
+function formatSatHover(sat: GlobeSatellite): string {
+  const band =
+    sat.kind === "geo" ? "GEO" : sat.kind === "meo" ? "MEO" : "LEO";
+  return `Satellit · ${sat.name} · ${band}`;
+}
+
+/**
+ * Faint orbit rings + moving craft. GEO sits on the belt; LEO/MEO animate.
+ */
+function drawSatellites(
+  ctx: CanvasRenderingContext2D,
+  rot: Float32Array,
+  css: number,
+  scale: number,
+  pad: number,
+  tMs: number,
+  layers: RouteLayers,
+): void {
+  if (!layers.showSats) return;
+  const cx = pad + css / 2;
+  const cy = pad + css / 2;
+  const R = (css / 2) * scale;
+
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.shadowBlur = 0;
+  ctx.shadowColor = "transparent";
+
+  // Orbit rings (once per plane)
+  for (const plane of GLOBE_ORBIT_PLANES) {
+    const style = SAT_STYLE[plane.kind];
+    const hotPlane =
+      layers.hoverSatId != null &&
+      GLOBE_SATELLITES.some(
+        (s) =>
+          s.id === layers.hoverSatId &&
+          (s.planeId ?? s.id) === plane.id,
+      );
+    const dim = layers.hoverSatId != null && !hotPlane;
+    ctx.strokeStyle = style.css;
+    ctx.lineWidth = hotPlane ? 1.35 : plane.kind === "geo" ? 1.05 : 0.7;
+    let started = false;
+    let firstSx = 0;
+    let firstSy = 0;
+    let firstOk = false;
+    for (let i = 0; i <= ORBIT_RING_STEPS; i++) {
+      const a = (i / ORBIT_RING_STEPS) * Math.PI * 2;
+      const [px, py, pz] = orbitPoint(plane, a);
+      const [x, y, z] = mulRot(rot, px, py, pz);
+      const depth = arcDepthFade(z);
+      if (depth < 0.05) {
+        started = false;
+        continue;
+      }
+      const sx = cx + x * R;
+      const sy = cy - y * R;
+      ctx.globalAlpha =
+        style.orbitAlpha * depth * (hotPlane ? 2.2 : dim ? 0.28 : 1);
+      if (!started) {
+        ctx.beginPath();
+        ctx.moveTo(sx, sy);
+        started = true;
+        if (!firstOk) {
+          firstSx = sx;
+          firstSy = sy;
+          firstOk = true;
+        }
+      } else {
+        ctx.lineTo(sx, sy);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(sx, sy);
+      }
+    }
+    if (started && firstOk && plane.kind === "geo") {
+      // close belt softly when mostly frontal
+      ctx.lineTo(firstSx, firstSy);
+      ctx.stroke();
+    }
+  }
+
+  // Craft dots
+  for (const sat of GLOBE_SATELLITES) {
+    const style = SAT_STYLE[sat.kind];
+    const [px, py, pz] = satelliteXyz(sat, tMs);
+    const [x, y, z] = mulRot(rot, px, py, pz);
+    const depth = arcDepthFade(z);
+    if (depth < 0.08) continue;
+    const sx = cx + x * R;
+    const sy = cy - y * R;
+    const hot = layers.hoverSatId === sat.id;
+    const dim = layers.hoverSatId != null && !hot;
+    const rad =
+      (sat.kind === "leo" && !sat.planeId
+        ? style.r * 1.35
+        : sat.planeId
+          ? style.r * 0.72
+          : style.r) * (hot ? 1.55 : 1);
+
+    ctx.globalAlpha = style.alpha * depth * (hot ? 1 : dim ? 0.25 : 0.85);
+    ctx.fillStyle = style.css;
+    ctx.beginPath();
+    ctx.arc(sx, sy, rad, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Soft bloom for flagship craft
+    if (!sat.planeId || hot) {
+      ctx.globalAlpha =
+        0.22 * depth * (hot ? 1 : dim ? 0.2 : 0.7);
+      ctx.beginPath();
+      ctx.arc(sx, sy, rad * 2.4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
+function nearestSat(
+  rot: Float32Array,
+  css: number,
+  scale: number,
+  mx: number,
+  my: number,
+  tMs: number,
+  layers: RouteLayers,
+  maxDist = 16,
+): SatHit | null {
+  if (!layers.showSats) return null;
+  const cx = css / 2;
+  const cy = css / 2;
+  const R = (css / 2) * scale;
+  let best: SatHit | null = null;
+  let bestD = maxDist;
+
+  for (const sat of GLOBE_SATELLITES) {
+    const [px, py, pz] = satelliteXyz(sat, tMs);
+    const [x, y, z] = mulRot(rot, px, py, pz);
+    if (arcDepthFade(z) < 0.12) continue;
+    const sx = cx + x * R;
+    const sy = cy - y * R;
+    const d = Math.hypot(sx - mx, sy - my);
+    if (d <= bestD) {
+      bestD = d;
+      best = { sat, tipX: sx, tipY: sy };
+    }
+  }
+  return best;
+}
+
 /**
  * One continuous stroke: North Pole → center → South Pole → rim.
  * Gray, quiet; tips fade out via gradient (no segmented alpha steps).
@@ -635,6 +972,14 @@ function drawRayStubs(
   scale: number,
   marks: RayMark[],
   hoverId: string | null = null,
+  layers: RouteLayers = {
+    showCables: true,
+    showPipelines: true,
+    showSats: true,
+    hoverRouteId: null,
+    hoverSatId: null,
+  },
+  tMs = 0,
 ): void {
   const pad = css * RAY_PAD_FRAC;
   const full = css + pad * 2;
@@ -649,6 +994,8 @@ function drawRayStubs(
 
   const home = marks.find((m) => m.kind === "home");
   const attacks = marks.filter((m) => m.kind === "attack");
+  drawInfraRoutes(ctx, rot, css, scale, pad, layers);
+  drawSatellites(ctx, rot, css, scale, pad, tMs, layers);
   drawPoleAxis(ctx, rot, css, scale, pad);
   if (home) {
     drawAttackArcs(ctx, rot, css, scale, pad, home, attacks, hoverId);
@@ -756,6 +1103,9 @@ export const MonitorGlobe = forwardRef<MonitorGlobeHandle, Props>(
       webMarkers = [],
       homeMarker = null,
       interactive = false,
+      showCables = true,
+      showPipelines = true,
+      showSats = true,
     },
     ref,
   ) {
@@ -770,12 +1120,18 @@ export const MonitorGlobe = forwardRef<MonitorGlobeHandle, Props>(
   const webRef = useRef(webMarkers);
   const homeRef = useRef(homeMarker);
   const interactiveRef = useRef(interactive);
+  const showCablesRef = useRef(showCables);
+  const showPipelinesRef = useRef(showPipelines);
+  const showSatsRef = useRef(showSats);
   statusRef.current = status;
   attacksRef.current = attackMarkers;
   sessionsRef.current = sessionMarkers;
   webRef.current = webMarkers;
   homeRef.current = homeMarker;
   interactiveRef.current = interactive;
+  showCablesRef.current = showCables;
+  showPipelinesRef.current = showPipelines;
+  showSatsRef.current = showSats;
 
   useImperativeHandle(ref, () => ({
     resetView: () => resetViewRef.current(),
@@ -926,22 +1282,60 @@ export const MonitorGlobe = forwardRef<MonitorGlobeHandle, Props>(
     };
     resetViewRef.current = resetView;
 
-    const showTip = (hit: ProjectedTip, css: number) => {
+    const placeTip = (
+      id: string,
+      text: string,
+      accent: string,
+      tipX: number,
+      tipY: number,
+      css: number,
+    ) => {
       if (!tipEl) return;
-      const id = hit.mark.tint.id;
       if (id !== lastTipId) {
         tipEl.dataset.show = "0";
-        tipEl.textContent = formatHover(hit.mark);
-        tipEl.style.setProperty("--tip-accent", hit.mark.color);
+        tipEl.textContent = text;
+        tipEl.style.setProperty("--tip-accent", accent);
         lastTipId = id;
-        // Retrigger enter keyframes
         void tipEl.offsetWidth;
       }
-      const left = Math.min(css - 12, Math.max(12, hit.tipX));
-      const top = Math.min(css - 12, Math.max(12, hit.tipY - 22));
+      const left = Math.min(css - 12, Math.max(12, tipX));
+      const top = Math.min(css - 12, Math.max(12, tipY - 22));
       tipEl.style.left = `${left}px`;
       tipEl.style.top = `${top}px`;
       tipEl.dataset.show = "1";
+    };
+
+    const showTip = (hit: ProjectedTip, css: number) => {
+      placeTip(
+        hit.mark.tint.id,
+        formatHover(hit.mark),
+        hit.mark.color,
+        hit.tipX,
+        hit.tipY,
+        css,
+      );
+    };
+
+    const showRouteTip = (hit: RouteHit, css: number) => {
+      placeTip(
+        `route:${hit.route.id}`,
+        formatRouteHover(hit.route),
+        ROUTE_STYLE[hit.route.kind].css,
+        hit.tipX,
+        hit.tipY,
+        css,
+      );
+    };
+
+    const showSatTip = (hit: SatHit, css: number) => {
+      placeTip(
+        `sat:${hit.sat.id}`,
+        formatSatHover(hit.sat),
+        SAT_STYLE[hit.sat.kind].css,
+        hit.tipX,
+        hit.tipY,
+        css,
+      );
     };
 
     const onPointerDown = (e: PointerEvent) => {
@@ -1168,6 +1562,15 @@ export const MonitorGlobe = forwardRef<MonitorGlobeHandle, Props>(
       );
 
       let hoverId: string | null = null;
+      let hoverRouteId: string | null = null;
+      let hoverSatId: string | null = null;
+      const routeLayers: RouteLayers = {
+        showCables: showCablesRef.current,
+        showPipelines: showPipelinesRef.current,
+        showSats: showSatsRef.current,
+        hoverRouteId: null,
+        hoverSatId: null,
+      };
       if (canInteract && !dragging && !pinching && pointerCssX >= 0) {
         const hit = nearestTip(
           projectTips(rot, css, marks, GLOBE_SCALE),
@@ -1178,9 +1581,38 @@ export const MonitorGlobe = forwardRef<MonitorGlobeHandle, Props>(
           hoverId = hit.mark.tint.id;
           showTip(hit, css);
         } else {
-          hideTip();
+          const satHit = nearestSat(
+            rot,
+            css,
+            GLOBE_SCALE,
+            pointerCssX,
+            pointerCssY,
+            now,
+            routeLayers,
+          );
+          if (satHit) {
+            hoverSatId = satHit.sat.id;
+            showSatTip(satHit, css);
+          } else {
+            const routeHit = nearestRoute(
+              rot,
+              css,
+              GLOBE_SCALE,
+              pointerCssX,
+              pointerCssY,
+              routeLayers,
+            );
+            if (routeHit) {
+              hoverRouteId = routeHit.route.id;
+              showRouteTip(routeHit, css);
+            } else {
+              hideTip();
+            }
+          }
         }
       }
+      routeLayers.hoverRouteId = hoverRouteId;
+      routeLayers.hoverSatId = hoverSatId;
 
       const nextKey = `${tintKey(
         attacksRef.current,
@@ -1216,7 +1648,17 @@ export const MonitorGlobe = forwardRef<MonitorGlobeHandle, Props>(
 
       if (count > 0) gl.drawArrays(gl.POINTS, 0, count);
 
-      drawRayStubs(rayCtx, rot, css, dpr, GLOBE_SCALE, marks, hoverId);
+      drawRayStubs(
+        rayCtx,
+        rot,
+        css,
+        dpr,
+        GLOBE_SCALE,
+        marks,
+        hoverId,
+        routeLayers,
+        now,
+      );
     };
 
     void (async () => {

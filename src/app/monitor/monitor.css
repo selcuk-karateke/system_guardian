@@ -310,6 +310,71 @@
   border-color: rgb(34 211 238 / 45%);
 }
 
+.monitor-globe-layers {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+}
+
+.monitor-globe-layer {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.35em 0.7em;
+  border-radius: 999px;
+  font-family: var(--monitor-sans);
+  font-size: clamp(11px, 1.1vmin, var(--m-cap-sm));
+  line-height: 1;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  opacity: 0.42;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    opacity 0.15s ease,
+    color 0.15s ease;
+}
+
+.monitor-globe-layer[data-on="1"] {
+  opacity: 1;
+}
+
+.monitor-globe-layer--cable {
+  border: 1px solid rgb(34 211 238 / 28%);
+  background: rgb(34 211 238 / 8%);
+  color: var(--hud-cyan);
+}
+
+.monitor-globe-layer--cable[data-on="1"] {
+  border-color: rgb(34 211 238 / 55%);
+  background: rgb(34 211 238 / 16%);
+}
+
+.monitor-globe-layer--pipe {
+  border: 1px solid rgb(251 191 36 / 28%);
+  background: rgb(251 191 36 / 8%);
+  color: var(--warn);
+}
+
+.monitor-globe-layer--pipe[data-on="1"] {
+  border-color: rgb(251 191 36 / 55%);
+  background: rgb(251 191 36 / 16%);
+}
+
+.monitor-globe-layer--sat {
+  border: 1px solid rgb(167 243 208 / 28%);
+  background: rgb(167 243 208 / 8%);
+  color: rgb(167 243 208);
+}
+
+.monitor-globe-layer--sat[data-on="1"] {
+  border-color: rgb(167 243 208 / 55%);
+  background: rgb(167 243 208 / 16%);
+}
+
+.monitor-globe-layer:hover {
+  opacity: 1;
+}
+
 /* Standalone Globus: full-opacity stage + brighter wash */
 .monitor-wall--globe .monitor-bg {
   opacity: 1;
@@ -510,8 +575,8 @@
 }
 
 .monitor-hud-globe-rays {
-  /* Must match RAY_PAD_FRAC (0.08) in monitor-globe.tsx — room for arc bulge + stubs */
-  inset: -8%;
+  /* Must match RAY_PAD_FRAC (0.1) in monitor-globe.tsx — arcs + GEO belt */
+  inset: -10%;
   width: auto;
   height: auto;
   z-index: 1;

@@ -1,0 +1,742 @@
+/**
+ * Stylized infrastructure routes for the monitor globe (v1).
+ * Waypoints are approximate great-circle sketches — not survey-accurate
+ * TeleGeography / operator geometry. Points are [lat, lon] degrees.
+ */
+
+export type GlobeRouteKind = "cable" | "pipeline";
+
+export type GlobeRoute = {
+  id: string;
+  name: string;
+  kind: GlobeRouteKind;
+  path: [number, number][];
+};
+
+/**
+ * Same elemental HUD tones as monitor stages / globe markers:
+ * cyan = info/web, warn yellow = S3-ish attention (pipelines).
+ */
+export const ROUTE_STYLE: Record<
+  GlobeRouteKind,
+  { css: string; alpha: number; width: number }
+> = {
+  cable: { css: "rgb(34 211 238)", alpha: 0.34, width: 1.2 }, // --hud-cyan
+  pipeline: { css: "rgb(251 191 36)", alpha: 0.72, width: 2.1 }, // --warn
+};
+
+/**
+ * Curated first cut: busy corridors only so the globe stays readable.
+ * Expand later from open GeoJSON once licensing is settled.
+ */
+export const GLOBE_ROUTES: GlobeRoute[] = [
+  // —— Undersea fiber ——
+  {
+    id: "marea",
+    name: "MAREA",
+    kind: "cable",
+    path: [
+      [36.85, -75.98],
+      [37.5, -60],
+      [40, -40],
+      [42, -20],
+      [43.35, -2.95],
+    ],
+  },
+  {
+    id: "grace-hopper",
+    name: "Grace Hopper",
+    kind: "cable",
+    path: [
+      [40.7, -74.0],
+      [42, -55],
+      [45, -35],
+      [48, -15],
+      [51.2, -3.5],
+      [50.8, -1.1],
+    ],
+  },
+  {
+    id: "havfrue",
+    name: "Havfrue / AEC-2",
+    kind: "cable",
+    path: [
+      [40.55, -74.15],
+      [45, -45],
+      [52, -25],
+      [56.0, -3.2],
+      [55.7, 12.6],
+    ],
+  },
+  {
+    id: "ellalink",
+    name: "EllaLink",
+    kind: "cable",
+    path: [
+      [-3.7, -38.5],
+      [5, -30],
+      [20, -25],
+      [35, -20],
+      [38.7, -9.1],
+    ],
+  },
+  {
+    id: "sacs",
+    name: "SACS",
+    kind: "cable",
+    path: [
+      [-8.8, 13.2],
+      [-10, -5],
+      [-15, -25],
+      [-22.9, -43.2],
+    ],
+  },
+  {
+    id: "2africa-w",
+    name: "2Africa (W)",
+    kind: "cable",
+    path: [
+      [51.5, -0.1],
+      [40, -10],
+      [28, -16],
+      [14, -17],
+      [5, 0],
+      [-4, 10],
+      [-26, 15],
+      [-33.9, 18.4],
+    ],
+  },
+  {
+    id: "2africa-e",
+    name: "2Africa (E)",
+    kind: "cable",
+    path: [
+      [-33.9, 18.4],
+      [-30, 35],
+      [-20, 40],
+      [-5, 42],
+      [12, 45],
+      [25, 35],
+      [31.2, 32.3],
+    ],
+  },
+  {
+    id: "seamewe5",
+    name: "SEA-ME-WE 5",
+    kind: "cable",
+    path: [
+      [43.3, 5.4],
+      [36, 15],
+      [31.2, 32.3],
+      [21.5, 39.1],
+      [12.5, 45],
+      [15, 55],
+      [18, 65],
+      [19.1, 72.9],
+      [8, 80],
+      [1.3, 103.8],
+    ],
+  },
+  {
+    id: "aae1",
+    name: "AAE-1",
+    kind: "cable",
+    path: [
+      [22.3, 114.2],
+      [15, 110],
+      [10, 100],
+      [8, 80],
+      [15, 60],
+      [22, 55],
+      [25.2, 55.3],
+      [29.5, 48],
+      [31.2, 32.3],
+      [37.9, 23.7],
+      [40.8, 29.0],
+      [43.3, 5.4],
+      [43.1, -2.9],
+    ],
+  },
+  {
+    id: "smw3",
+    name: "SEA-ME-WE 3",
+    kind: "cable",
+    path: [
+      [51.5, 0.5],
+      [45, -5],
+      [36, -5],
+      [31, 32],
+      [15, 50],
+      [15, 70],
+      [5, 80],
+      [1.3, 103.8],
+      [22.3, 114.2],
+      [35.4, 139.7],
+      [-33.9, 151.2],
+    ],
+  },
+  {
+    id: "apac",
+    name: "APC / EAC",
+    kind: "cable",
+    path: [
+      [35.4, 139.7],
+      [30, 135],
+      [22.3, 114.2],
+      [14.6, 121.0],
+      [1.3, 103.8],
+      [-6.2, 106.8],
+      [-33.9, 151.2],
+    ],
+  },
+  {
+    id: "japan-us",
+    name: "Japan–US",
+    kind: "cable",
+    path: [
+      [35.4, 139.7],
+      [40, 160],
+      [42, 180],
+      [40, -160],
+      [37.8, -122.4],
+    ],
+  },
+  {
+    id: "unity",
+    name: "Unity / FASTER",
+    kind: "cable",
+    path: [
+      [35.4, 139.7],
+      [38, 170],
+      [35, -150],
+      [34.0, -118.2],
+    ],
+  },
+  {
+    id: "southern-cross",
+    name: "Southern Cross",
+    kind: "cable",
+    path: [
+      [-33.9, 151.2],
+      [-30, 170],
+      [-25, -170],
+      [-20, -155],
+      [21.3, -157.8],
+      [33.7, -118.2],
+    ],
+  },
+  {
+    id: "hawaiki",
+    name: "Hawaiki",
+    kind: "cable",
+    path: [
+      [-36.8, 174.8],
+      [-30, -170],
+      [-10, -155],
+      [21.3, -157.8],
+      [45.5, -122.7],
+    ],
+  },
+  {
+    id: "curie",
+    name: "Curie",
+    kind: "cable",
+    path: [
+      [33.7, -118.2],
+      [20, -120],
+      [0, -110],
+      [-20, -85],
+      [-33.0, -71.6],
+    ],
+  },
+  {
+    id: "samba",
+    name: "SAm-1 / BRUSA",
+    kind: "cable",
+    path: [
+      [25.8, -80.2],
+      [15, -75],
+      [5, -55],
+      [-3.7, -38.5],
+      [-22.9, -43.2],
+      [-34.6, -58.4],
+      [-33.0, -71.6],
+    ],
+  },
+  {
+    id: "arctic",
+    name: "Arctic / Far North",
+    kind: "cable",
+    path: [
+      [69.6, 18.9],
+      [75, 30],
+      [78, 60],
+      [72, 100],
+      [65, 140],
+      [64.5, -165.4],
+      [61.2, -149.9],
+    ],
+  },
+
+  // —— Oil / gas corridors (stylized land+sea) ——
+  {
+    id: "nord-stream",
+    name: "Nord Stream",
+    kind: "pipeline",
+    path: [
+      [60.1, 29.9],
+      [59.5, 24],
+      [55.5, 15],
+      [54.1, 13.4],
+    ],
+  },
+  {
+    id: "yamal",
+    name: "Yamal–Europe",
+    kind: "pipeline",
+    path: [
+      [67.5, 70],
+      [60, 55],
+      [55, 40],
+      [52.2, 21.0],
+      [52.5, 13.4],
+    ],
+  },
+  {
+    id: "power-of-siberia",
+    name: "Power of Siberia",
+    kind: "pipeline",
+    path: [
+      [60, 120],
+      [55, 125],
+      [50, 128],
+      [45, 125],
+      [40.0, 116.4],
+    ],
+  },
+  {
+    id: "druzhba",
+    name: "Druzhba",
+    kind: "pipeline",
+    path: [
+      [54, 55],
+      [52, 40],
+      [50, 30],
+      [48.1, 17.1],
+      [48.2, 16.4],
+      [47.5, 19.0],
+    ],
+  },
+  {
+    id: "btc",
+    name: "Baku–Tbilisi–Ceyhan",
+    kind: "pipeline",
+    path: [
+      [40.4, 49.9],
+      [41.7, 44.8],
+      [39.9, 41.3],
+      [36.8, 35.8],
+    ],
+  },
+  {
+    id: "tanap",
+    name: "TANAP / TAP",
+    kind: "pipeline",
+    path: [
+      [40.4, 49.9],
+      [40.0, 44],
+      [39.9, 32.9],
+      [40.2, 26.4],
+      [40.6, 22.9],
+      [40.6, 19.9],
+      [40.8, 17.2],
+      [40.6, 17.9],
+      [40.85, 14.3],
+    ],
+  },
+  {
+    id: "transmed",
+    name: "Transmed",
+    kind: "pipeline",
+    path: [
+      [36.8, 10.2],
+      [37.5, 12],
+      [38.1, 13.4],
+      [40.8, 14.3],
+    ],
+  },
+  {
+    id: "eastmed",
+    name: "EastMed (planned)",
+    kind: "pipeline",
+    path: [
+      [31.8, 34.6],
+      [34.7, 32.4],
+      [35.1, 33.4],
+      [35.5, 24.0],
+      [37.9, 23.7],
+      [39.6, 19.9],
+      [40.6, 17.9],
+    ],
+  },
+  {
+    id: "trans-alaska",
+    name: "Trans-Alaska",
+    kind: "pipeline",
+    path: [
+      [70.2, -148.4],
+      [66, -150],
+      [64.2, -149.5],
+      [61.2, -149.9],
+      [60.1, -149.4],
+    ],
+  },
+  {
+    id: "keystone",
+    name: "Keystone corridor",
+    kind: "pipeline",
+    path: [
+      [54.5, -110.0],
+      [49.0, -104],
+      [41.1, -100],
+      [35.5, -97],
+      [29.8, -95.4],
+    ],
+  },
+  {
+    id: "gasoducto-sur",
+    name: "Perú / Gasoducto Sur",
+    kind: "pipeline",
+    path: [
+      [-12.0, -77.0],
+      [-13.5, -72],
+      [-16.4, -71.5],
+      [-18.0, -70.3],
+    ],
+  },
+  {
+    id: "west-africa-gas",
+    name: "WAGP",
+    kind: "pipeline",
+    path: [
+      [4.8, 7.0],
+      [5.5, 0],
+      [5.6, -0.2],
+      [6.1, -1.2],
+      [5.3, -4.0],
+    ],
+  },
+  {
+    id: "tapi",
+    name: "TAPI",
+    kind: "pipeline",
+    path: [
+      [37.9, 58.3],
+      [35, 62],
+      [33.5, 68],
+      [31.5, 74],
+      [28.6, 77.2],
+    ],
+  },
+
+  // —— denser v1.1 corridors ——
+  {
+    id: "dunant",
+    name: "Dunant",
+    kind: "cable",
+    path: [
+      [33.7, -118.2],
+      [35, -95],
+      [36, -75],
+      [38, -50],
+      [42, -25],
+      [48.4, -4.5],
+      [48.1, -1.6],
+    ],
+  },
+  {
+    id: "amitie",
+    name: "Amitié",
+    kind: "cable",
+    path: [
+      [41.5, -71.3],
+      [45, -45],
+      [48, -20],
+      [50.7, -1.5],
+      [48.4, -4.5],
+    ],
+  },
+  {
+    id: "equiano",
+    name: "Equiano",
+    kind: "cable",
+    path: [
+      [38.7, -9.1],
+      [28, -18],
+      [15, -18],
+      [5, -5],
+      [-5, 5],
+      [-26, 15],
+      [-33.9, 18.4],
+    ],
+  },
+  {
+    id: "wacs",
+    name: "WACS",
+    kind: "cable",
+    path: [
+      [51.5, -0.1],
+      [40, -10],
+      [28, -17],
+      [14, -17],
+      [5, -4],
+      [-8.8, 13.2],
+      [-22.9, 14.5],
+      [-33.9, 18.4],
+    ],
+  },
+  {
+    id: "peace",
+    name: "PEACE",
+    kind: "cable",
+    path: [
+      [31.2, 32.3],
+      [21.5, 39],
+      [12, 45],
+      [0, 50],
+      [-5, 55],
+      [-20, 55],
+      [-29.9, 31.0],
+      [-33.9, 18.4],
+    ],
+  },
+  {
+    id: "teas",
+    name: "TEAS / IMEWE",
+    kind: "cable",
+    path: [
+      [31.2, 32.3],
+      [25, 45],
+      [22, 55],
+      [25.2, 55.3],
+      [24.5, 54.4],
+      [19.1, 72.9],
+    ],
+  },
+  {
+    id: "apac-2",
+    name: "SJC / ADC",
+    kind: "cable",
+    path: [
+      [35.4, 139.7],
+      [31.2, 121.5],
+      [25.0, 121.5],
+      [22.3, 114.2],
+      [14.6, 121.0],
+      [10.8, 106.7],
+      [1.3, 103.8],
+    ],
+  },
+  {
+    id: "indigos",
+    name: "INDIGO",
+    kind: "cable",
+    path: [
+      [1.3, 103.8],
+      [-5, 105],
+      [-12, 115],
+      [-20, 130],
+      [-31.9, 115.9],
+      [-33.9, 151.2],
+    ],
+  },
+  {
+    id: "plcn",
+    name: "PLCN",
+    kind: "cable",
+    path: [
+      [22.3, 114.2],
+      [25, 140],
+      [30, 165],
+      [32, -160],
+      [34.0, -118.2],
+    ],
+  },
+  {
+    id: "monet",
+    name: "MONET",
+    kind: "cable",
+    path: [
+      [25.8, -80.2],
+      [20, -65],
+      [5, -45],
+      [-3.7, -38.5],
+      [-22.9, -43.2],
+    ],
+  },
+  {
+    id: "firmina",
+    name: "Firmina",
+    kind: "cable",
+    path: [
+      [39.0, -77.0],
+      [30, -60],
+      [10, -45],
+      [-10, -40],
+      [-34.6, -58.4],
+    ],
+  },
+  {
+    id: "seabras",
+    name: "Seabras-1",
+    kind: "cable",
+    path: [
+      [40.7, -74.0],
+      [30, -55],
+      [10, -40],
+      [-22.9, -43.2],
+    ],
+  },
+  {
+    id: "turkstream",
+    name: "TurkStream",
+    kind: "pipeline",
+    path: [
+      [45.0, 37.0],
+      [43, 35],
+      [41.5, 32],
+      [41.0, 29.0],
+    ],
+  },
+  {
+    id: "blue-stream",
+    name: "Blue Stream",
+    kind: "pipeline",
+    path: [
+      [44.7, 37.8],
+      [43, 36],
+      [41.5, 34],
+      [41.3, 31.4],
+    ],
+  },
+  {
+    id: "south-stream-alt",
+    name: "South Corridor",
+    kind: "pipeline",
+    path: [
+      [44.5, 34.0],
+      [43, 30],
+      [41.5, 28],
+      [42.1, 24.7],
+      [44.4, 26.1],
+    ],
+  },
+  {
+    id: "algeria-spain",
+    name: "Medgaz / Maghreb",
+    kind: "pipeline",
+    path: [
+      [35.7, -0.6],
+      [36.5, -1.5],
+      [36.8, -2.5],
+      [36.7, -4.4],
+    ],
+  },
+  {
+    id: "libya-italy",
+    name: "Greenstream",
+    kind: "pipeline",
+    path: [
+      [32.9, 13.2],
+      [34, 13.5],
+      [36, 14],
+      [37.5, 14.2],
+      [38.1, 13.4],
+    ],
+  },
+  {
+    id: "colonial",
+    name: "Colonial Pipeline",
+    kind: "pipeline",
+    path: [
+      [29.8, -95.4],
+      [30.5, -90],
+      [33.7, -84.4],
+      [37.5, -77.4],
+      [39.9, -75.2],
+      [40.7, -74.0],
+    ],
+  },
+  {
+    id: "dakota-access",
+    name: "Dakota Access",
+    kind: "pipeline",
+    path: [
+      [47.9, -103.0],
+      [45, -100],
+      [41.6, -93.6],
+      [39.1, -94.6],
+      [37.7, -97.3],
+      [35.5, -97],
+      [29.8, -95.4],
+    ],
+  },
+  {
+    id: "peru-lng",
+    name: "Camisea / Peru LNG",
+    kind: "pipeline",
+    path: [
+      [-11.8, -72.9],
+      [-12.5, -75],
+      [-12.5, -76.5],
+      [-12.0, -77.1],
+    ],
+  },
+  {
+    id: "gasbol",
+    name: "Gasbol",
+    kind: "pipeline",
+    path: [
+      [-17.8, -63.2],
+      [-20, -55],
+      [-23.5, -46.6],
+    ],
+  },
+  {
+    id: "east-africa-oil",
+    name: "EACOP",
+    kind: "pipeline",
+    path: [
+      [0.3, 32.6],
+      [-2, 32],
+      [-5, 35],
+      [-6.8, 39.3],
+    ],
+  },
+  {
+    id: "china-myanmar",
+    name: "China–Myanmar",
+    kind: "pipeline",
+    path: [
+      [19.8, 93.0],
+      [22, 96],
+      [25, 100],
+      [25.0, 102.7],
+      [25.0, 110],
+      [23.1, 113.3],
+    ],
+  },
+  {
+    id: "central-asia-china",
+    name: "Central Asia–China",
+    kind: "pipeline",
+    path: [
+      [37.9, 58.3],
+      [40, 65],
+      [42, 75],
+      [43, 85],
+      [43.8, 87.6],
+      [40.0, 116.4],
+    ],
+  },
+];
