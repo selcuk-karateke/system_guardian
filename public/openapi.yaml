@@ -71,6 +71,20 @@ paths:
         "400":
           description: serverId fehlt
 
+  /api/monitor/sky:
+    get:
+      tags: [Monitor]
+      summary: Live Flieger + Satelliten für Globus
+      description: |
+        OpenSky-Statevektoren (gecacht ~15s) und CelesTrak/SGP4-Satellitenpositionen
+        (TLE ~2h Cache). Globus pollt ~15s. Session-Auth wenn AUTH aktiv.
+      operationId: monitorSky
+      responses:
+        "200":
+          description: flights[] + satellites[] inkl. Source-Flags
+        "502":
+          description: Upstream (OpenSky/CelesTrak) fehlgeschlagen
+
   /api/agent/ingest:
     post:
       tags: [Agent]

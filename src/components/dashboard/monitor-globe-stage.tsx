@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { MonitorGlobe, type MonitorGlobeHandle } from "./monitor-globe";
 import { MonitorLiveActionSuffix } from "./monitor-live-action";
 import { MonitorMatrixRain } from "./monitor-matrix-rain";
 import { MonitorModeSwitch } from "./monitor-mode-switch";
 import type { GlobeTint } from "@/lib/geo/attack-markers";
+import type { LiveSkyPayload } from "@/lib/geo/live-sky";
 
 type Props = {
   globalStatus: "healthy" | "warning" | "critical";
@@ -18,6 +19,8 @@ type Props = {
   webMarkers?: GlobeTint[];
   homeMarker?: GlobeTint | null;
 };
+
+const SKY_POLL_MS = 15_000;
 
 export function MonitorGlobeStage({
   globalStatus,
@@ -33,6 +36,38 @@ export function MonitorGlobeStage({
   const [showCables, setShowCables] = useState(true);
   const [showPipelines, setShowPipelines] = useState(true);
   const [showSats, setShowSats] = useState(true);
+  const [showFlights, setShowFlights] = useState(true);
+  const [sky, setSky] = useState<LiveSkyPayload | null>(null);
+
+  useEffect(() => {
+    let dead = false;
+    const pull = async () => {
+      try {
+        const res = await fetch("/api/monitor/sky", { cache: "no-store" });
+        const json = (await res.json()) as LiveSkyPayload;
+        if (!dead) setSky(json);
+      } catch {
+        /* keep last good / demo fallback */
+      }
+    };
+    void pull();
+    const id = window.setInterval(() => void pull(), SKY_POLL_MS);
+    return () => {
+      dead = true;
+      window.clearInterval(id);
+    };
+  }, []);
+
+  const liveFlights =
+    sky?.flightsSource === "live" ? sky.flights : null;
+  const liveSatellites =
+    sky?.satellitesSource === "live" ? sky.satellites : null;
+  const skyLive =
+    liveFlights != null || liveSatellites != null
+      ? " · SKY LIVE"
+      : sky
+        ? " · SKY …"
+        : "";
 
   return (
     <div className="monitor-wall monitor-wall--globe" data-status={globalStatus}>
@@ -51,6 +86,9 @@ export function MonitorGlobeStage({
             showCables={showCables}
             showPipelines={showPipelines}
             showSats={showSats}
+            showFlights={showFlights}
+            liveFlights={liveFlights}
+            liveSatellites={liveSatellites}
             attackMarkers={attackMarkers}
             sessionMarkers={sessionMarkers}
             webMarkers={webMarkers}
@@ -69,13 +107,14 @@ export function MonitorGlobeStage({
             <div className="monitor-brand">
               <strong>Globus</strong>
               {checkMode === "ssh" ? " · LIVE" : ""}
+              {skyLive}
               <MonitorLiveActionSuffix />
             </div>
             <div className="monitor-host">
               {hostLabel} — {hostIp}
             </div>
             <p className="monitor-globe-hint">
-              Ziehen · Zoom · Hover Kabel/Pipeline/Sat · Attack → Home
+              Ziehen · Zoom · Live Flieger/Orbit · Hover · Attack → Home
             </p>
           </div>
           <div className="monitor-top-right">
@@ -97,6 +136,15 @@ export function MonitorGlobeStage({
                 onClick={() => setShowPipelines((v) => !v)}
               >
                 Pipelines
+              </button>
+              <button
+                type="button"
+                className="monitor-globe-layer monitor-globe-layer--flight"
+                data-on={showFlights ? "1" : "0"}
+                aria-pressed={showFlights}
+                onClick={() => setShowFlights((v) => !v)}
+              >
+                Flieger
               </button>
               <button
                 type="button"

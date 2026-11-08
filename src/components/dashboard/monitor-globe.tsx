@@ -27,6 +27,19 @@ import {
   satelliteXyz,
   type GlobeSatellite,
 } from "@/lib/geo/globe-satellites";
+import {
+  FLIGHT_STYLE,
+  GLOBE_CORRIDORS,
+  GLOBE_FLIGHTS,
+  flightHeadingSign,
+  flightProgress,
+  type GlobeFlight,
+} from "@/lib/geo/globe-flights";
+import {
+  visualOrbitRadius,
+  type LiveAircraft,
+  type LiveSatellite,
+} from "@/lib/geo/live-sky";
 
 type Status = "healthy" | "warning" | "critical";
 
@@ -44,6 +57,12 @@ type Props = {
   showPipelines?: boolean;
   /** Orbital satellites overlay (default on). */
   showSats?: boolean;
+  /** Air-traffic overlay (default on). */
+  showFlights?: boolean;
+  /** Live OpenSky positions — null = stylized demo corridors. */
+  liveFlights?: LiveAircraft[] | null;
+  /** Live CelesTrak/SGP4 positions — null = stylized demo orbits. */
+  liveSatellites?: LiveSatellite[] | null;
 };
 
 export type MonitorGlobeHandle = {
@@ -523,18 +542,15 @@ type RouteHit = {
   tipY: number;
 };
 
-type SatHit = {
-  sat: GlobeSatellite;
-  tipX: number;
-  tipY: number;
-};
 
 type RouteLayers = {
   showCables: boolean;
   showPipelines: boolean;
   showSats: boolean;
+  showFlights: boolean;
   hoverRouteId: string | null;
   hoverSatId: string | null;
+  hoverFlightId: string | null;
 };
 
 const ORBIT_RING_STEPS = 72;
@@ -681,14 +697,304 @@ function formatRouteHover(route: GlobeRoute): string {
   return `${kind} · ${route.name}`;
 }
 
-function formatSatHover(sat: GlobeSatellite): string {
-  const band =
-    sat.kind === "geo" ? "GEO" : sat.kind === "meo" ? "MEO" : "LEO";
-  return `Satellit · ${sat.name} · ${band}`;
+function formatSatHover(name: string, kind: string, live: boolean): string {
+  const band = kind === "geo" ? "GEO" : kind === "meo" ? "MEO" : "LEO";
+  return live
+    ? `Satellit · ${name} · ${band} · LIVE`
+    : `Satellit · ${name} · ${band}`;
 }
 
+function formatFlightHover(name: string, live: boolean): string {
+  return live ? `Flug · ${name} · LIVE` : `Flug · ${name}`;
+}
+
+function elevXyz(
+  lat: number,
+  lon: number,
+  elev: number,
+): [number, number, number] {
+  const [x, y, z] = attackToXyz(lat, lon);
+  return [x * elev, y * elev, z * elev];
+}
+
+/** Offset along true track (deg) for live aircraft heading. */
+function trackLookahead(
+  lat: number,
+  lon: number,
+  trackDeg: number,
+  distDeg = 0.35,
+): [number, number] {
+  const rad = (trackDeg * Math.PI) / 180;
+  const dLat = distDeg * Math.cos(rad);
+  const cosLat = Math.cos((lat * Math.PI) / 180);
+  const dLon = distDeg * Math.sin(rad) / Math.max(0.2, cosLat);
+  return [
+    Math.max(-90, Math.min(90, lat + dLat)),
+    ((lon + dLon + 540) % 360) - 180,
+  ];
+}
+
+function drawPlaneMark(
+  ctx: CanvasRenderingContext2D,
+  sx: number,
+  sy: number,
+  dx: number,
+  dy: number,
+  size: number,
+  alpha: number,
+): void {
+  const len = Math.hypot(dx, dy);
+  let ux = dx;
+  let uy = dy;
+  if (len < 0.4) {
+    ux = 0;
+    uy = -1;
+  } else {
+    ux /= len;
+    uy /= len;
+  }
+  const px = -uy;
+  const py = ux;
+  const s = size;
+  ctx.globalAlpha = alpha;
+  ctx.beginPath();
+  ctx.moveTo(sx + ux * s * 1.6, sy + uy * s * 1.6);
+  ctx.lineTo(
+    sx - ux * s * 0.9 + px * s * 0.7,
+    sy - uy * s * 0.9 + py * s * 0.7,
+  );
+  ctx.lineTo(sx - ux * s * 0.55, sy - uy * s * 0.55);
+  ctx.lineTo(
+    sx - ux * s * 0.9 - px * s * 0.7,
+    sy - uy * s * 0.9 - py * s * 0.7,
+  );
+  ctx.closePath();
+  ctx.fill();
+}
+
+/** Great-circle position with mid-route altitude bulge. */
+function flightXyz(
+  flight: GlobeFlight,
+  tMs: number,
+): [number, number, number] {
+  const t = flightProgress(flight, tMs);
+  const [ax, ay, az] = attackToXyz(flight.from[0], flight.from[1]);
+  const [bx, by, bz] = attackToXyz(flight.to[0], flight.to[1]);
+  const [x, y, z] = slerpUnit(ax, ay, az, bx, by, bz, t);
+  const elev =
+    FLIGHT_STYLE.elev + FLIGHT_STYLE.bulge * Math.sin(Math.PI * t);
+  return [x * elev, y * elev, z * elev];
+}
+
+/** Sample just ahead for heading (screen triangle). */
+function flightXyzAhead(
+  flight: GlobeFlight,
+  tMs: number,
+): [number, number, number] {
+  const sign = flightHeadingSign(flight, tMs);
+  const t = Math.min(1, Math.max(0, flightProgress(flight, tMs) + sign * 0.012));
+  const [ax, ay, az] = attackToXyz(flight.from[0], flight.from[1]);
+  const [bx, by, bz] = attackToXyz(flight.to[0], flight.to[1]);
+  const [x, y, z] = slerpUnit(ax, ay, az, bx, by, bz, t);
+  const elev =
+    FLIGHT_STYLE.elev + FLIGHT_STYLE.bulge * Math.sin(Math.PI * t);
+  return [x * elev, y * elev, z * elev];
+}
+
+type FlightDrawHit = {
+  id: string;
+  name: string;
+  tipX: number;
+  tipY: number;
+};
+
 /**
- * Faint orbit rings + moving craft. GEO sits on the belt; LEO/MEO animate.
+ * Live OpenSky craft, or stylized corridors + ping-pong demo.
+ */
+function drawFlights(
+  ctx: CanvasRenderingContext2D,
+  rot: Float32Array,
+  css: number,
+  scale: number,
+  pad: number,
+  tMs: number,
+  layers: RouteLayers,
+  liveFlights: LiveAircraft[] | null,
+): void {
+  if (!layers.showFlights) return;
+  const cx = pad + css / 2;
+  const cy = pad + css / 2;
+  const R = (css / 2) * scale;
+  const style = FLIGHT_STYLE;
+
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.shadowBlur = 0;
+  ctx.shadowColor = "transparent";
+  ctx.strokeStyle = style.css;
+  ctx.fillStyle = style.css;
+
+  if (liveFlights) {
+    for (const ac of liveFlights) {
+      // Keep air traffic close to surface visually (alt is real km).
+      const softElev = 1.02 + Math.min(0.04, ac.altKm / 400);
+      const [px, py, pz] = elevXyz(ac.lat, ac.lon, softElev);
+      const [x, y, z] = mulRot(rot, px, py, pz);
+      const depth = arcDepthFade(z);
+      if (depth < 0.1) continue;
+      const sx = cx + x * R;
+      const sy = cy - y * R;
+      let dx = 0;
+      let dy = -1;
+      if (ac.track != null) {
+        const [la, lo] = trackLookahead(ac.lat, ac.lon, ac.track);
+        const [ax, ay, az] = elevXyz(la, lo, softElev);
+        const [hx, hy] = mulRot(rot, ax, ay, az);
+        dx = cx + hx * R - sx;
+        dy = cy - hy * R - sy;
+      }
+      const hot = layers.hoverFlightId === ac.id;
+      const dim = layers.hoverFlightId != null && !hot;
+      drawPlaneMark(
+        ctx,
+        sx,
+        sy,
+        dx,
+        dy,
+        style.size * (hot ? 1.55 : 0.95),
+        style.alpha * depth * (hot ? 1 : dim ? 0.2 : 0.88),
+      );
+    }
+    ctx.globalAlpha = 1;
+    return;
+  }
+
+  // Demo corridors
+  for (const c of GLOBE_CORRIDORS) {
+    const hot =
+      layers.hoverFlightId != null &&
+      layers.hoverFlightId.startsWith(`${c.id}-`);
+    const dim = layers.hoverFlightId != null && !hot;
+    const [ax, ay, az] = attackToXyz(c.from[0], c.from[1]);
+    const [bx, by, bz] = attackToXyz(c.to[0], c.to[1]);
+    const steps = 28;
+    let started = false;
+    ctx.lineWidth = hot ? 1.5 : 0.75;
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      const [lx, ly, lz] = slerpUnit(ax, ay, az, bx, by, bz, t);
+      const elev = style.elev + style.bulge * Math.sin(Math.PI * t);
+      const [x, y, z] = mulRot(rot, lx * elev, ly * elev, lz * elev);
+      const depth = arcDepthFade(z);
+      if (depth < 0.06) {
+        started = false;
+        continue;
+      }
+      const sx = cx + x * R;
+      const sy = cy - y * R;
+      const along = tipFade(t);
+      ctx.globalAlpha =
+        style.corridorAlpha *
+        depth *
+        Math.max(0.35, along) *
+        (hot ? 2.4 : dim ? 0.22 : 1);
+      if (!started) {
+        ctx.beginPath();
+        ctx.moveTo(sx, sy);
+        started = true;
+      } else {
+        ctx.lineTo(sx, sy);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(sx, sy);
+      }
+    }
+  }
+
+  for (const flight of GLOBE_FLIGHTS) {
+    const [px, py, pz] = flightXyz(flight, tMs);
+    const [x, y, z] = mulRot(rot, px, py, pz);
+    const depth = arcDepthFade(z);
+    if (depth < 0.1) continue;
+    const sx = cx + x * R;
+    const sy = cy - y * R;
+    const [ax, ay, az] = flightXyzAhead(flight, tMs);
+    const [hx, hy] = mulRot(rot, ax, ay, az);
+    const hot = layers.hoverFlightId === flight.id;
+    const dim = layers.hoverFlightId != null && !hot;
+    drawPlaneMark(
+      ctx,
+      sx,
+      sy,
+      cx + hx * R - sx,
+      cy - hy * R - sy,
+      style.size * (hot ? 1.55 : 1),
+      style.alpha * depth * (hot ? 1 : dim ? 0.22 : 0.9),
+    );
+  }
+  ctx.globalAlpha = 1;
+}
+
+function nearestFlight(
+  rot: Float32Array,
+  css: number,
+  scale: number,
+  mx: number,
+  my: number,
+  tMs: number,
+  layers: RouteLayers,
+  liveFlights: LiveAircraft[] | null,
+  maxDist = 16,
+): FlightDrawHit | null {
+  if (!layers.showFlights) return null;
+  const cx = css / 2;
+  const cy = css / 2;
+  const R = (css / 2) * scale;
+  let best: FlightDrawHit | null = null;
+  let bestD = maxDist;
+
+  if (liveFlights) {
+    for (const ac of liveFlights) {
+      const softElev = 1.02 + Math.min(0.04, ac.altKm / 400);
+      const [px, py, pz] = elevXyz(ac.lat, ac.lon, softElev);
+      const [x, y, z] = mulRot(rot, px, py, pz);
+      if (arcDepthFade(z) < 0.12) continue;
+      const sx = cx + x * R;
+      const sy = cy - y * R;
+      const d = Math.hypot(sx - mx, sy - my);
+      if (d <= bestD) {
+        bestD = d;
+        best = { id: ac.id, name: ac.name, tipX: sx, tipY: sy };
+      }
+    }
+    return best;
+  }
+
+  for (const flight of GLOBE_FLIGHTS) {
+    const [px, py, pz] = flightXyz(flight, tMs);
+    const [x, y, z] = mulRot(rot, px, py, pz);
+    if (arcDepthFade(z) < 0.12) continue;
+    const sx = cx + x * R;
+    const sy = cy - y * R;
+    const d = Math.hypot(sx - mx, sy - my);
+    if (d <= bestD) {
+      bestD = d;
+      best = { id: flight.id, name: flight.name, tipX: sx, tipY: sy };
+    }
+  }
+  return best;
+}
+
+type SatDrawHit = {
+  id: string;
+  name: string;
+  kind: "leo" | "meo" | "geo";
+  tipX: number;
+  tipY: number;
+};
+
+/**
+ * Live CelesTrak/SGP4 dots, or stylized demo rings + craft.
  */
 function drawSatellites(
   ctx: CanvasRenderingContext2D,
@@ -698,6 +1004,7 @@ function drawSatellites(
   pad: number,
   tMs: number,
   layers: RouteLayers,
+  liveSats: LiveSatellite[] | null,
 ): void {
   if (!layers.showSats) return;
   const cx = pad + css / 2;
@@ -709,7 +1016,40 @@ function drawSatellites(
   ctx.shadowBlur = 0;
   ctx.shadowColor = "transparent";
 
-  // Orbit rings (once per plane)
+  if (liveSats) {
+    for (const sat of liveSats) {
+      const style = SAT_STYLE[sat.kind];
+      const elev = visualOrbitRadius(sat.altKm);
+      const [px, py, pz] = elevXyz(sat.lat, sat.lon, elev);
+      const [x, y, z] = mulRot(rot, px, py, pz);
+      const depth = arcDepthFade(z);
+      if (depth < 0.08) continue;
+      const sx = cx + x * R;
+      const sy = cy - y * R;
+      const hot = layers.hoverSatId === sat.id;
+      const dim = layers.hoverSatId != null && !hot;
+      const rad =
+        (sat.kind === "leo"
+          ? style.r * 0.85
+          : sat.kind === "meo"
+            ? style.r * 0.95
+            : style.r * 1.15) * (hot ? 1.55 : 1);
+      ctx.globalAlpha = style.alpha * depth * (hot ? 1 : dim ? 0.22 : 0.8);
+      ctx.fillStyle = style.css;
+      ctx.beginPath();
+      ctx.arc(sx, sy, rad, 0, Math.PI * 2);
+      ctx.fill();
+      if (hot || /ISS|TIANGONG|CSS|HST|HUBBLE/i.test(sat.name)) {
+        ctx.globalAlpha = 0.2 * depth * (hot ? 1 : 0.65);
+        ctx.beginPath();
+        ctx.arc(sx, sy, rad * 2.3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.globalAlpha = 1;
+    return;
+  }
+
   for (const plane of GLOBE_ORBIT_PLANES) {
     const style = SAT_STYLE[plane.kind];
     const hotPlane =
@@ -756,13 +1096,11 @@ function drawSatellites(
       }
     }
     if (started && firstOk && plane.kind === "geo") {
-      // close belt softly when mostly frontal
       ctx.lineTo(firstSx, firstSy);
       ctx.stroke();
     }
   }
 
-  // Craft dots
   for (const sat of GLOBE_SATELLITES) {
     const style = SAT_STYLE[sat.kind];
     const [px, py, pz] = satelliteXyz(sat, tMs);
@@ -779,17 +1117,13 @@ function drawSatellites(
         : sat.planeId
           ? style.r * 0.72
           : style.r) * (hot ? 1.55 : 1);
-
     ctx.globalAlpha = style.alpha * depth * (hot ? 1 : dim ? 0.25 : 0.85);
     ctx.fillStyle = style.css;
     ctx.beginPath();
     ctx.arc(sx, sy, rad, 0, Math.PI * 2);
     ctx.fill();
-
-    // Soft bloom for flagship craft
     if (!sat.planeId || hot) {
-      ctx.globalAlpha =
-        0.22 * depth * (hot ? 1 : dim ? 0.2 : 0.7);
+      ctx.globalAlpha = 0.22 * depth * (hot ? 1 : dim ? 0.2 : 0.7);
       ctx.beginPath();
       ctx.arc(sx, sy, rad * 2.4, 0, Math.PI * 2);
       ctx.fill();
@@ -806,14 +1140,38 @@ function nearestSat(
   my: number,
   tMs: number,
   layers: RouteLayers,
+  liveSats: LiveSatellite[] | null,
   maxDist = 16,
-): SatHit | null {
+): SatDrawHit | null {
   if (!layers.showSats) return null;
   const cx = css / 2;
   const cy = css / 2;
   const R = (css / 2) * scale;
-  let best: SatHit | null = null;
+  let best: SatDrawHit | null = null;
   let bestD = maxDist;
+
+  if (liveSats) {
+    for (const sat of liveSats) {
+      const elev = visualOrbitRadius(sat.altKm);
+      const [px, py, pz] = elevXyz(sat.lat, sat.lon, elev);
+      const [x, y, z] = mulRot(rot, px, py, pz);
+      if (arcDepthFade(z) < 0.12) continue;
+      const sx = cx + x * R;
+      const sy = cy - y * R;
+      const d = Math.hypot(sx - mx, sy - my);
+      if (d <= bestD) {
+        bestD = d;
+        best = {
+          id: sat.id,
+          name: sat.name,
+          kind: sat.kind,
+          tipX: sx,
+          tipY: sy,
+        };
+      }
+    }
+    return best;
+  }
 
   for (const sat of GLOBE_SATELLITES) {
     const [px, py, pz] = satelliteXyz(sat, tMs);
@@ -824,7 +1182,13 @@ function nearestSat(
     const d = Math.hypot(sx - mx, sy - my);
     if (d <= bestD) {
       bestD = d;
-      best = { sat, tipX: sx, tipY: sy };
+      best = {
+        id: sat.id,
+        name: sat.name,
+        kind: sat.kind,
+        tipX: sx,
+        tipY: sy,
+      };
     }
   }
   return best;
@@ -976,10 +1340,14 @@ function drawRayStubs(
     showCables: true,
     showPipelines: true,
     showSats: true,
+    showFlights: true,
     hoverRouteId: null,
     hoverSatId: null,
+    hoverFlightId: null,
   },
   tMs = 0,
+  liveFlights: LiveAircraft[] | null = null,
+  liveSats: LiveSatellite[] | null = null,
 ): void {
   const pad = css * RAY_PAD_FRAC;
   const full = css + pad * 2;
@@ -995,7 +1363,8 @@ function drawRayStubs(
   const home = marks.find((m) => m.kind === "home");
   const attacks = marks.filter((m) => m.kind === "attack");
   drawInfraRoutes(ctx, rot, css, scale, pad, layers);
-  drawSatellites(ctx, rot, css, scale, pad, tMs, layers);
+  drawFlights(ctx, rot, css, scale, pad, tMs, layers, liveFlights);
+  drawSatellites(ctx, rot, css, scale, pad, tMs, layers, liveSats);
   drawPoleAxis(ctx, rot, css, scale, pad);
   if (home) {
     drawAttackArcs(ctx, rot, css, scale, pad, home, attacks, hoverId);
@@ -1106,6 +1475,9 @@ export const MonitorGlobe = forwardRef<MonitorGlobeHandle, Props>(
       showCables = true,
       showPipelines = true,
       showSats = true,
+      showFlights = true,
+      liveFlights = null,
+      liveSatellites = null,
     },
     ref,
   ) {
@@ -1123,6 +1495,9 @@ export const MonitorGlobe = forwardRef<MonitorGlobeHandle, Props>(
   const showCablesRef = useRef(showCables);
   const showPipelinesRef = useRef(showPipelines);
   const showSatsRef = useRef(showSats);
+  const showFlightsRef = useRef(showFlights);
+  const liveFlightsRef = useRef(liveFlights);
+  const liveSatsRef = useRef(liveSatellites);
   statusRef.current = status;
   attacksRef.current = attackMarkers;
   sessionsRef.current = sessionMarkers;
@@ -1132,6 +1507,9 @@ export const MonitorGlobe = forwardRef<MonitorGlobeHandle, Props>(
   showCablesRef.current = showCables;
   showPipelinesRef.current = showPipelines;
   showSatsRef.current = showSats;
+  showFlightsRef.current = showFlights;
+  liveFlightsRef.current = liveFlights;
+  liveSatsRef.current = liveSatellites;
 
   useImperativeHandle(ref, () => ({
     resetView: () => resetViewRef.current(),
@@ -1327,11 +1705,26 @@ export const MonitorGlobe = forwardRef<MonitorGlobeHandle, Props>(
       );
     };
 
-    const showSatTip = (hit: SatHit, css: number) => {
+    const showSatTip = (hit: SatDrawHit, css: number, live: boolean) => {
       placeTip(
-        `sat:${hit.sat.id}`,
-        formatSatHover(hit.sat),
-        SAT_STYLE[hit.sat.kind].css,
+        `sat:${hit.id}`,
+        formatSatHover(hit.name, hit.kind, live),
+        SAT_STYLE[hit.kind].css,
+        hit.tipX,
+        hit.tipY,
+        css,
+      );
+    };
+
+    const showFlightTip = (
+      hit: FlightDrawHit,
+      css: number,
+      live: boolean,
+    ) => {
+      placeTip(
+        `flight:${hit.id}`,
+        formatFlightHover(hit.name, live),
+        FLIGHT_STYLE.css,
         hit.tipX,
         hit.tipY,
         css,
@@ -1564,12 +1957,15 @@ export const MonitorGlobe = forwardRef<MonitorGlobeHandle, Props>(
       let hoverId: string | null = null;
       let hoverRouteId: string | null = null;
       let hoverSatId: string | null = null;
+      let hoverFlightId: string | null = null;
       const routeLayers: RouteLayers = {
         showCables: showCablesRef.current,
         showPipelines: showPipelinesRef.current,
         showSats: showSatsRef.current,
+        showFlights: showFlightsRef.current,
         hoverRouteId: null,
         hoverSatId: null,
+        hoverFlightId: null,
       };
       if (canInteract && !dragging && !pinching && pointerCssX >= 0) {
         const hit = nearestTip(
@@ -1581,7 +1977,7 @@ export const MonitorGlobe = forwardRef<MonitorGlobeHandle, Props>(
           hoverId = hit.mark.tint.id;
           showTip(hit, css);
         } else {
-          const satHit = nearestSat(
+          const flightHit = nearestFlight(
             rot,
             css,
             GLOBE_SCALE,
@@ -1589,30 +1985,47 @@ export const MonitorGlobe = forwardRef<MonitorGlobeHandle, Props>(
             pointerCssY,
             now,
             routeLayers,
+            liveFlightsRef.current,
           );
-          if (satHit) {
-            hoverSatId = satHit.sat.id;
-            showSatTip(satHit, css);
+          if (flightHit) {
+            hoverFlightId = flightHit.id;
+            showFlightTip(flightHit, css, liveFlightsRef.current != null);
           } else {
-            const routeHit = nearestRoute(
+            const satHit = nearestSat(
               rot,
               css,
               GLOBE_SCALE,
               pointerCssX,
               pointerCssY,
+              now,
               routeLayers,
+              liveSatsRef.current,
             );
-            if (routeHit) {
-              hoverRouteId = routeHit.route.id;
-              showRouteTip(routeHit, css);
+            if (satHit) {
+              hoverSatId = satHit.id;
+              showSatTip(satHit, css, liveSatsRef.current != null);
             } else {
-              hideTip();
+              const routeHit = nearestRoute(
+                rot,
+                css,
+                GLOBE_SCALE,
+                pointerCssX,
+                pointerCssY,
+                routeLayers,
+              );
+              if (routeHit) {
+                hoverRouteId = routeHit.route.id;
+                showRouteTip(routeHit, css);
+              } else {
+                hideTip();
+              }
             }
           }
         }
       }
       routeLayers.hoverRouteId = hoverRouteId;
       routeLayers.hoverSatId = hoverSatId;
+      routeLayers.hoverFlightId = hoverFlightId;
 
       const nextKey = `${tintKey(
         attacksRef.current,
@@ -1658,6 +2071,8 @@ export const MonitorGlobe = forwardRef<MonitorGlobeHandle, Props>(
         hoverId,
         routeLayers,
         now,
+        liveFlightsRef.current,
+        liveSatsRef.current,
       );
     };
 

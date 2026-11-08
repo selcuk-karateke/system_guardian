@@ -360,6 +360,17 @@
   background: rgb(251 191 36 / 16%);
 }
 
+.monitor-globe-layer--flight {
+  border: 1px solid rgb(74 222 128 / 28%);
+  background: rgb(74 222 128 / 8%);
+  color: var(--ok);
+}
+
+.monitor-globe-layer--flight[data-on="1"] {
+  border-color: rgb(74 222 128 / 55%);
+  background: rgb(74 222 128 / 16%);
+}
+
 .monitor-globe-layer--sat {
   border: 1px solid rgb(167 243 208 / 28%);
   background: rgb(167 243 208 / 8%);
