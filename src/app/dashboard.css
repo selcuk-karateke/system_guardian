@@ -690,11 +690,12 @@
   }
 }
 
-/* Action toasts — Phase 3 system feedback */
+/* Action toasts — short sync feedback (left). Jobs overlay owns bottom-right. */
 .sg-toast-host {
   position: fixed;
   z-index: 80;
-  right: 1rem;
+  left: 1rem;
+  right: auto;
   bottom: 1rem;
   display: flex;
   flex-direction: column;

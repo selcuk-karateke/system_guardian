@@ -6,8 +6,8 @@ import { triggerCoolifyRedeployAction } from "@/app/actions/protect";
 import { CollapsibleSection } from "@/components/dashboard/collapsible-section";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { wakeBackgroundJobsOverlay } from "@/lib/jobs/wake-client";
-import { notifyProgress, notifyResult } from "@/lib/ui/notify";
+import { runEnqueuedJob } from "@/lib/jobs/wake-client";
+import { notifyResult } from "@/lib/ui/notify";
 import type { DockerInventoryGroup } from "@/lib/docker/inventory";
 import {
   findScanForContainer,
@@ -107,19 +107,20 @@ export function DockerInventoryPanel({
   ) {
     setActiveScan(containerName);
     setStatus(containerName, null);
-    const toastId = `trivy:${containerName}`;
-    notifyProgress(toastId, `Trivy-Scan · ${containerName}…`);
     startTransition(async () => {
       try {
-        const result = await runContainerTrivyScan(
-          containerName,
-          imageRef,
-          force,
-          serverId,
-          coolifyUuid,
+        const result = await runEnqueuedJob(
+          { label: "Trivy-Scan", detail: containerName },
+          () =>
+            runContainerTrivyScan(
+              containerName,
+              imageRef,
+              force,
+              serverId,
+              coolifyUuid,
+            ),
         );
         setActiveScan(null);
-        notifyResult(result, { id: toastId });
         if (!result.ok) {
           setStatus(containerName, { kind: "error", text: result.message });
           setExpanded(containerName);
@@ -130,17 +131,13 @@ export function DockerInventoryPanel({
           text: result.message,
         });
         setExpanded(containerName);
-        wakeBackgroundJobsOverlay({
-          label: "Trivy-Scan",
-          detail: containerName,
-        });
       } catch (e) {
         setActiveScan(null);
         const message =
           e instanceof Error
             ? e.message.slice(0, 200)
             : "Scan-Anfrage fehlgeschlagen";
-        notifyResult({ ok: false, message }, { id: toastId });
+        notifyResult({ ok: false, message });
         setStatus(containerName, { kind: "error", text: message });
         setExpanded(containerName);
       }
@@ -150,31 +147,25 @@ export function DockerInventoryPanel({
   function runRedeploy(containerName: string, coolifyUuid: string) {
     setActiveRedeploy(containerName);
     setStatus(containerName, null);
-    const toastId = `redeploy:${containerName}`;
-    notifyProgress(toastId, `Redeploy · ${containerName}…`);
     startTransition(async () => {
       try {
-        const result = await triggerCoolifyRedeployAction(coolifyUuid, serverId);
+        const result = await runEnqueuedJob(
+          { label: "Coolify Redeploy", detail: containerName },
+          () => triggerCoolifyRedeployAction(coolifyUuid, serverId),
+        );
         setActiveRedeploy(null);
-        notifyResult(result, { id: toastId });
         setStatus(containerName, {
           kind: result.ok ? "info" : "error",
           text: result.message,
         });
         setExpanded(containerName);
-        if (result.ok) {
-          wakeBackgroundJobsOverlay({
-            label: "Coolify Redeploy",
-            detail: containerName,
-          });
-        }
       } catch (e) {
         setActiveRedeploy(null);
         const message =
           e instanceof Error
             ? e.message.slice(0, 200)
             : "Redeploy-Anfrage fehlgeschlagen";
-        notifyResult({ ok: false, message }, { id: toastId });
+        notifyResult({ ok: false, message });
         setStatus(containerName, { kind: "error", text: message });
         setExpanded(containerName);
       }

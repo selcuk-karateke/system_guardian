@@ -7,7 +7,7 @@ import { dismissAlert } from "@/app/actions/alerts";
 import { triggerBackupAction } from "@/app/actions/protect";
 import { CopyReportButton } from "@/components/dashboard/copy-report-button";
 import { Button } from "@/components/ui/button";
-import { wakeBackgroundJobsOverlay } from "@/lib/jobs/wake-client";
+import { runEnqueuedJob } from "@/lib/jobs/wake-client";
 import { notifyProgress, notifyResult } from "@/lib/ui/notify";
 
 export function AlertDetailActions({
@@ -39,14 +39,11 @@ export function AlertDetailActions({
           size="sm"
           disabled={pending}
           onClick={() => {
-            const id = `backup:${serverId ?? "default"}`;
-            notifyProgress(id, "Backup wird angestoßen…");
             startTransition(async () => {
-              const result = await triggerBackupAction(serverId);
-              notifyResult(result, { id });
-              if (result.ok) {
-                wakeBackgroundJobsOverlay({ label: "Backup" });
-              }
+              await runEnqueuedJob(
+                { label: "Backup" },
+                () => triggerBackupAction(serverId),
+              );
             });
           }}
         >

@@ -8,8 +8,7 @@ import {
   triggerServerChecks,
 } from "@/app/actions/trigger-checks";
 import { Button } from "@/components/ui/button";
-import { wakeBackgroundJobsOverlay } from "@/lib/jobs/wake-client";
-import { notifyProgress, notifyResult } from "@/lib/ui/notify";
+import { runEnqueuedJob } from "@/lib/jobs/wake-client";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -23,14 +22,8 @@ export function TriggerChecks({ variant = "default" }: Props) {
     label: string,
     fn: () => Promise<{ ok: boolean; message: string }>,
   ) {
-    const id = `checks:${label}`;
-    notifyProgress(id, `${label} starten…`);
     startTransition(async () => {
-      const result = await fn();
-      notifyResult(result, { id });
-      if (result.ok) {
-        wakeBackgroundJobsOverlay({ label });
-      }
+      await runEnqueuedJob({ label }, fn);
     });
   }
 

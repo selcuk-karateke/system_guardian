@@ -10,7 +10,7 @@ import {
 import { triggerDockerRefresh } from "@/app/actions/trigger-checks";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { wakeBackgroundJobsOverlay } from "@/lib/jobs/wake-client";
+import { runEnqueuedJob } from "@/lib/jobs/wake-client";
 import { notify, notifyProgress, notifyResult } from "@/lib/ui/notify";
 
 type Props = {
@@ -118,14 +118,11 @@ export function DockerToolbar({
             disabled={pending || !serverId}
             title="Nur Container-Liste vom Server holen (docker ps). Kein Security-Scan."
             onClick={() => {
-              const id = "docker:liste";
-              notifyProgress(id, "Docker-Liste wird geladen…");
               startTransition(async () => {
-                const r = await triggerDockerRefresh(serverId);
-                notifyResult(r, { id });
-                if (r.ok) {
-                  wakeBackgroundJobsOverlay({ label: "Docker-Inventar" });
-                }
+                await runEnqueuedJob(
+                  { label: "Docker-Inventar" },
+                  () => triggerDockerRefresh(serverId),
+                );
               });
             }}
           >
@@ -139,17 +136,14 @@ export function DockerToolbar({
             title={
               !sshOk
                 ? "Braucht CHECK_MODE=ssh"
-                : "Bis zu 20 Images ohne Scan. Läuft im Hintergrund — Overlay unten rechts."
+                : "Bis zu 20 Images ohne Scan. Fortschritt unten rechts."
             }
             onClick={() => {
-              const id = "docker:scan";
-              notifyProgress(id, "Trivy Batch-Scan startet…");
               startTransition(async () => {
-                const r = await runTrivyBatchNowAction(serverId);
-                notifyResult(r, { id });
-                if (r.ok) {
-                  wakeBackgroundJobsOverlay({ label: "Trivy Batch-Scan" });
-                }
+                await runEnqueuedJob(
+                  { label: "Trivy Batch-Scan" },
+                  () => runTrivyBatchNowAction(serverId),
+                );
               });
             }}
           >

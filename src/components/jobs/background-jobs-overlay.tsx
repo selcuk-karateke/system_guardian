@@ -46,7 +46,7 @@ function jobsFingerprint(jobs: BackgroundJob[]): string {
 
 function optimisticJob(hint: JobsWakeDetail): BackgroundJob {
   return {
-    id: `local-${Date.now()}`,
+    id: `local-${hint.label}-${hint.detail ?? ""}-${Date.now()}`,
     kind: "trivy_batch",
     label: hint.label,
     detail: hint.detail,
@@ -54,6 +54,12 @@ function optimisticJob(hint: JobsWakeDetail): BackgroundJob {
     message: "Gestartet…",
     startedAt: Date.now(),
   };
+}
+
+function sameJobHint(job: BackgroundJob, hint: JobsWakeDetail): boolean {
+  if (job.label !== hint.label) return false;
+  if (hint.detail) return job.detail === hint.detail;
+  return true;
 }
 
 export function BackgroundJobsOverlay() {
@@ -93,11 +99,17 @@ export function BackgroundJobsOverlay() {
       const hint = (ev as CustomEvent<JobsWakeDetail | null>).detail;
       if (hint?.label) {
         setJobs((prev) => {
-          const hasLive = prev.some(
-            (j) => j.status === "queued" || j.status === "running",
+          const alreadyLive = prev.some(
+            (j) =>
+              (j.status === "queued" || j.status === "running") &&
+              sameJobHint(j, hint),
           );
-          if (hasLive) return prev;
-          const next = [optimisticJob(hint), ...prev];
+          if (alreadyLive) return prev;
+          // Drop stale local placeholders for this label; keep other live jobs.
+          const kept = prev.filter(
+            (j) => !(j.id.startsWith("local-") && sameJobHint(j, hint)),
+          );
+          const next = [optimisticJob(hint), ...kept];
           fingerprintRef.current = jobsFingerprint(next);
           return next;
         });
@@ -125,11 +137,26 @@ export function BackgroundJobsOverlay() {
           return now - j.finishedAt < DONE_HIDE_MS;
         });
 
-        const nextFp = jobsFingerprint(visible);
-        if (nextFp !== fingerprintRef.current) {
+        // Keep optimistic local rows only until the server lists a matching live job.
+        setJobs((prev) => {
+          const locals = prev.filter((j) => j.id.startsWith("local-"));
+          const stillWaiting = locals.filter(
+            (local) =>
+              !visible.some(
+                (j) =>
+                  (j.status === "queued" || j.status === "running") &&
+                  sameJobHint(j, {
+                    label: local.label,
+                    detail: local.detail,
+                  }),
+              ),
+          );
+          const merged = [...stillWaiting, ...visible];
+          const nextFp = jobsFingerprint(merged);
+          if (nextFp === fingerprintRef.current) return prev;
           fingerprintRef.current = nextFp;
-          setJobs(visible);
-        }
+          return merged;
+        });
 
         let shouldRefresh = false;
         for (const j of data.jobs) {
@@ -193,7 +220,7 @@ export function BackgroundJobsOverlay() {
       aria-live="polite"
       aria-label="Hintergrund-Aufgaben"
     >
-      <div className="overflow-hidden rounded-md border border-cyan-500/25 bg-zinc-950/90 shadow-lg shadow-black/50">
+      <div className="overflow-hidden rounded-md border border-cyan-500/30 bg-zinc-950 shadow-lg shadow-black/60 backdrop-blur-sm">
         <button
           type="button"
           className="flex w-full items-center gap-2.5 px-3 py-2 text-left"
