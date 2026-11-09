@@ -4,7 +4,7 @@ import { useTransition } from "react";
 import { triggerBackupAction } from "@/app/actions/protect";
 import { wakeBackgroundJobsOverlay } from "@/lib/jobs/wake-client";
 import { Button } from "@/components/ui/button";
-import { notifyResult } from "@/lib/ui/notify";
+import { notifyProgress, notifyResult } from "@/lib/ui/notify";
 
 type Props = {
   autoBlockEnabled: boolean;
@@ -91,16 +91,18 @@ export function ProtectPanel({
           size="sm"
           disabled={pending || !backupTriggerEnabled || checkMode !== "ssh"}
           onClick={() => {
+            const id = "protect:backup";
+            notifyProgress(id, "Backup wird angestoßen…");
             startTransition(async () => {
               const result = await triggerBackupAction();
-              notifyResult(result);
+              notifyResult(result, { id });
               if (result.ok) {
                 wakeBackgroundJobsOverlay({ label: "Backup" });
               }
             });
           }}
         >
-          Backup jetzt anstoßen
+          {pending ? "Backup…" : "Backup jetzt anstoßen"}
         </Button>
       </div>
     </div>

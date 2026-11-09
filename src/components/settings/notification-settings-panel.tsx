@@ -13,7 +13,7 @@ import {
 import type { NotificationChannelStatus } from "@/lib/notifications/status";
 import { Button } from "@/components/ui/button";
 import { fieldClass } from "@/lib/ui/field";
-import { notifyResult } from "@/lib/ui/notify";
+import { notifyProgress, notifyResult } from "@/lib/ui/notify";
 
 type Props = {
   status: NotificationChannelStatus;
@@ -38,16 +38,23 @@ export function NotificationSettingsPanel({ status }: Props) {
   ) {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
+    const id = "notify:save";
+    notifyProgress(id, "Einstellungen speichern…");
     startTransition(async () => {
       const result = await fn(formData);
-      notifyResult(result);
+      notifyResult(result, { id });
       if (result.ok) router.refresh();
     });
   }
 
-  function runTest(fn: () => Promise<{ ok: boolean; message: string }>) {
+  function runTest(
+    label: string,
+    fn: () => Promise<{ ok: boolean; message: string }>,
+  ) {
+    const id = `notify:test:${label}`;
+    notifyProgress(id, `${label}-Test…`);
     startTransition(async () => {
-      notifyResult(await fn());
+      notifyResult(await fn(), { id });
     });
   }
 
@@ -213,7 +220,7 @@ export function NotificationSettingsPanel({ status }: Props) {
           variant="outline"
           size="sm"
           disabled={pending || !status.telegram}
-          onClick={() => runTest(testTelegramNotification)}
+          onClick={() => runTest("Telegram", testTelegramNotification)}
         >
           Telegram testen
         </Button>
@@ -222,7 +229,7 @@ export function NotificationSettingsPanel({ status }: Props) {
           variant="outline"
           size="sm"
           disabled={pending || !status.discord}
-          onClick={() => runTest(testDiscordNotification)}
+          onClick={() => runTest("Discord", testDiscordNotification)}
         >
           Discord testen
         </Button>
@@ -231,7 +238,7 @@ export function NotificationSettingsPanel({ status }: Props) {
           variant="outline"
           size="sm"
           disabled={pending}
-          onClick={() => runTest(testDailyReportPreview)}
+          onClick={() => runTest("Daily-Report", testDailyReportPreview)}
         >
           Daily-Report-Format testen
         </Button>

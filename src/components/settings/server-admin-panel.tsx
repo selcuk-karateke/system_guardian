@@ -14,7 +14,7 @@ import {
 } from "@/app/actions/servers";
 import { Button } from "@/components/ui/button";
 import { fieldClass } from "@/lib/ui/field";
-import { notify, notifyResult } from "@/lib/ui/notify";
+import { notify, notifyProgress, notifyResult } from "@/lib/ui/notify";
 
 export type ServerAdminRow = {
   id: string;
@@ -66,9 +66,11 @@ export function ServerAdminPanel({
     const form = e.currentTarget;
     const formData = new FormData(form);
     setInstallCmd(null);
+    const toastId = "server:create";
+    notifyProgress(toastId, "Server wird angelegt…");
     startTransition(async () => {
       const result = await createServerAction(formData);
-      notifyResult(result);
+      notifyResult(result, { id: toastId });
       if (result.ok) {
         form.reset();
         if (result.agentInstallCmd) {
@@ -88,9 +90,11 @@ export function ServerAdminPanel({
     ) {
       return;
     }
+    const toastId = `agent-token:${serverId}`;
+    notifyProgress(toastId, "Agent-Token wird ausgestellt…");
     startTransition(async () => {
       const result = await rotateAgentTokenAction(serverId);
-      notifyResult(result);
+      notifyResult(result, { id: toastId });
       if (result.ok && result.agentInstallCmd) {
         setInstallCmd(result.agentInstallCmd);
         setInstallFor(serverId);
@@ -108,9 +112,11 @@ export function ServerAdminPanel({
       return;
     }
     setInstallCmd(null);
+    const toastId = `agent-install:${serverId}`;
+    notifyProgress(toastId, `Agent-Install auf „${name}“ läuft…`);
     startTransition(async () => {
       const result = await installAgentViaSshAction(serverId);
-      notifyResult(result);
+      notifyResult(result, { id: toastId });
       if (result.agentInstallCmd) {
         setInstallCmd(result.agentInstallCmd);
         setInstallFor(serverId);
@@ -284,7 +290,11 @@ export function ServerAdminPanel({
                 }
                 onClick={() => onInstallAgent(s.id, s.name)}
               >
-                {s.agentOnline ? "Agent neu installieren" : "Agent installieren"}
+                {pending
+                  ? "Installiere…"
+                  : s.agentOnline
+                    ? "Agent neu installieren"
+                    : "Agent installieren"}
               </Button>
               <Button
                 type="button"

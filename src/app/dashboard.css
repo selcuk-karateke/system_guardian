@@ -734,6 +734,10 @@
   color: #bae6fd;
 }
 
+.sg-toast--sticky {
+  border-color: rgb(56 189 248 / 45%);
+}
+
 .sg-toast__msg {
   flex: 1;
   min-width: 0;

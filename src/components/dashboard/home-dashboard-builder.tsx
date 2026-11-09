@@ -41,7 +41,7 @@ import {
   patchLocalHome,
   readLocalUiLayout,
 } from "@/lib/ui-layout-local";
-import { notify, notifyResult } from "@/lib/ui/notify";
+import { notify, notifyProgress, notifyResult } from "@/lib/ui/notify";
 
 /** JSON-safe server row (Date → ISO). */
 export type HomeServerRow = Omit<ServerStatusItem, "lastCheckAt"> & {
@@ -141,10 +141,12 @@ export function HomeDashboardBuilder({
   }
 
   function save() {
+    const id = "layout:home";
+    notifyProgress(id, "Layout speichern…");
     startTransition(async () => {
       if (canPersist) {
         const r = await saveUiLayoutAction({ home: draft });
-        notifyResult(r);
+        notifyResult(r, { id });
         if (r.ok) {
           setHome(draft);
           setEditing(false);
@@ -154,7 +156,7 @@ export function HomeDashboardBuilder({
       patchLocalHome(draft);
       setHome(draft);
       setEditing(false);
-      notify({ message: "Layout gespeichert", tone: "ok" });
+      notify({ id, message: "Layout gespeichert", tone: "ok" });
     });
   }
 

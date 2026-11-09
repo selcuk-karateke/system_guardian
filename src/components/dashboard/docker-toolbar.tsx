@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   resetTrivyStateAction,
@@ -11,6 +11,7 @@ import { triggerDockerRefresh } from "@/app/actions/trigger-checks";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { wakeBackgroundJobsOverlay } from "@/lib/jobs/wake-client";
+import { notify, notifyProgress, notifyResult } from "@/lib/ui/notify";
 
 type Props = {
   serverId?: string;
@@ -52,9 +53,14 @@ export function DockerToolbar({
 }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [note, setNote] = useState<string | null>(
-    autoRefreshed ? "Inventar vom Host geladen" : null,
-  );
+
+  useEffect(() => {
+    if (autoRefreshed) {
+      notify({ message: "Inventar vom Host geladen", tone: "ok", ms: 2500 });
+    }
+    // Only on first mount when server already auto-refreshed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional once
+  }, []);
 
   const stale =
     !checkedAt || Date.now() - new Date(checkedAt).getTime() > 3 * 60_000;
@@ -112,10 +118,11 @@ export function DockerToolbar({
             disabled={pending || !serverId}
             title="Nur Container-Liste vom Server holen (docker ps). Kein Security-Scan."
             onClick={() => {
-              setNote(null);
+              const id = "docker:liste";
+              notifyProgress(id, "Docker-Liste wird geladen…");
               startTransition(async () => {
                 const r = await triggerDockerRefresh(serverId);
-                setNote(r.message);
+                notifyResult(r, { id });
                 if (r.ok) {
                   wakeBackgroundJobsOverlay({ label: "Docker-Inventar" });
                 }
@@ -135,10 +142,11 @@ export function DockerToolbar({
                 : "Bis zu 20 Images ohne Scan. Läuft im Hintergrund — Overlay unten rechts."
             }
             onClick={() => {
-              setNote(null);
+              const id = "docker:scan";
+              notifyProgress(id, "Trivy Batch-Scan startet…");
               startTransition(async () => {
                 const r = await runTrivyBatchNowAction(serverId);
-                setNote(r.message);
+                notifyResult(r, { id });
                 if (r.ok) {
                   wakeBackgroundJobsOverlay({ label: "Trivy Batch-Scan" });
                 }
@@ -154,10 +162,11 @@ export function DockerToolbar({
             disabled={pending || !serverId}
             title="Gespeicherte Scan-Ergebnisse → Dashboard-Warnungen. Kein neuer Scan."
             onClick={() => {
-              setNote(null);
+              const id = "docker:alerts";
+              notifyProgress(id, "Trivy-Alerts werden synchronisiert…");
               startTransition(async () => {
                 const r = await syncTrivyAlertsAction(serverId);
-                setNote(r.message);
+                notifyResult(r, { id });
                 if (r.ok) router.refresh();
               });
             }}
@@ -178,10 +187,11 @@ export function DockerToolbar({
               ) {
                 return;
               }
-              setNote(null);
+              const id = "docker:reset";
+              notifyProgress(id, "Trivy-Cache wird gelöscht…");
               startTransition(async () => {
                 const r = await resetTrivyStateAction(serverId);
-                setNote(r.message);
+                notifyResult(r, { id });
                 if (r.ok) router.refresh();
               });
             }}
@@ -197,7 +207,6 @@ export function DockerToolbar({
         aus Cache · <span className="text-zinc-400">Reset</span> = Cache weg,
         neu anfangen
       </p>
-      {note && <p className="text-xs text-zinc-400">{note}</p>}
     </div>
   );
 }

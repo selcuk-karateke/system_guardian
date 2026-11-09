@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { notify } from "@/lib/ui/notify";
 
 export function CopyReportButton({
   text,
@@ -17,17 +18,19 @@ export function CopyReportButton({
   size?: "sm" | "default";
 }) {
   const [copied, setCopied] = useState(false);
-  const [error, setError] = useState(false);
 
   const copy = useCallback(async () => {
-    setError(false);
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
+      notify({ message: "Bericht kopiert", tone: "ok", ms: 2200 });
       window.setTimeout(() => setCopied(false), 2500);
     } catch {
-      setError(true);
-      window.setTimeout(() => setError(false), 3000);
+      notify({
+        message: "Kopieren fehlgeschlagen",
+        tone: "error",
+        ms: 4000,
+      });
     }
   }, [text]);
 
@@ -39,7 +42,7 @@ export function CopyReportButton({
       onClick={() => void copy()}
       title="Vollständigen Textbericht in die Zwischenablage kopieren"
     >
-      {error ? "Kopieren fehlgeschlagen" : copied ? copiedLabel : label}
+      {copied ? copiedLabel : label}
     </Button>
   );
 }

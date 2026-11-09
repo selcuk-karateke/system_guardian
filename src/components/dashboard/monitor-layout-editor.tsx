@@ -27,7 +27,7 @@ import {
 } from "@/lib/monitor/metric-order";
 import { moveInOrder, type MonitorLayout, type UiLayout } from "@/lib/ui-layout";
 import { patchLocalMonitor } from "@/lib/ui-layout-local";
-import { notify, notifyResult } from "@/lib/ui/notify";
+import { notify, notifyProgress, notifyResult } from "@/lib/ui/notify";
 
 const METRIC_LABELS: Record<MetricOrderKey, string> = {
   load: "Load",
@@ -82,14 +82,16 @@ export function MonitorLayoutEditor({
   }
 
   function save() {
+    const id = "layout:monitor";
+    notifyProgress(id, "Layout speichern…");
     startTransition(async () => {
       if (canPersist) {
         const r = await saveUiLayoutAction({ monitor: draft });
-        notifyResult(r);
+        notifyResult(r, { id });
         if (!r.ok) return;
       } else {
         patchLocalMonitor(draft);
-        notify({ message: "Layout gespeichert", tone: "ok" });
+        notify({ id, message: "Layout gespeichert", tone: "ok" });
       }
       onApplied(draft);
       onClose();

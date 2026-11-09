@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useTransition } from "react";
 import { dismissAlert } from "@/app/actions/alerts";
 import { triggerBackupAction } from "@/app/actions/protect";
 import { CopyReportButton } from "@/components/dashboard/copy-report-button";
 import { Button } from "@/components/ui/button";
 import { wakeBackgroundJobsOverlay } from "@/lib/jobs/wake-client";
+import { notifyProgress, notifyResult } from "@/lib/ui/notify";
 
 export function AlertDetailActions({
   alertId,
@@ -24,54 +25,68 @@ export function AlertDetailActions({
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [backupMsg, setBackupMsg] = useState<string | null>(null);
 
   return (
-    <div className="space-y-2">
-      <div className="flex flex-wrap gap-3">
-        <CopyReportButton text={reportText} label="Bericht kopieren" />
-        <Button asChild variant="outline" size="sm">
-          <Link href="/notifications">← Alle Warnungen</Link>
+    <div className="flex flex-wrap gap-3">
+      <CopyReportButton text={reportText} label="Bericht kopieren" />
+      <Button asChild variant="outline" size="sm">
+        <Link href="/notifications">← Alle Warnungen</Link>
+      </Button>
+      {showBackupTrigger && (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={pending}
+          onClick={() => {
+            const id = `backup:${serverId ?? "default"}`;
+            notifyProgress(id, "Backup wird angestoßen…");
+            startTransition(async () => {
+              const result = await triggerBackupAction(serverId);
+              notifyResult(result, { id });
+              if (result.ok) {
+                wakeBackgroundJobsOverlay({ label: "Backup" });
+              }
+            });
+          }}
+        >
+          {pending ? "Backup…" : "Backup anstoßen"}
         </Button>
-        {showBackupTrigger && (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={pending}
-            onClick={() => {
-              setBackupMsg(null);
-              startTransition(async () => {
-                const result = await triggerBackupAction(serverId);
-                setBackupMsg(result.message);
-                if (result.ok) {
-                  wakeBackgroundJobsOverlay({ label: "Backup" });
-                }
-              });
-            }}
-          >
-            Backup anstoßen
-          </Button>
-        )}
-        {!resolved && (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={pending}
-            onClick={() => {
-              startTransition(async () => {
+      )}
+      {!resolved && (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={pending}
+          onClick={() => {
+            const id = `dismiss:${alertId}`;
+            notifyProgress(id, "Warnung wird entschärft…");
+            startTransition(async () => {
+              try {
                 await dismissAlert(alertId);
+                notifyResult(
+                  { ok: true, message: "Warnung entschärft" },
+                  { id },
+                );
                 router.refresh();
-              });
-            }}
-          >
-            Entschärfen
-          </Button>
-        )}
-      </div>
-      {backupMsg && (
-        <p className="text-xs text-zinc-400">{backupMsg}</p>
+              } catch (e) {
+                notifyResult(
+                  {
+                    ok: false,
+                    message:
+                      e instanceof Error
+                        ? e.message
+                        : "Entschärfen fehlgeschlagen",
+                  },
+                  { id },
+                );
+              }
+            });
+          }}
+        >
+          Entschärfen
+        </Button>
       )}
     </div>
   );

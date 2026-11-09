@@ -9,7 +9,7 @@ import {
 } from "@/app/actions/trigger-checks";
 import { Button } from "@/components/ui/button";
 import { wakeBackgroundJobsOverlay } from "@/lib/jobs/wake-client";
-import { notifyResult } from "@/lib/ui/notify";
+import { notifyProgress, notifyResult } from "@/lib/ui/notify";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -23,13 +23,14 @@ export function TriggerChecks({ variant = "default" }: Props) {
     label: string,
     fn: () => Promise<{ ok: boolean; message: string }>,
   ) {
+    const id = `checks:${label}`;
+    notifyProgress(id, `${label} starten…`);
     startTransition(async () => {
       const result = await fn();
+      notifyResult(result, { id });
       if (result.ok) {
         wakeBackgroundJobsOverlay({ label });
-        return;
       }
-      notifyResult(result);
     });
   }
 
