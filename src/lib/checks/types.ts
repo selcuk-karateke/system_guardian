@@ -5,6 +5,11 @@ export interface AlertInput {
   level: AlertLevel;
   message: string;
   recommendation?: string;
+  /**
+   * Stable identity for dedupe when the display message embeds volatile
+   * numbers (rates, counters). processAlerts matches on this when set.
+   */
+  dedupeKey?: string;
 }
 
 export interface CheckResult {

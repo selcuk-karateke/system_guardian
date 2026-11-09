@@ -228,15 +228,16 @@ export async function runServerHealthCheck(
 
   await db.insert(metricsSnapshots).values({
     serverId,
-    cpuPercent: effectiveLoadPercent,
-    ramPercent: ram,
-    swapPercent: swap,
-    loadAvg1: loadAvg1,
-    loadAvg5: loadAvg5,
-    loadAvg15: loadAvg15,
+    // integer columns — agent can send fractional cpuPercent
+    cpuPercent: Math.round(effectiveLoadPercent),
+    ramPercent: Math.round(ram),
+    swapPercent: Math.round(swap),
+    loadAvg1: loadAvg1 != null ? String(loadAvg1) : null,
+    loadAvg5: loadAvg5 != null ? String(loadAvg5) : null,
+    loadAvg15: loadAvg15 != null ? String(loadAvg15) : null,
     cpuCores,
-    diskPercent: disk,
-    uptimeSeconds: uptimeSec,
+    diskPercent: Math.round(disk),
+    uptimeSeconds: Math.round(uptimeSec),
     temperatureCelsius: temp ?? null,
     networkOk: true,
   });

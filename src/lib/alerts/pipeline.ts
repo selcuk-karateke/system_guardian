@@ -70,6 +70,57 @@ export async function reconcileOpenAlerts(
   return stale.length;
 }
 
+async function findOpenAlert(
+  serverId: string | null,
+  module: string,
+  input: AlertInput,
+): Promise<typeof alerts.$inferSelect | undefined> {
+  if (input.dedupeKey) {
+    const open = await db
+      .select()
+      .from(alerts)
+      .where(
+        and(
+          eq(alerts.module, module),
+          isNull(alerts.resolvedAt),
+          serverIdCondition(serverId),
+        ),
+      );
+    const marker = `[[${input.dedupeKey}]]`;
+    const byKey = open.find(
+      (row) =>
+        row.recommendation?.includes(marker) || row.message === input.message,
+    );
+    if (byKey) return byKey;
+  }
+
+  const [existing] = await db
+    .select()
+    .from(alerts)
+    .where(
+      and(
+        eq(alerts.module, module),
+        eq(alerts.message, input.message),
+        isNull(alerts.resolvedAt),
+        serverIdCondition(serverId),
+      ),
+    )
+    .limit(1);
+  return existing;
+}
+
+function withDedupeMarker(
+  recommendation: string | undefined,
+  dedupeKey: string | undefined,
+): string | null {
+  if (!recommendation && !dedupeKey) return null;
+  const base = recommendation ?? "";
+  if (!dedupeKey) return base || null;
+  const marker = `[[${dedupeKey}]]`;
+  if (base.includes(marker)) return base;
+  return base ? `${base} ${marker}` : marker;
+}
+
 export async function processAlerts(
   serverId: string | null,
   module: string,
@@ -78,18 +129,7 @@ export async function processAlerts(
   const now = new Date();
 
   for (const input of alertInputs) {
-    const [existing] = await db
-      .select()
-      .from(alerts)
-      .where(
-        and(
-          eq(alerts.module, module),
-          eq(alerts.message, input.message),
-          isNull(alerts.resolvedAt),
-          serverIdCondition(serverId),
-        ),
-      )
-      .limit(1);
+    const existing = await findOpenAlert(serverId, module, input);
 
     if (existing) {
       const existingRank = LEVEL_RANK[existing.level as AlertLevel] ?? 0;
@@ -101,10 +141,12 @@ export async function processAlerts(
         .update(alerts)
         .set({
           lastSeenAt: now,
+          message: input.message,
           ...(escalate || demote ? { level: input.level } : {}),
-          ...(input.recommendation
-            ? { recommendation: input.recommendation }
-            : {}),
+          recommendation: withDedupeMarker(
+            input.recommendation,
+            input.dedupeKey,
+          ),
         })
         .where(eq(alerts.id, existing.id));
 
@@ -133,7 +175,10 @@ export async function processAlerts(
         module,
         level: input.level,
         message: input.message,
-        recommendation: input.recommendation ?? null,
+        recommendation: withDedupeMarker(
+          input.recommendation,
+          input.dedupeKey,
+        ),
         lastSeenAt: now,
       })
       .returning();
@@ -149,6 +194,66 @@ export async function processAlerts(
         .where(eq(alerts.id, inserted.id));
     }
   }
+}
+
+/**
+ * Close open agent-egress alerts that are no longer current (rate dropped /
+ * LAN talker / legacy Mbps-spam rows). Does not touch other server_health alerts.
+ */
+export async function reconcileAgentEgressAlerts(
+  serverId: string | null,
+  currentAlerts: AlertInput[],
+  isFamily: (message: string) => boolean,
+): Promise<number> {
+  const open = await db
+    .select()
+    .from(alerts)
+    .where(
+      and(
+        eq(alerts.module, "server_health"),
+        isNull(alerts.resolvedAt),
+        serverIdCondition(serverId),
+      ),
+    );
+
+  const family = open.filter((row) => isFamily(row.message));
+  if (family.length === 0) return 0;
+
+  const currentMessages = new Set(currentAlerts.map((a) => a.message));
+  const currentKeys = new Set(
+    currentAlerts
+      .map((a) => a.dedupeKey)
+      .filter((k): k is string => Boolean(k))
+      .map((k) => `[[${k}]]`),
+  );
+
+  const stale = family.filter((row) => {
+    if (currentMessages.has(row.message)) return false;
+    if (
+      row.recommendation &&
+      [...currentKeys].some((marker) => row.recommendation!.includes(marker))
+    ) {
+      return false;
+    }
+    return true;
+  });
+
+  if (stale.length === 0) return 0;
+
+  const now = new Date();
+  for (const row of stale) {
+    await db
+      .update(alerts)
+      .set({
+        resolvedAt: now,
+        recommendation: row.recommendation
+          ? `${row.recommendation} · ${AUTO_RESOLVE_NOTE}`
+          : AUTO_RESOLVE_NOTE,
+      })
+      .where(eq(alerts.id, row.id));
+  }
+
+  return stale.length;
 }
 
 export async function runCheckWithPersist(

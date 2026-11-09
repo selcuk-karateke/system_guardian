@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  alertsFromAgentLive,
   formatTopTalkerDetail,
   formatTopTalkerLine,
+  isAgentEgressAlertMessage,
   parseAgentIngestPayload,
   toMonitorLivePayload,
 } from "./ingest";
@@ -106,6 +108,76 @@ describe("toMonitorLivePayload", () => {
     assert.equal(p.host?.ramPercent, 25);
     assert.equal(p.host?.diskPercent, 50);
     assert.equal(p.host?.uptimeSec, 90_000);
+  });
+});
+
+describe("alertsFromAgentLive", () => {
+  const base: AgentLiveSnapshot = {
+    agentVersion: "0.2.0",
+    hostname: "kawai",
+    cpuPercent: 8,
+    load1: 0.4,
+    load5: 0.5,
+    load15: 0.6,
+    memUsedBytes: null,
+    memTotalBytes: null,
+    diskUsedBytes: null,
+    diskTotalBytes: null,
+    uptimeSec: null,
+    egress: { txMbps: 400, rxMbps: 1, iface: "enp35s0", windowSec: 5 },
+    talkers: [],
+    receivedAt: 1,
+    serverId: "00000000-0000-0000-0000-000000000001",
+  };
+
+  it("uses a stable message without live Mbit/s", () => {
+    const alerts = alertsFromAgentLive(base);
+    assert.equal(alerts.length, 1);
+    assert.equal(alerts[0]!.level, "critical");
+    assert.doesNotMatch(alerts[0]!.message, /\d+\.\d+ Mbit/);
+    assert.match(alerts[0]!.message, /\(Agent\)/);
+    assert.match(alerts[0]!.recommendation ?? "", /400\.0 Mbit/);
+    assert.ok(alerts[0]!.dedupeKey);
+  });
+
+  it("skips LAN / private top talkers (no exfil spam)", () => {
+    const alerts = alertsFromAgentLive({
+      ...base,
+      talkers: [
+        {
+          pid: 1,
+          process: "docker-proxy",
+          remoteIp: "10.0.1.35",
+          remotePort: 80,
+          state: "established",
+          txBps: 50_000_000,
+          rxBps: 0,
+          stillActive: true,
+          kind: "http",
+        },
+      ],
+    });
+    assert.equal(alerts.length, 0);
+  });
+
+  it("detects legacy and new agent egress messages", () => {
+    assert.equal(
+      isAgentEgressAlertMessage(
+        "Möglicher Datenabfluss: Egress 295.9 Mbit/s (Agent) · enp35s0",
+      ),
+      true,
+    );
+    assert.equal(
+      isAgentEgressAlertMessage(
+        "Möglicher Datenabfluss: Egress (Agent) · enp35s0 · curl → 1.2.3.4:443",
+      ),
+      true,
+    );
+    assert.equal(
+      isAgentEgressAlertMessage("Hoher Egress (Agent) · enp35s0"),
+      true,
+    );
+    assert.equal(isAgentEgressAlertMessage("Disk 90%"), false);
   });
 });
 

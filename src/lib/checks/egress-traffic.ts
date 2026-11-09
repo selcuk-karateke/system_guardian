@@ -146,16 +146,16 @@ export function evaluateEgressDelta(
   if (critical) {
     alerts.push({
       level: "critical",
-      message: `Möglicher Datenabfluss: Egress ${txMbps.toFixed(1)} Mbit/s · ${formatBytes(txBytes)} in ${windowLabel}${ifaceHint}`,
-      recommendation:
-        "DSGVO: Daten die weg sind, sind weg. Sofort wer/wohin (nethogs/ss)? Unbekannt → NIC ziehen, Sessions killen, Meldepflicht prüfen",
+      dedupeKey: `ssh-egress:critical:${topTxIface ?? "-"}`,
+      message: `Möglicher Datenabfluss: Egress kritisch${ifaceHint}`,
+      recommendation: `Aktuell ${txMbps.toFixed(1)} Mbit/s · ${formatBytes(txBytes)} in ${windowLabel}. DSGVO: Daten die weg sind, sind weg. Sofort wer/wohin (nethogs/ss)? Unbekannt → NIC ziehen, Sessions killen, Meldepflicht prüfen`,
     });
   } else if (warning) {
     alerts.push({
       level: "warning",
-      message: `Hoher Egress: ${txMbps.toFixed(1)} Mbit/s · ${formatBytes(txBytes)} in ${windowLabel}${ifaceHint}`,
-      recommendation:
-        "Backup/Deploy/CDN erwartet? Sonst Prozess + Remote-IP — kann Vorstufe zu Datenklau sein",
+      dedupeKey: `ssh-egress:warning:${topTxIface ?? "-"}`,
+      message: `Hoher Egress${ifaceHint}`,
+      recommendation: `Aktuell ${txMbps.toFixed(1)} Mbit/s · ${formatBytes(txBytes)} in ${windowLabel}. Backup/Deploy/CDN erwartet? Sonst Prozess + Remote-IP — kann Vorstufe zu Datenklau sein`,
     });
   }
 

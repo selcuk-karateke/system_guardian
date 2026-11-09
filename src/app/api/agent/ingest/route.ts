@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   alertsFromAgentLive,
+  isAgentEgressAlertMessage,
   parseAgentIngestPayload,
   persistAgentIngest,
 } from "@/lib/agent/ingest";
 import { resolveServerByAgentToken } from "@/lib/agent/token";
-import { processAlerts } from "@/lib/alerts/pipeline";
+import {
+  processAlerts,
+  reconcileAgentEgressAlerts,
+} from "@/lib/alerts/pipeline";
 
 export const runtime = "nodejs";
 
@@ -52,6 +56,12 @@ export async function POST(request: NextRequest) {
   if (alerts.length) {
     await processAlerts(server.id, "server_health", alerts);
   }
+  // Always reconcile: closes Mbps-spam / LAN false-positives when quiet.
+  await reconcileAgentEgressAlerts(
+    server.id,
+    alerts,
+    isAgentEgressAlertMessage,
+  );
 
   return NextResponse.json({
     ok: true,

@@ -81,6 +81,20 @@ function pickTop(talkers: AgentTalker[]): AgentTalker | null {
   return [...talkers].sort((a, b) => b.txBps - a.txBps)[0] ?? null;
 }
 
+/** Stable peer for alert dedupe: `process → ip:port` (no rates). */
+export function formatTopTalkerPeer(talkers: AgentTalker[]): string | null {
+  const top = pickTop(talkers);
+  if (!top) return null;
+  const peer = `${top.remoteIp}${
+    top.remotePort != null ? `:${top.remotePort}` : ""
+  }`;
+  return `${top.process} → ${peer}`;
+}
+
+export function topTalkerRemoteIp(talkers: AgentTalker[]): string | null {
+  return pickTop(talkers)?.remoteIp ?? null;
+}
+
 /**
  * One-line HUD: process → ip:port · ↑ rate · aktiv
  * Long cmdline/paths stay in formatTopTalkerDetail (title / alerts).

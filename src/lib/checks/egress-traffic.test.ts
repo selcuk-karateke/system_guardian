@@ -49,6 +49,8 @@ describe("evaluateEgressDelta", () => {
     });
     assert.ok(ev.alerts.some((a) => a.level === "critical"));
     assert.match(ev.alerts[0]!.message, /Datenabfluss/i);
+    assert.doesNotMatch(ev.alerts[0]!.message, /\d+\.\d+ Mbit/);
+    assert.match(ev.alerts[0]!.recommendation ?? "", /Mbit\/s/);
   });
 
   it("skips baseline / short windows", () => {

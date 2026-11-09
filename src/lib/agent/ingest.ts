@@ -12,12 +12,23 @@ import {
   classifyTalkerKind,
   formatTopTalkerDetail,
   formatTopTalkerLine,
+  formatTopTalkerPeer,
   sanitizeCmdline,
+  topTalkerRemoteIp,
 } from "@/lib/agent/talker-meta";
+import { isPrivateOrLocalIp } from "@/lib/checks/connection-patterns";
 import type { AlertInput } from "@/lib/checks/types";
 import { THRESHOLDS } from "@/lib/config";
 
 export { formatTopTalkerLine, formatTopTalkerDetail } from "@/lib/agent/talker-meta";
+
+/** Open alerts from agent ingest (volatile Mbps must not create duplicates). */
+export function isAgentEgressAlertMessage(message: string): boolean {
+  return (
+    /Möglicher Datenabfluss:.*\(Agent\)/i.test(message) ||
+    /Hoher Egress(?:\s|:).*?\(Agent\)/i.test(message)
+  );
+}
 
 /** Host vitals for TV metric cards (agent push). */
 export type MonitorLiveHost = {
@@ -281,26 +292,37 @@ export async function getFreshAgentLive(
 /**
  * Build egress-oriented alerts from a fresh agent sample (rate + talkers).
  * Volume thresholds are not used here — agent windows are short.
+ *
+ * Messages stay stable (no live Mbit/s) so processAlerts can dedupe.
+ * LAN/private top talkers are not treated as exfil.
  */
 export function alertsFromAgentLive(live: AgentLiveSnapshot): AlertInput[] {
   const egress = live.egress;
   if (!egress) return [];
 
+  const remoteIp = topTalkerRemoteIp(live.talkers);
+  if (remoteIp && isPrivateOrLocalIp(remoteIp)) {
+    // Internal LAN (e.g. docker-proxy → 10.0.1.x) — show on monitor, no S1 spam.
+    return [];
+  }
+
   const mbpsWarning = THRESHOLDS.egressMbpsWarning();
   const mbpsCritical = THRESHOLDS.egressMbpsCritical();
-  const talkerLine = formatTopTalkerLine(live.talkers);
+  const talkerPeer = formatTopTalkerPeer(live.talkers);
   const talkerDetail = formatTopTalkerDetail(live.talkers);
   const ifaceHint = egress.iface ? ` · ${egress.iface}` : "";
-  const talkerHint = talkerLine ? ` · ${talkerLine}` : "";
+  const talkerHint = talkerPeer ? ` · ${talkerPeer}` : "";
+  const rateNote = `Aktuell ${egress.txMbps.toFixed(1)} Mbit/s`;
 
   if (egress.txMbps >= mbpsCritical) {
     return [
       {
         level: "critical",
-        message: `Möglicher Datenabfluss: Egress ${egress.txMbps.toFixed(1)} Mbit/s (Agent)${ifaceHint}${talkerHint}`,
+        dedupeKey: `agent-egress:critical:${egress.iface ?? "-"}:${talkerPeer ?? "-"}`,
+        message: `Möglicher Datenabfluss: Egress (Agent)${ifaceHint}${talkerHint}`,
         recommendation: talkerDetail
-          ? `Was geht raus: ${talkerDetail}. Unbekannt/unerwartet → Sessions prüfen, ggf. NIC/Route kappen, Meldepflicht prüfen. TLS/SSH = Inhalt nicht einsehbar.`
-          : "DSGVO: Daten die weg sind, sind weg. Sofort wer/wohin? Unbekannt → NIC ziehen, Sessions killen, Meldepflicht prüfen",
+          ? `${rateNote}. Was geht raus: ${talkerDetail}. Unbekannt/unerwartet → Sessions prüfen, ggf. NIC/Route kappen, Meldepflicht prüfen. TLS/SSH = Inhalt nicht einsehbar.`
+          : `${rateNote}. DSGVO: Daten die weg sind, sind weg. Sofort wer/wohin? Unbekannt → NIC ziehen, Sessions killen, Meldepflicht prüfen`,
       },
     ];
   }
@@ -308,10 +330,11 @@ export function alertsFromAgentLive(live: AgentLiveSnapshot): AlertInput[] {
     return [
       {
         level: "warning",
-        message: `Hoher Egress: ${egress.txMbps.toFixed(1)} Mbit/s (Agent)${ifaceHint}${talkerHint}`,
+        dedupeKey: `agent-egress:warning:${egress.iface ?? "-"}:${talkerPeer ?? "-"}`,
+        message: `Hoher Egress (Agent)${ifaceHint}${talkerHint}`,
         recommendation: talkerDetail
-          ? `Backup/Deploy erwartet? Sonst — was geht raus: ${talkerDetail}`
-          : "Backup/Deploy/CDN erwartet? Sonst Prozess + Remote-IP — kann Vorstufe zu Datenklau sein",
+          ? `${rateNote}. Backup/Deploy erwartet? Sonst — was geht raus: ${talkerDetail}`
+          : `${rateNote}. Backup/Deploy/CDN erwartet? Sonst Prozess + Remote-IP — kann Vorstufe zu Datenklau sein`,
       },
     ];
   }
