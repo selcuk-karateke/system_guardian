@@ -58,8 +58,11 @@ const FLIGHT_BACKOFF_MS = 15 * 60_000;
 /** Stretch poll further when remaining credits are low. */
 const FLIGHT_LOW_CREDIT_MS = 5 * 60_000;
 const TLE_CACHE_MS = 2 * 60 * 60_000;
+/** When CelesTrak is flaky, keep last good TLEs and retry sooner. */
+const TLE_STALE_RETRY_MS = 20 * 60_000;
 const MAX_FLIGHTS = 280;
 const MAX_SATS = 420;
+const MAX_TLE_RECORDS = 520;
 
 type FlightCache = {
   /** Wall time of the OpenSky snapshot (dead-reckoning base). */
@@ -281,6 +284,7 @@ async function loadFlights(): Promise<FlightCache> {
 
 async function fetchCelestrakGroup(
   group: string,
+  attempt = 0,
 ): Promise<TleRecord[]> {
   const url = `https://celestrak.org/NORAD/elements/gp.php?GROUP=${encodeURIComponent(group)}&FORMAT=JSON`;
   const res = await fetch(url, {
@@ -288,9 +292,14 @@ async function fetchCelestrakGroup(
       Accept: "application/json",
       "User-Agent": "system-guardian-monitor/1.0",
     },
-    signal: AbortSignal.timeout(20_000),
+    signal: AbortSignal.timeout(group === "active" ? 45_000 : 20_000),
     cache: "no-store",
   });
+  // CelesTrak group endpoints intermittently return empty 500s — one quick retry.
+  if ((res.status === 500 || res.status === 503) && attempt < 1) {
+    await new Promise((r) => setTimeout(r, 400 + Math.random() * 600));
+    return fetchCelestrakGroup(group, attempt + 1);
+  }
   if (!res.ok) throw new Error(`CelesTrak ${group} HTTP ${res.status}`);
   const data = (await res.json()) as TleRecord[];
   return Array.isArray(data) ? data : [];
@@ -306,33 +315,78 @@ function sampleRecords(rows: TleRecord[], limit?: number): TleRecord[] {
   return out;
 }
 
+function pushTleRecords(
+  records: TleCache["records"],
+  seen: Set<string>,
+  rows: TleRecord[],
+): void {
+  for (const omm of rows) {
+    if (records.length >= MAX_TLE_RECORDS) return;
+    const id = String(
+      omm.NORAD_CAT_ID ?? omm.OBJECT_ID ?? omm.OBJECT_NAME ?? "",
+    );
+    const name = String(omm.OBJECT_NAME ?? id);
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    records.push({ id, name, omm });
+  }
+}
+
+/**
+ * Prefer curated groups; if CelesTrak is 500ing, fall back to a sampled
+ * `active` catalog. Never wipe a still-usable TLE cache on a failed refresh.
+ */
 async function loadTles(): Promise<TleCache> {
   const now = Date.now();
-  if (tleCache && now - tleCache.at < TLE_CACHE_MS) return tleCache;
+  if (tleCache) {
+    const age = now - tleCache.at;
+    if (tleCache.records.length > 0 && age < TLE_CACHE_MS) return tleCache;
+    // Empty miss: don't re-hammer CelesTrak on every 15s client poll.
+    if (tleCache.records.length === 0 && age < TLE_STALE_RETRY_MS) {
+      return tleCache;
+    }
+  }
   if (tleInflight) return tleInflight;
 
   tleInflight = (async () => {
     const records: TleCache["records"] = [];
     const seen = new Set<string>();
-
     await Promise.all(
       CELESTRAK_GROUPS.map(async ({ group, limit }) => {
         try {
           const rows = sampleRecords(await fetchCelestrakGroup(group), limit);
-          for (const omm of rows) {
-            const id = String(
-              omm.NORAD_CAT_ID ?? omm.OBJECT_ID ?? omm.OBJECT_NAME ?? "",
-            );
-            const name = String(omm.OBJECT_NAME ?? id);
-            if (!id || seen.has(id)) continue;
-            seen.add(id);
-            records.push({ id, name, omm });
-          }
+          if (rows.length === 0) return;
+          pushTleRecords(records, seen, rows);
         } catch {
           /* one group failing shouldn't kill the layer */
         }
       }),
     );
+
+    if (records.length < 40) {
+      try {
+        const active = sampleRecords(
+          await fetchCelestrakGroup("active"),
+          MAX_TLE_RECORDS,
+        );
+        pushTleRecords(records, seen, active);
+      } catch {
+        /* active catalog also down */
+      }
+    }
+
+    if (records.length === 0) {
+      // Keep last good elements — SGP4 still animates; retry sooner.
+      if (tleCache && tleCache.records.length > 0) {
+        tleCache = {
+          ...tleCache,
+          at: Date.now() - TLE_CACHE_MS + TLE_STALE_RETRY_MS,
+        };
+        return tleCache;
+      }
+      tleCache = { at: Date.now(), records: [] };
+      return tleCache;
+    }
 
     tleCache = { at: Date.now(), records };
     return tleCache;

@@ -99,15 +99,21 @@ export function MonitorGlobeStage({
       ? sky.satellites
       : null;
   const skyLive =
-    liveFlights != null || liveSatellites != null
+    liveFlights != null && liveSatellites != null
       ? " · SKY"
-      : sky
-        ? " · …"
-        : "";
+      : liveFlights != null
+        ? " · AIR"
+        : liveSatellites != null
+          ? " · SAT"
+          : sky
+            ? " · …"
+            : "";
   const openskyCredits =
     sky?.openskyRemaining != null
       ? ` · OS ${sky.openskyRemaining}`
-      : "";
+      : sky?.flightsSource === "unavailable" && sky.error
+        ? " · OS—"
+        : "";
 
   const layerOn = {
     cables: showCables,
