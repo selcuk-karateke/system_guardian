@@ -204,6 +204,38 @@ const PALETTE: Record<
 const GLOBE_POINT_MUL = 2.35;
 const GLOBE_AMB = 0.55;
 
+type GlobeReadability = {
+  compact: boolean;
+  nightWash: number;
+  markerScale: number;
+  spotMul: number;
+};
+
+/**
+ * Land look stays as before. Only marker/spot emphasis + milder night wash
+ * on phones — no fat/hard continent dots.
+ */
+function globeReadability(cssPx: number): GlobeReadability {
+  const mq =
+    typeof window !== "undefined" &&
+    window.matchMedia("(max-width: 720px)").matches;
+  const compact = mq || cssPx < 440;
+  if (compact) {
+    return {
+      compact: true,
+      nightWash: 0.55,
+      markerScale: 1.55,
+      spotMul: 1.25,
+    };
+  }
+  return {
+    compact: false,
+    nightWash: 1,
+    markerScale: 1.15,
+    spotMul: 1,
+  };
+}
+
 const VERT = `
 attribute vec3 a_pos;
 attribute vec3 a_col;
@@ -1541,6 +1573,7 @@ function formatAstroHover(body: AstroBody): string {
 
 /**
  * Live sun / moon discs + soft night wash on the dark hemisphere.
+ * nightWashMul < 1 keeps continents readable on phone (less dark-on-dark).
  */
 function drawAstro(
   ctx: CanvasRenderingContext2D,
@@ -1550,12 +1583,14 @@ function drawAstro(
   pad: number,
   layers: RouteLayers,
   date: Date,
+  nightWashMul = 1,
 ): void {
   if (!layers.showAstro) return;
   const cx = pad + css / 2;
   const cy = pad + css / 2;
   const R = (css / 2) * scale;
   const sky = liveAstro(date);
+  const wash = Math.max(0, Math.min(1, nightWashMul));
 
   // Soft night overlay (terminator) — sample sun-facing limb
   const [sx0, sy0, sz0] = sunDirection(date);
@@ -1577,8 +1612,8 @@ function drawAstro(
   );
   grad.addColorStop(0, "rgba(0,0,0,0)");
   grad.addColorStop(0.45, "rgba(0,0,0,0)");
-  grad.addColorStop(0.78, "rgba(2,6,18,0.18)");
-  grad.addColorStop(1, "rgba(2,6,18,0.42)");
+  grad.addColorStop(0.78, `rgba(2,6,18,${(0.18 * wash).toFixed(3)})`);
+  grad.addColorStop(1, `rgba(2,6,18,${(0.42 * wash).toFixed(3)})`);
   ctx.globalAlpha = 1;
   ctx.fillStyle = grad;
   ctx.fillRect(cx - R * 1.05, cy - R * 1.05, R * 2.1, R * 2.1);
@@ -1662,6 +1697,55 @@ function nearestAstro(
   return best;
 }
 
+/** Surface marker: solid core + ring + glow (readable on phone OLED). */
+function drawMarkerDot(
+  ctx: CanvasRenderingContext2D,
+  sx: number,
+  sy: number,
+  color: string,
+  opts: {
+    hot: boolean;
+    pulse: boolean;
+    scale: number;
+    alpha: number;
+    tMs: number;
+  },
+): void {
+  const r = (opts.hot ? 7.2 : opts.pulse ? 6.1 : 5.1) * opts.scale;
+  const a = Math.max(0, Math.min(1, opts.alpha));
+  const pulse =
+    opts.hot || opts.pulse ? 0.5 + 0.5 * Math.sin(opts.tMs / 260) : 0;
+
+  // Tight bloom — large washes kill continent contrast on phones.
+  ctx.globalAlpha = 0.28 * a;
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(sx, sy, r * (2.05 + 0.2 * pulse), 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.globalAlpha = (0.92 + 0.08 * pulse) * a;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = opts.hot ? 2.8 : 2.3;
+  ctx.beginPath();
+  ctx.arc(sx, sy, r * (1.48 + 0.18 * pulse), 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.globalAlpha = a;
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(sx, sy, r, 0, Math.PI * 2);
+  ctx.fill();
+
+  if (opts.hot || opts.pulse) {
+    ctx.globalAlpha = (0.55 + 0.4 * pulse) * a;
+    ctx.lineWidth = opts.hot ? 2.6 : 2;
+    ctx.beginPath();
+    ctx.arc(sx, sy, r * (1.95 + 0.35 * pulse), 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+}
+
 /**
  * Overlay: attack→home arcs, then 3D-radial rays.
  * Limb → extend to rim; face-on → foreshorten + bloom toward camera.
@@ -1692,6 +1776,7 @@ function drawRayStubs(
   liveFlightsAtMs: number | null = null,
   liveSats: LiveSatellite[] | null = null,
   date = new Date(),
+  readability: GlobeReadability = globeReadability(css),
 ): void {
   const pad = css * RAY_PAD_FRAC;
   const full = css + pad * 2;
@@ -1703,6 +1788,10 @@ function drawRayStubs(
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, w, w);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  const cx = pad + css / 2;
+  const cy = pad + css / 2;
+  const R = (css / 2) * scale;
 
   const home = marks.find((m) => m.kind === "home");
   const attacks = marks.filter((m) => m.kind === "attack");
@@ -1720,16 +1809,21 @@ function drawRayStubs(
     liveFlightsAtMs,
   );
   drawSatellites(ctx, rot, css, scale, pad, tMs, layers, liveSats);
-  drawAstro(ctx, rot, css, scale, pad, layers, date);
+  drawAstro(
+    ctx,
+    rot,
+    css,
+    scale,
+    pad,
+    layers,
+    date,
+    readability.nightWash,
+  );
   drawPoleAxis(ctx, rot, css, scale, pad);
   if (home) {
     drawAttackArcs(ctx, rot, css, scale, pad, home, attacks, hoverId);
   }
 
-  const cx = pad + css / 2;
-  const cy = pad + css / 2;
-  const R = (css / 2) * scale;
-  /** Outer rim of the rays canvas (past the HUD rings). */
   const edgeR = css / 2 + pad - RAY_EDGE_INSET_PX;
   for (const mark of marks) {
     const [x0, y0, z0] = attackToXyz(
@@ -1737,13 +1831,11 @@ function drawRayStubs(
       mark.tint.location[1],
     );
     const [x, y, z] = mulRot(rot, x0, y0, z0);
-    // Same soft limb fade as attack arcs — no hard pop at the horizon.
     const depth = arcDepthFade(z);
     if (depth < 0.04) continue;
 
     const sx = cx + x * R;
     const sy = cy - y * R;
-    // Elevate along surface normal (toward camera when frontal).
     const tipX = cx + x * (1 + RAY_ELEV) * R;
     const tipY = cy - y * (1 + RAY_ELEV) * R;
     const vx = tipX - sx;
@@ -1756,11 +1848,10 @@ function drawRayStubs(
     const hot = hoverId != null && mark.tint.id === hoverId;
     const dim = hoverId != null && !hot ? 0.28 : 1;
 
-    // Colored line only — no tip dots; alpha fades toward the tip.
     const alpha =
-      Math.min(1, Math.max(0.7, mark.tint.weight)) *
-      (0.75 + 0.25 * mark.tint.freshness) *
-      (hot ? 1 : 0.92) *
+      Math.min(1, Math.max(0.75, mark.tint.weight)) *
+      (0.8 + 0.2 * mark.tint.freshness) *
+      (hot ? 1 : 0.95) *
       dim *
       depth;
 
@@ -1769,11 +1860,15 @@ function drawRayStubs(
     ctx.shadowColor = "transparent";
     ctx.lineCap = "round";
     ctx.lineWidth =
-      (hot ? MARKER_LINE_W_HOT : mark.pulse ? MARKER_LINE_W_PULSE : MARKER_LINE_W) *
+      (hot
+        ? MARKER_LINE_W_HOT
+        : mark.pulse
+          ? MARKER_LINE_W_PULSE
+          : MARKER_LINE_W) *
+      readability.markerScale *
       (0.55 + 0.45 * Math.max(limb, faceOn));
     ctx.globalAlpha = 1;
 
-    // Lateral ray along true projected radial; stretch toward rim at the limb.
     if (limb > 0.04 && vlen > 0.5) {
       const dx = vx / vlen;
       const dy = vy / vlen;
@@ -1782,7 +1877,6 @@ function drawRayStubs(
       const y2 = tipY + (rim.y - tipY) * limb;
       const a0 = alpha * Math.max(limb, 0.2);
 
-      // Solid from surface; only the outer tip fades (center fade = pole axis only).
       const grad = ctx.createLinearGradient(sx, sy, x2, y2);
       grad.addColorStop(0, rgbAlpha(color, a0));
       grad.addColorStop(0.62, rgbAlpha(color, a0));
@@ -1794,9 +1888,12 @@ function drawRayStubs(
       ctx.stroke();
     }
 
-    // Face-on: short foreshortened stub toward camera (no fill disc).
     if (faceOn > 0.04) {
-      const reach = (hot ? 14 : mark.pulse ? 11 : 9) * faceOn * (0.4 + 0.6 * z);
+      const reach =
+        (hot ? 14 : mark.pulse ? 11 : 9) *
+        faceOn *
+        (0.4 + 0.6 * z) *
+        readability.markerScale;
       const x2 = sx;
       const y2 = sy - reach * 0.15;
       const a0 = alpha * faceOn;
@@ -1810,6 +1907,14 @@ function drawRayStubs(
       ctx.lineTo(x2, y2);
       ctx.stroke();
     }
+
+    drawMarkerDot(ctx, sx, sy, color, {
+      hot,
+      pulse: mark.pulse,
+      scale: readability.markerScale,
+      alpha: Math.min(1, alpha * 1.15),
+      tMs,
+    });
   }
   ctx.globalAlpha = 1;
   ctx.shadowBlur = 0;
@@ -2248,6 +2353,8 @@ export const MonitorGlobe = forwardRef<MonitorGlobeHandle, Props>(
       if (ripples.length > 12) ripples.splice(0, ripples.length - 12);
     };
 
+    let readability = globeReadability(320);
+
     /**
      * Land base + marker spot patches (hoverable regions) + ban ripples.
      * Rays stay as stubs; spots tint the land dots around each mark.
@@ -2279,7 +2386,10 @@ export const MonitorGlobe = forwardRef<MonitorGlobeHandle, Props>(
           weights: new Float32Array([w]),
           rgb: markSpotRgb(mark.kind),
           mode: "spot",
-          radiusRad: hot ? SPOT_RADIUS_RAD * 1.55 : SPOT_RADIUS_RAD,
+          radiusRad:
+            SPOT_RADIUS_RAD *
+            readability.spotMul *
+            (hot ? 1.55 : 1),
         });
       }
 
@@ -2304,7 +2414,7 @@ export const MonitorGlobe = forwardRef<MonitorGlobeHandle, Props>(
         sessionsRef.current,
         webRef.current,
         homeRef.current,
-      )}#${statusRef.current}#${hoverId ?? ""}`;
+      )}#${statusRef.current}#${hoverId ?? ""}#${readability.compact ? "m" : "d"}`;
     };
 
     let lastFrameAt = 0;
@@ -2478,6 +2588,8 @@ export const MonitorGlobe = forwardRef<MonitorGlobeHandle, Props>(
       gl.enable(gl.DEPTH_TEST);
       gl.depthFunc(gl.LEQUAL);
 
+      readability = globeReadability(css);
+
       // Zoom is CSS (--globe-zoom); WebGL stays at GLOBE_SCALE so the canvas never clips.
       gl.uniformMatrix3fv(uRot, false, rot);
       gl.uniform1f(uScale, GLOBE_SCALE);
@@ -2522,6 +2634,7 @@ export const MonitorGlobe = forwardRef<MonitorGlobeHandle, Props>(
         flightsAtMs,
         liveSatsRef.current,
         nowDate,
+        readability,
       );
     };
 
