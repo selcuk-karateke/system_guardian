@@ -11,6 +11,7 @@ import {
   ShieldCheck,
   type LucideIcon,
 } from "lucide-react";
+import { KawaiLabsMark } from "@/components/brand/kawai-labs-mark";
 import { cn } from "@/lib/utils";
 import packageJson from "../../../package.json";
 
@@ -19,7 +20,8 @@ const VERSION = packageJson.version;
 type FooterLink = {
   href: string;
   label: string;
-  icon: LucideIcon;
+  icon?: LucideIcon;
+  mark?: "kawai";
   external?: boolean;
 };
 
@@ -38,6 +40,12 @@ const FOOTER_LINKS: FooterLink[] = [
     href: "https://status.hetzner.com/",
     label: "Hetzner Status",
     icon: Server,
+    external: true,
+  },
+  {
+    href: "https://kawai-labs.com",
+    label: "Kawai Labs",
+    mark: "kawai",
     external: true,
   },
 ];
@@ -78,6 +86,12 @@ export function AppFooter() {
               "inline-flex size-8 items-center justify-center rounded-md text-zinc-500 transition-colors hover:bg-zinc-900 hover:text-zinc-200",
               active && "bg-zinc-900 text-sky-400",
             );
+            const glyph =
+              item.mark === "kawai" ? (
+                <KawaiLabsMark size={16} />
+              ) : Icon ? (
+                <Icon className="size-4" aria-hidden />
+              ) : null;
             if (item.external) {
               return (
                 <a
@@ -89,7 +103,7 @@ export function AppFooter() {
                   aria-label={item.label}
                   className={className}
                 >
-                  <Icon className="size-4" aria-hidden />
+                  {glyph}
                 </a>
               );
             }
@@ -102,7 +116,7 @@ export function AppFooter() {
                 aria-current={active ? "page" : undefined}
                 className={className}
               >
-                <Icon className="size-4" aria-hidden />
+                {glyph}
               </Link>
             );
           })}

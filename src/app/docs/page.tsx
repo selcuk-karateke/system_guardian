@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { KawaiLabsMark } from "@/components/brand/kawai-labs-mark";
 import { CollapsibleCard } from "@/components/ui/collapsible-card";
 
 const LINKS = [
@@ -75,6 +76,18 @@ export default function DocsHubPage() {
         <p className="mt-2 text-zinc-400 text-sm leading-relaxed">
           Orientierung für Collaborators aus dem Sysadmin-/Ops-Bereich: wo was
           liegt, welche Checks laufen, wie API und Cron funktionieren.
+        </p>
+        <p className="mt-2 flex flex-wrap items-center gap-2 text-xs text-zinc-600">
+          <span>Gebaut von</span>
+          <a
+            href="https://kawai-labs.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 underline hover:text-zinc-400"
+          >
+            <KawaiLabsMark size={14} />
+            Kawai Labs
+          </a>
         </p>
       </div>
 

@@ -16,6 +16,7 @@ import {
   Shield,
   type LucideIcon,
 } from "lucide-react";
+import { KawaiLabsMark } from "@/components/brand/kawai-labs-mark";
 import { SgScrollRail } from "@/components/ui/sg-scroll-rail";
 import { cn } from "@/lib/utils";
 
@@ -137,6 +138,16 @@ export function SidebarNav({
             <>
               <span>Ops Console</span>
               <strong>System Guardian</strong>
+              <a
+                href="https://kawai-labs.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-1.5 inline-flex items-center gap-1.5 text-[0.65rem] font-normal normal-case tracking-normal text-zinc-500 hover:text-zinc-300"
+                title="Kawai Labs"
+              >
+                <KawaiLabsMark size={14} />
+                <span>Kawai Labs</span>
+              </a>
             </>
           )}
         </div>
