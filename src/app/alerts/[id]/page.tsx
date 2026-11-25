@@ -2,11 +2,15 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AlertDetailActions } from "@/components/dashboard/alert-detail-actions";
 import { CopyReportButton } from "@/components/dashboard/copy-report-button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CollapsibleCard } from "@/components/ui/collapsible-card";
 import { CrisisStageBadge } from "@/components/dashboard/crisis-stage-badge";
 import { parseFimPathFromAlert } from "@/lib/alerts/fim-paths";
 import { buildAlertReport } from "@/lib/alerts/report";
-import { APP_TIMEZONE, formatAppDateTime } from "@/lib/datetime";
+import {
+  APP_TIMEZONE,
+  coalesceAlertSeenAt,
+  formatAppDateTime,
+} from "@/lib/datetime";
 import { getModulePageForAlert } from "@/lib/alert-routes";
 import { isBackupTriggerEnabled } from "@/lib/config";
 import { resolveCrisisStage } from "@/lib/crisis/stages";
@@ -129,105 +133,115 @@ export default async function AlertDetailPage({
             <>
               {" "}
               · zuletzt bestätigt:{" "}
-              {formatAppDateTime(alert.lastSeenAt)} ({APP_TIMEZONE})
+              {formatAppDateTime(
+                coalesceAlertSeenAt(alert.createdAt, alert.lastSeenAt),
+              )}{" "}
+              ({APP_TIMEZONE})
             </>
           )}
         </p>
       </div>
 
       {alert.recommendation && (
-        <Card className="border-sky-900/40 bg-sky-950/20">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base text-sky-200">Empfehlung</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-sky-100/90 leading-relaxed">
-            {alert.recommendation}
-          </CardContent>
-        </Card>
+        <CollapsibleCard
+          id={`alert-${id}-recommendation`}
+          className="border-sky-900/40 bg-sky-950/20"
+          title="Empfehlung"
+          titleClassName="text-base text-sky-200"
+          summary="Handlungsempfehlung"
+          contentClassName="text-sm text-sky-100/90 leading-relaxed"
+        >
+          {alert.recommendation}
+        </CollapsibleCard>
       )}
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-4">
-          <CardTitle className="text-base">Modul-Kontext</CardTitle>
+      <CollapsibleCard
+        id={`alert-${id}-module-context`}
+        title="Modul-Kontext"
+        titleClassName="text-base"
+        summary={check?.status ?? "kein Check"}
+        contentClassName="space-y-4 text-sm"
+      >
+        <div className="flex justify-end">
           <Link
             href={modulePage.href}
             className="text-sm text-sky-400 hover:text-sky-300 shrink-0"
           >
             {modulePage.label} →
           </Link>
-        </CardHeader>
-        <CardContent className="space-y-4 text-sm">
-          {check ? (
-            <>
-              <p>
-                Check-Status:{" "}
-                <span className={checkStatusClass(check.status)}>
-                  {check.status}
-                </span>
-                <span className="text-zinc-500">
-                  {" "}
-                  · zuletzt{" "}
-                  {formatAppDateTime(check.createdAt)}
-                </span>
-              </p>
-              {detailLines.length > 0 && (
-                <ul className="space-y-1 text-zinc-300 font-mono text-xs">
-                  {detailLines.map((line) => (
-                    <li key={line}>{line}</li>
+        </div>
+        {check ? (
+          <>
+            <p>
+              Check-Status:{" "}
+              <span className={checkStatusClass(check.status)}>
+                {check.status}
+              </span>
+              <span className="text-zinc-500">
+                {" "}
+                · zuletzt {formatAppDateTime(check.createdAt)}
+              </span>
+            </p>
+            {detailLines.length > 0 && (
+              <ul className="space-y-1 text-zinc-300 font-mono text-xs">
+                {detailLines.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+            )}
+            {(logData?.criticalLines?.length ?? 0) > 0 && (
+              <div>
+                <p className="text-red-400/90 text-xs font-semibold uppercase mb-1">
+                  Log-Zeilen (critical)
+                </p>
+                <ul className="space-y-1 font-mono text-xs text-red-200/80">
+                  {logData!.criticalLines!.map((line) => (
+                    <li key={line} className="break-all">
+                      {line}
+                    </li>
                   ))}
                 </ul>
-              )}
-              {(logData?.criticalLines?.length ?? 0) > 0 && (
-                <div>
-                  <p className="text-red-400/90 text-xs font-semibold uppercase mb-1">
-                    Log-Zeilen (critical)
-                  </p>
-                  <ul className="space-y-1 font-mono text-xs text-red-200/80">
-                    {logData!.criticalLines!.map((line) => (
-                      <li key={line} className="break-all">
-                        {line}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {(logData?.warningLines?.length ?? 0) > 0 && (
-                <div>
-                  <p className="text-amber-400/90 text-xs font-semibold uppercase mb-1">
-                    Log-Zeilen (warning)
-                  </p>
-                  <ul className="space-y-1 font-mono text-xs text-amber-200/80">
-                    {logData!.warningLines!.map((line) => (
-                      <li key={line} className="break-all">
-                        {line}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </>
-          ) : (
-            <p className="text-zinc-500">
-              Noch kein Check-Lauf für dieses Modul gespeichert.
-            </p>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card className="border-zinc-800">
-        <CardHeader className="flex flex-row items-center justify-between gap-4 pb-2">
-          <CardTitle className="text-base">Bericht (zum Weiterleiten)</CardTitle>
-          <CopyReportButton text={reportText} label="Kopieren" />
-        </CardHeader>
-        <CardContent>
-          <p className="text-xs text-zinc-500 mb-3">
-            Vollständiger Text für E-Mail oder Ticket.
+              </div>
+            )}
+            {(logData?.warningLines?.length ?? 0) > 0 && (
+              <div>
+                <p className="text-amber-400/90 text-xs font-semibold uppercase mb-1">
+                  Log-Zeilen (warning)
+                </p>
+                <ul className="space-y-1 font-mono text-xs text-amber-200/80">
+                  {logData!.warningLines!.map((line) => (
+                    <li key={line} className="break-all">
+                      {line}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </>
+        ) : (
+          <p className="text-zinc-500">
+            Noch kein Check-Lauf für dieses Modul gespeichert.
           </p>
-          <pre className="text-xs text-zinc-300 whitespace-pre-wrap break-words font-mono bg-zinc-950/80 border border-zinc-800 rounded-lg p-4 max-h-96 overflow-auto">
-            {reportText}
-          </pre>
-        </CardContent>
-      </Card>
+        )}
+      </CollapsibleCard>
+
+      <CollapsibleCard
+        id={`alert-${id}-report`}
+        className="border-zinc-800"
+        title="Bericht (zum Weiterleiten)"
+        titleClassName="text-base"
+        summary="zum Kopieren"
+      >
+        <div className="flex justify-end mb-3">
+          <CopyReportButton text={reportText} label="Kopieren" />
+        </div>
+        <p className="text-xs text-zinc-500 mb-3">
+          Vollständiger Text für E-Mail oder Ticket.
+        </p>
+        <pre className="text-xs text-zinc-300 whitespace-pre-wrap break-words font-mono bg-zinc-950/80 border border-zinc-800 rounded-lg p-4 max-h-96 overflow-auto">
+          {reportText}
+        </pre>
+      </CollapsibleCard>
     </div>
   );
 }

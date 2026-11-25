@@ -1,4 +1,4 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CollapsibleCard } from "@/components/ui/collapsible-card";
 import {
   DISK_TEMP_CRIT_C,
   DISK_TEMP_WARN_C,
@@ -27,59 +27,57 @@ function tempPct(c: number | null): number {
 
 export function DiskTempsPanel({ disks, checkedAt }: Props) {
   return (
-    <Card id="disk-temps">
-      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
-        <CardTitle className="tracking-wide">Disk-Temp</CardTitle>
-        {checkedAt && (
-          <span className="text-xs text-zinc-600 font-mono">
-            {checkedAt.toLocaleString("de-DE")}
-          </span>
-        )}
-      </CardHeader>
-      <CardContent>
-        {!disks?.length ? (
-          <p className="text-sm text-zinc-500">
-            Keine Disk-Temps — erscheint nach dem nächsten Server-Health-Lauf.
-          </p>
-        ) : (
-          <ul className="grid gap-3 sm:grid-cols-2">
-            {disks.map((d) => {
-              const tone = tempTone(d.celsius);
-              return (
-                <li
-                  key={d.device}
-                  className="flex items-center gap-3 rounded-xl border border-cyan-400/10 bg-cyan-400/[0.03] px-3 py-3"
-                >
-                  <HudRing
-                    pct={tempPct(d.celsius)}
-                    tone={tone}
-                    className="w-12 h-12"
-                    tick={false}
-                  />
-                  <div className="min-w-0">
-                    <p className="font-mono text-[11px] text-zinc-500 truncate">
-                      {d.path}
-                    </p>
-                    <p
-                      className={cn(
-                        "font-mono text-xl font-semibold tabular-nums tracking-tight",
-                        tone === "crit" && "text-rose-400",
-                        tone === "warn" && "text-amber-400",
-                        tone === "ok" &&
-                          (d.celsius != null
-                            ? "text-zinc-100"
-                            : "text-zinc-600"),
-                      )}
-                    >
-                      {d.celsius != null ? `${d.celsius}°C` : "—"}
-                    </p>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </CardContent>
-    </Card>
+    <CollapsibleCard
+      id="disk-temps"
+      title="Disk-Temp"
+      titleClassName="tracking-wide"
+      summary={disks?.length ? `${disks.length} Disks` : "—"}
+      description={
+        checkedAt ? (
+          <span className="font-mono">{checkedAt.toLocaleString("de-DE")}</span>
+        ) : undefined
+      }
+    >
+      {!disks?.length ? (
+        <p className="text-sm text-zinc-500">
+          Keine Disk-Temps — erscheint nach dem nächsten Server-Health-Lauf.
+        </p>
+      ) : (
+        <ul className="grid gap-3 sm:grid-cols-2">
+          {disks.map((d) => {
+            const tone = tempTone(d.celsius);
+            return (
+              <li
+                key={d.device}
+                className="flex items-center gap-3 rounded-xl border border-cyan-400/10 bg-cyan-400/[0.03] px-3 py-3"
+              >
+                <HudRing
+                  pct={tempPct(d.celsius)}
+                  tone={tone}
+                  className="w-12 h-12"
+                  tick={false}
+                />
+                <div className="min-w-0">
+                  <p className="font-mono text-[11px] text-zinc-500 truncate">
+                    {d.path}
+                  </p>
+                  <p
+                    className={cn(
+                      "font-mono text-xl font-semibold tabular-nums tracking-tight",
+                      tone === "crit" && "text-rose-400",
+                      tone === "warn" && "text-amber-400",
+                      tone === "ok" &&
+                        (d.celsius != null ? "text-zinc-100" : "text-zinc-600"),
+                    )}
+                  >
+                    {d.celsius != null ? `${d.celsius}°C` : "—"}
+                  </p>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </CollapsibleCard>
   );
 }

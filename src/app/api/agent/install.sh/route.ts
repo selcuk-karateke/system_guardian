@@ -50,7 +50,8 @@ if [[ "$NODE_MAJOR" -lt 18 ]]; then
 fi
 
 mkdir -p "$INSTALL_DIR"
-curl -fsSL "$URL/api/agent/bundle.js" -o "$INSTALL_DIR/guardian-agent.mjs"
+curl -fsSL -H "ngrok-skip-browser-warning: 1" -A "system-guardian-install/1" \
+  "$URL/api/agent/bundle.js" -o "$INSTALL_DIR/guardian-agent.mjs"
 chmod 755 "$INSTALL_DIR/guardian-agent.mjs"
 
 cat > "$INSTALL_DIR/env" <<EOF

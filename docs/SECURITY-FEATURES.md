@@ -33,6 +33,14 @@ System Guardian **integriert** Security-Funktionen, die für **euren Host** rele
 
 **Später (Phase 2):** Konfigurierbare Regex, mehr Log-Dateien, optional Forward an Loki.
 
+### Advisories (Außenwelt)
+
+**Was es ist:** RSS von CERT-Bund WID + Heise Security, gefiltert auf Stack-Stichworte (Docker, nginx, Nextcloud, PHP, …).
+
+**System Guardian:** Kachel unter **Sicherheit** (`AdvisoriesPanel`). Nur Anzeige + Link — **keine** Alerts/Telegram. Cache ~30 min.
+
+**Warum so:** Außenwelt-News priorisieren, ohne den Host-Alert-Kanal zuzumüllen.
+
 ---
 
 ## 2. Intrusion Detection (HIDS)

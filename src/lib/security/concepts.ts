@@ -33,10 +33,11 @@ export const SECURITY_CONCEPTS = [
     id: "cve",
     title: "Vulnerability Detection",
     siem: "CVE-Datenbank, Patch-Reports",
-    guardian: "Trivy HIGH/CRITICAL → Alerts; Batch im Security-Cron",
-    why: "Scan budgetiert (TRIVY_SCAN_LIMIT); Findings erscheinen in Warnungen + Monitor",
+    guardian:
+      "Trivy HIGH/CRITICAL → Alerts; Advisories-Kachel (CERT-Bund/Heise RSS, Stack-Filter, keine Alerts)",
+    why: "Scan budgetiert (TRIVY_SCAN_LIMIT); Außenwelt nur lesen/priorisieren, nicht alarmieren",
     status: "active" as const,
-    cron: "security (60m)",
+    cron: "security (60m) + RSS ~30m Cache",
   },
   {
     id: "cloud",

@@ -43,6 +43,7 @@ Vollständige Wunschliste inkl. Collaborator-Ideen: **[backlog.json](./backlog.j
 | RDAP/WHOIS (`.de` → DENIC) | Domain-Ablauf |
 | VirusTotal API | Domain-Reputation |
 | Have I Been Pwned API v3 | Ops-Mails auf Leaks |
+| Advisories RSS (CERT-Bund / Heise) | **Erledigt (lesen):** Sicherheit → Advisories-Kachel, Stack-Filter, keine Alerts |
 
 **Bewusst nicht:** whois.net (nur Web-UI), AVG Website Safety (keine API), TestDisk (kein Monitoring).
 

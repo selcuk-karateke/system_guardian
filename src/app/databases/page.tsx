@@ -1,5 +1,6 @@
 import { Suspense } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import { CollapsibleCard } from "@/components/ui/collapsible-card";
 import { ServerSelect } from "@/components/dashboard/server-select";
 import { SshTargetNote } from "@/components/dashboard/ssh-target-note";
 import { getLatestCheckByModule } from "@/lib/dashboard-data";
@@ -98,28 +99,33 @@ export default async function DatabasesPage({
           },
         ].map(({ key, title, hint }) => {
           const db = dbs[key];
+          const statusLabel = db?.ok
+            ? "Erreichbar"
+            : db?.skipped
+              ? "übersprungen"
+              : "fehlgeschlagen";
           return (
-            <Card key={key}>
-              <CardHeader>
-                <CardTitle>{title}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-xs text-zinc-500 mb-2">{hint}</p>
-                <p className={db?.ok ? "text-emerald-400" : "text-zinc-500"}>
-                  {db?.ok
-                    ? "Erreichbar"
-                    : db?.skipped
-                      ? "Nicht installiert / übersprungen (normal bei reinem Coolify+PG)"
-                      : "Check fehlgeschlagen"}
+            <CollapsibleCard
+              key={key}
+              id={`databases-${key}`}
+              title={title}
+              summary={statusLabel}
+              description={hint}
+            >
+              <p className={db?.ok ? "text-emerald-400" : "text-zinc-500"}>
+                {db?.ok
+                  ? "Erreichbar"
+                  : db?.skipped
+                    ? "Nicht installiert / übersprungen (normal bei reinem Coolify+PG)"
+                    : "Check fehlgeschlagen"}
+              </p>
+              {db?.sizeBytes ? (
+                <p className="text-sm text-zinc-500 mt-2">
+                  DB-Größe (Coolify):{" "}
+                  {Math.round(db.sizeBytes / 1024 / 1024)} MB
                 </p>
-                {db?.sizeBytes ? (
-                  <p className="text-sm text-zinc-500 mt-2">
-                    DB-Größe (Coolify):{" "}
-                    {Math.round(db.sizeBytes / 1024 / 1024)} MB
-                  </p>
-                ) : null}
-              </CardContent>
-            </Card>
+              ) : null}
+            </CollapsibleCard>
           );
         })}
       </div>

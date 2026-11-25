@@ -8,7 +8,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { runEnqueuedJob } from "@/lib/jobs/wake-client";
 import { notifyResult } from "@/lib/ui/notify";
-import type { DockerInventoryGroup } from "@/lib/docker/inventory";
+import type {
+  DockerInventoryGroup,
+  DockerInventoryRow,
+} from "@/lib/docker/inventory";
 import {
   findScanForContainer,
   uniqueScanRecords,
@@ -59,6 +62,75 @@ function bucketClass(bucket: FindingBucket): string {
   if (bucket === "residual") return "text-zinc-500";
   if (bucket === "os") return "text-sky-300";
   return "text-zinc-600";
+}
+
+function buildContainerReviewJson(
+  row: DockerInventoryRow,
+  scan: TrivyScanRecord | undefined,
+  serverId?: string,
+) {
+  const findings = scan?.findings ?? [];
+  const app = appFindingCounts(findings);
+  const grouped = groupFindingsByCve(findings);
+  const buckets = { app: 0, os: 0, residual: 0, unknown: 0 };
+  for (const g of grouped) {
+    buckets[g.bucket] = (buckets[g.bucket] ?? 0) + 1;
+  }
+  const plan = scan ? buildRemediationPlan(findings) : null;
+
+  return {
+    generatedAt: new Date().toISOString(),
+    serverId: serverId ?? null,
+    container: {
+      name: row.name,
+      displayName: row.displayName,
+      state: row.state,
+      status: row.status,
+      image: row.image,
+      category: row.category,
+      environment: row.environmentName ?? null,
+      fqdn: row.fqdn ?? null,
+      coolifyType: row.coolifyType ?? null,
+      coolifyUuid: row.coolifyUuid ?? null,
+    },
+    howToRead: {
+      crit: "CRITICAL gesamt (App+OS+Residual)",
+      high: "HIGH gesamt",
+      appCrit: "CRITICAL nur App — priorisieren",
+      appHigh: "HIGH nur App — priorisieren",
+      buckets: {
+        app: "Dependency updaten + Rebuild",
+        os: "neueres Base-Image",
+        residual: "oft kein Fix im Image",
+      },
+    },
+    trivy: scan
+      ? {
+          scannedAt: scan.scannedAt,
+          imageRef: scan.imageRef,
+          imageDigest: scan.imageDigest,
+          crit: scan.criticalCount,
+          high: scan.highCount,
+          appCrit: app.critical,
+          appHigh: app.high,
+          buckets,
+          kind: plan?.kind ?? null,
+          redeployHelps: plan?.redeployHelpsAlone ?? null,
+          nextSteps: plan?.steps ?? [],
+          cves: grouped.map((g) => ({
+            id: g.vulnerabilityId,
+            sev: g.severity,
+            bucket: g.bucket,
+            pkgs: g.packages,
+            title: g.title,
+          })),
+          findings,
+        }
+      : {
+          status:
+            row.state === "running" ? "nicht_gescannt" : "gestoppt_kein_scan",
+        },
+  };
 }
 
 export function DockerInventoryPanel({
@@ -144,6 +216,38 @@ export function DockerInventoryPanel({
     });
   }
 
+  async function copyRowJson(
+    row: DockerInventoryRow,
+    scan: TrivyScanRecord | undefined,
+  ) {
+    const payload = buildContainerReviewJson(row, scan, serverId);
+    const text = JSON.stringify(payload, null, 2);
+    try {
+      await navigator.clipboard.writeText(text);
+      notifyResult({
+        ok: true,
+        message: `JSON kopiert · ${row.displayName}`,
+      });
+      setStatus(row.name, {
+        kind: "info",
+        text: "JSON in Zwischenablage — hier reinsenden",
+      });
+    } catch {
+      // Fallback: download file if clipboard blocked
+      const blob = new Blob([text], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `trivy-${row.displayName.replace(/[^\w.-]+/g, "_").slice(0, 48)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      notifyResult({
+        ok: true,
+        message: `JSON-Download · ${row.displayName}`,
+      });
+    }
+  }
+
   function runRedeploy(containerName: string, coolifyUuid: string) {
     setActiveRedeploy(containerName);
     setStatus(containerName, null);
@@ -180,7 +284,7 @@ export function DockerInventoryPanel({
           id={group.category}
           title={group.label}
           count={group.rows.length}
-          defaultOpen={group.category === "app" || group.rows.length <= 8}
+          defaultOpen={false}
         >
           <div className="overflow-x-auto rounded-lg border border-zinc-800">
             <table className="w-full text-sm">
@@ -330,14 +434,23 @@ export function DockerInventoryPanel({
                                 </span>
                               )}
                             </button>
-                          ) : canScan ? (
+                          ) : row.state === "running" ? (
                             <Badge variant="warning">nicht gescannt</Badge>
                           ) : (
-                            <span className="text-zinc-600">—</span>
+                            <span className="text-zinc-600">gestoppt</span>
                           )}
                         </td>
                         <td className="px-3 py-2 align-middle">
                           <div className="flex flex-wrap justify-end gap-1">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              title="Trivy-/Container-JSON kopieren"
+                              onClick={() => copyRowJson(row, scan)}
+                            >
+                              JSON
+                            </Button>
                             <Button
                               type="button"
                               size="sm"

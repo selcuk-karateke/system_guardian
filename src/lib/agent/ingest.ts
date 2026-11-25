@@ -16,7 +16,10 @@ import {
   sanitizeCmdline,
   topTalkerRemoteIp,
 } from "@/lib/agent/talker-meta";
-import { isPrivateOrLocalIp } from "@/lib/checks/connection-patterns";
+import {
+  isPrivateOrLocalIp,
+  isTrustedOutboundProcess,
+} from "@/lib/checks/connection-patterns";
 import type { AlertInput } from "@/lib/checks/types";
 import { THRESHOLDS } from "@/lib/config";
 
@@ -26,6 +29,7 @@ export { formatTopTalkerLine, formatTopTalkerDetail } from "@/lib/agent/talker-m
 export function isAgentEgressAlertMessage(message: string): boolean {
   return (
     /Möglicher Datenabfluss:.*\(Agent\)/i.test(message) ||
+    /(?:Sehr )?hoher Host-Egress \(Agent\)/i.test(message) ||
     /Hoher Egress(?:\s|:).*?\(Agent\)/i.test(message)
   );
 }
@@ -115,7 +119,11 @@ export function toMonitorLivePayload(
   }
   const topTalker = formatTopTalkerLine(live.talkers);
   const topTalkerDetail = formatTopTalkerDetail(live.talkers);
-  const top = [...live.talkers].sort((a, b) => b.txBps - a.txBps)[0];
+  const top = [...live.talkers].sort(
+    (a, b) =>
+      Math.max(b.txBps, b.procIoWriteBps ?? 0) -
+      Math.max(a.txBps, a.procIoWriteBps ?? 0),
+  )[0];
   return {
     ok: true,
     online: true,
@@ -187,16 +195,37 @@ function parseTalker(raw: unknown): AgentTalker | null {
   const cmdlineRaw =
     typeof o.cmdline === "string" ? o.cmdline : null;
   const cmdline = cmdlineRaw ? sanitizeCmdline(cmdlineRaw, 160) : null;
+  const hasExplicitProcIo =
+    o.procIoWriteBps != null ||
+    o.procIoReadBps != null ||
+    o.procIoWriteBytes != null ||
+    o.procIoReadBytes != null;
+  // Legacy agents stuffed /proc/<pid>/io into txBps/txBytes — remap to procIo*.
+  const legacyWriteBps = Math.max(0, numOrNull(o.txBps) ?? 0);
+  const legacyReadBps = Math.max(0, numOrNull(o.rxBps) ?? 0);
   return {
     pid: numOrNull(o.pid),
     process,
     remoteIp: remoteIp.slice(0, 64),
     remotePort,
     state,
-    txBps: Math.max(0, numOrNull(o.txBps) ?? 0),
-    rxBps: Math.max(0, numOrNull(o.rxBps) ?? 0),
-    txBytes: numOrNull(o.txBytes),
-    rxBytes: numOrNull(o.rxBytes),
+    // No reliable per-socket network counters yet (ss has no bytes).
+    txBps: 0,
+    rxBps: 0,
+    txBytes: null,
+    rxBytes: null,
+    procIoWriteBps: hasExplicitProcIo
+      ? Math.max(0, numOrNull(o.procIoWriteBps) ?? 0)
+      : legacyWriteBps,
+    procIoReadBps: hasExplicitProcIo
+      ? Math.max(0, numOrNull(o.procIoReadBps) ?? 0)
+      : legacyReadBps,
+    procIoWriteBytes: hasExplicitProcIo
+      ? numOrNull(o.procIoWriteBytes)
+      : numOrNull(o.txBytes),
+    procIoReadBytes: hasExplicitProcIo
+      ? numOrNull(o.procIoReadBytes)
+      : numOrNull(o.rxBytes),
     stillActive: o.stillActive === true || o.stillActive === "true",
     kind,
     cmdline,
@@ -289,40 +318,58 @@ export async function getFreshAgentLive(
   };
 }
 
+/** Discard counter-reset / garbage iface spikes on short agent windows. */
+function isPlausibleAgentEgressMbps(txMbps: number, windowSec: number): boolean {
+  if (!(txMbps > 0) || !(windowSec > 0)) return false;
+  if (windowSec < 1) return false;
+  // > ~5 Gbit/s on a 5s sample is almost always a counter glitch.
+  if (txMbps > 5_000) return false;
+  return true;
+}
+
 /**
- * Build egress-oriented alerts from a fresh agent sample (rate + talkers).
- * Volume thresholds are not used here — agent windows are short.
+ * Build egress-oriented alerts from a fresh agent sample (iface rate + talkers).
  *
- * Messages stay stable (no live Mbit/s) so processAlerts can dedupe.
- * LAN/private top talkers are not treated as exfil.
+ * Agent windows are short → never emit S1 "Datenabfluss" wording here.
+ * Talker /proc/io is not network evidence. Trusted outbound processes
+ * (e.g. hermes) and LAN peers are suppressed.
  */
 export function alertsFromAgentLive(live: AgentLiveSnapshot): AlertInput[] {
   const egress = live.egress;
   if (!egress) return [];
+  if (!isPlausibleAgentEgressMbps(egress.txMbps, egress.windowSec)) {
+    return [];
+  }
 
   const remoteIp = topTalkerRemoteIp(live.talkers);
   if (remoteIp && isPrivateOrLocalIp(remoteIp)) {
-    // Internal LAN (e.g. docker-proxy → 10.0.1.x) — show on monitor, no S1 spam.
+    return [];
+  }
+
+  const talkerPeer = formatTopTalkerPeer(live.talkers);
+  const topProcess = talkerPeer?.split(/\s*→\s*/)[0]?.trim();
+  if (topProcess && isTrustedOutboundProcess(topProcess)) {
+    // Known integration (hermes/Telegram, traefik, …) — monitor only.
     return [];
   }
 
   const mbpsWarning = THRESHOLDS.egressMbpsWarning();
   const mbpsCritical = THRESHOLDS.egressMbpsCritical();
-  const talkerPeer = formatTopTalkerPeer(live.talkers);
   const talkerDetail = formatTopTalkerDetail(live.talkers);
   const ifaceHint = egress.iface ? ` · ${egress.iface}` : "";
   const talkerHint = talkerPeer ? ` · ${talkerPeer}` : "";
-  const rateNote = `Aktuell ${egress.txMbps.toFixed(1)} Mbit/s`;
+  const rateNote = `Host-TX ${egress.txMbps.toFixed(1)} Mbit/s (${egress.windowSec}s Fenster, Interface-Summe — nicht pro Prozess)`;
 
   if (egress.txMbps >= mbpsCritical) {
     return [
       {
+        // Technical critical → crisis S2 via server_health, not S1 (no Datenabfluss).
         level: "critical",
         dedupeKey: `agent-egress:critical:${egress.iface ?? "-"}:${talkerPeer ?? "-"}`,
-        message: `Möglicher Datenabfluss: Egress (Agent)${ifaceHint}${talkerHint}`,
+        message: `Sehr hoher Host-Egress (Agent)${ifaceHint}${talkerHint}`,
         recommendation: talkerDetail
-          ? `${rateNote}. Was geht raus: ${talkerDetail}. Unbekannt/unerwartet → Sessions prüfen, ggf. NIC/Route kappen, Meldepflicht prüfen. TLS/SSH = Inhalt nicht einsehbar.`
-          : `${rateNote}. DSGVO: Daten die weg sind, sind weg. Sofort wer/wohin? Unbekannt → NIC ziehen, Sessions killen, Meldepflicht prüfen`,
+          ? `${rateNote}. Top-Socket (Identität via ss): ${talkerDetail}. Prozess-I/O ≠ Netzupload. Unerwarteter Prozess → Sessions prüfen.`
+          : `${rateNote}. Kein Top-Talker. Backup/CDN/Deploy? Sonst ss/nethogs prüfen — Kurzfenster kann Spikes übertreiben.`,
       },
     ];
   }
@@ -331,10 +378,10 @@ export function alertsFromAgentLive(live: AgentLiveSnapshot): AlertInput[] {
       {
         level: "warning",
         dedupeKey: `agent-egress:warning:${egress.iface ?? "-"}:${talkerPeer ?? "-"}`,
-        message: `Hoher Egress (Agent)${ifaceHint}${talkerHint}`,
+        message: `Hoher Host-Egress (Agent)${ifaceHint}${talkerHint}`,
         recommendation: talkerDetail
-          ? `${rateNote}. Backup/Deploy erwartet? Sonst — was geht raus: ${talkerDetail}`
-          : `${rateNote}. Backup/Deploy/CDN erwartet? Sonst Prozess + Remote-IP — kann Vorstufe zu Datenklau sein`,
+          ? `${rateNote}. Kontext: ${talkerDetail}`
+          : `${rateNote}. Backup/Deploy/CDN erwartet?`,
       },
     ];
   }

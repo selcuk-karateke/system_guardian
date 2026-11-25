@@ -43,6 +43,17 @@ describe("resolveCrisisStage", () => {
     );
   });
 
+  it("maps Agent Host-Egress critical to S2 (not S1)", () => {
+    assert.equal(
+      resolveCrisisStage({
+        module: "server_health",
+        level: "critical",
+        message: "Sehr hoher Host-Egress (Agent) · enp35s0 · curl → 1.2.3.4:443",
+      }),
+      2,
+    );
+  });
+
   it("maps FIM critical to S1", () => {
     assert.equal(
       resolveCrisisStage({

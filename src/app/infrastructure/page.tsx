@@ -1,7 +1,8 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import { CollapsibleCard } from "@/components/ui/collapsible-card";
 import { DiskTempsPanel } from "@/components/dashboard/disk-temps-panel";
 import { FilesystemsPanel } from "@/components/dashboard/filesystems-panel";
 import { LoadAveragePanel } from "@/components/dashboard/load-average-panel";
@@ -207,37 +208,46 @@ export default async function InfrastructurePage({
         checkedAt={servicesCheck?.createdAt ?? null}
       />
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="tracking-wide">RAID</CardTitle>
-          {raid && (
-            <Badge
-              variant={
-                raid.status as "healthy" | "warning" | "critical"
-              }
-            >
-              {raid.status}
-            </Badge>
-          )}
-        </CardHeader>
-        <CardContent>
-          {(raid?.data as { configured?: boolean })?.configured === false ? (
-            <p className="text-sm text-zinc-400">
-              {(raid?.data as { summary?: string })?.summary ??
-                "Kein Linux Software-RAID erkannt (/proc/mdstat leer). Das ist normal, wenn du nur Hetzner-RAID oder normale SSDs ohne mdadm nutzt."}
-            </p>
-          ) : (raid?.data as { skipped?: boolean })?.skipped ? (
-            <p className="text-sm text-zinc-500">
-              RAID-Check in den Einstellungen deaktiviert.
-            </p>
-          ) : (
-            <pre className="text-xs bg-zinc-900 p-4 rounded-lg overflow-auto max-h-48 font-mono">
-              {(raid?.data as { mdstat?: string })?.mdstat ??
-                JSON.stringify(raid?.data ?? {}, null, 2)}
-            </pre>
-          )}
-        </CardContent>
-      </Card>
+      <CollapsibleCard
+        id="infrastructure-raid"
+        title={
+          <span className="inline-flex items-center gap-2 tracking-wide">
+            RAID
+            {raid && (
+              <Badge
+                variant={
+                  raid.status as "healthy" | "warning" | "critical"
+                }
+              >
+                {raid.status}
+              </Badge>
+            )}
+          </span>
+        }
+        summary={
+          (raid?.data as { configured?: boolean })?.configured === false
+            ? "kein mdadm"
+            : (raid?.data as { skipped?: boolean })?.skipped
+              ? "deaktiviert"
+              : (raid?.status ?? "—")
+        }
+      >
+        {(raid?.data as { configured?: boolean })?.configured === false ? (
+          <p className="text-sm text-zinc-400">
+            {(raid?.data as { summary?: string })?.summary ??
+              "Kein Linux Software-RAID erkannt (/proc/mdstat leer). Das ist normal, wenn du nur Hetzner-RAID oder normale SSDs ohne mdadm nutzt."}
+          </p>
+        ) : (raid?.data as { skipped?: boolean })?.skipped ? (
+          <p className="text-sm text-zinc-500">
+            RAID-Check in den Einstellungen deaktiviert.
+          </p>
+        ) : (
+          <pre className="text-xs bg-zinc-900 p-4 rounded-lg overflow-auto max-h-48 font-mono">
+            {(raid?.data as { mdstat?: string })?.mdstat ??
+              JSON.stringify(raid?.data ?? {}, null, 2)}
+          </pre>
+        )}
+      </CollapsibleCard>
     </div>
   );
 }

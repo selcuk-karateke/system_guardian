@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import { CollapsibleCard } from "@/components/ui/collapsible-card";
 import {
   loadRoadmapItems,
   sortedRoadmapItems,
@@ -36,23 +37,25 @@ export default function RoadmapDocsPage() {
         </p>
       </div>
 
-      <Card className="border-sky-900/50 bg-sky-950/20">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">Idee eintragen</CardTitle>
-        </CardHeader>
-        <CardContent className="text-sm text-zinc-300 space-y-2">
-          <p>
-            PR auf <code className="text-xs">docs/backlog.json</code> mit{" "}
-            <code className="text-xs">status: &quot;idea&quot;</code> und deinem
-            Namen in <code className="text-xs">proposedBy</code>. Anleitung:{" "}
-            <code className="text-xs">docs/BACKLOG.md</code>.
-          </p>
-          <p className="text-zinc-500">
-            Ohne Push-Recht: GitHub-Issue mit Label{" "}
-            <code className="text-xs">roadmap</code>.
-          </p>
-        </CardContent>
-      </Card>
+      <CollapsibleCard
+        id="docs-roadmap-contribute"
+        className="border-sky-900/50 bg-sky-950/20"
+        title="Idee eintragen"
+        titleClassName="text-base"
+        summary="PR · backlog.json"
+        contentClassName="text-sm text-zinc-300 space-y-2"
+      >
+        <p>
+          PR auf <code className="text-xs">docs/backlog.json</code> mit{" "}
+          <code className="text-xs">status: &quot;idea&quot;</code> und deinem
+          Namen in <code className="text-xs">proposedBy</code>. Anleitung:{" "}
+          <code className="text-xs">docs/BACKLOG.md</code>.
+        </p>
+        <p className="text-zinc-500">
+          Ohne Push-Recht: GitHub-Issue mit Label{" "}
+          <code className="text-xs">roadmap</code>.
+        </p>
+      </CollapsibleCard>
 
       {nextUp.length > 0 && (
         <section className="space-y-3">

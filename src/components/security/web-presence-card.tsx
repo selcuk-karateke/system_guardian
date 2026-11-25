@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CollapsibleCard } from "@/components/ui/collapsible-card";
 import type { WebPresenceData, WebVisitor } from "@/lib/checks/web-presence";
 
 function Badge({ children }: { children: ReactNode }) {
@@ -69,76 +69,81 @@ export function WebPresenceCard({
 }) {
   if (!data) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Web Presence</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-xs text-zinc-600">
-            Noch kein web_presence-Lauf. Security-Cron abwarten oder manuell
-            triggern.
-          </p>
-        </CardContent>
-      </Card>
+      <CollapsibleCard
+        id="web-presence"
+        title="Web Presence"
+        titleClassName="text-base"
+        summary="kein Lauf"
+      >
+        <p className="text-xs text-zinc-600">
+          Noch kein web_presence-Lauf. Security-Cron abwarten oder manuell
+          triggern.
+        </p>
+      </CollapsibleCard>
     );
   }
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0">
-        <div>
-          <CardTitle className="text-base">Web Presence</CardTitle>
-          <p className="text-xs text-zinc-500 mt-1">
+    <CollapsibleCard
+      id="web-presence"
+      title="Web Presence"
+      titleClassName="text-base"
+      summary={`${data.uniqueIps} IPs · ${data.visitorCount} visitors`}
+      description={
+        <>
+          <p>
             Request-Fenster {data.window}
             {data.proxyContainer
               ? ` · ${data.proxyContainer}`
               : " · kein Proxy-Container gefunden"}{" "}
             — kein Session-Store
           </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Badge>{data.uniqueIps} unique / {data.window}</Badge>
-          <Badge>{data.visitorCount} visitors</Badge>
-          <Badge>{data.botCount} bots</Badge>
-          <Badge>
-            {data.error4xx}×4xx · {data.error5xx}×5xx
-          </Badge>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <section className="space-y-2">
-          <h3 className="text-sm font-medium text-zinc-200">Recent Visitors</h3>
-          <VisitorTable
-            rows={data.visitors}
-            empty="Keine Browser-Hits im Fenster."
-          />
-        </section>
+          <span className="mt-2 inline-flex flex-wrap gap-2">
+            <Badge>
+              {data.uniqueIps} unique / {data.window}
+            </Badge>
+            <Badge>{data.visitorCount} visitors</Badge>
+            <Badge>{data.botCount} bots</Badge>
+            <Badge>
+              {data.error4xx}×4xx · {data.error5xx}×5xx
+            </Badge>
+          </span>
+        </>
+      }
+      contentClassName="space-y-6"
+    >
+      <section className="space-y-2">
+        <h3 className="text-sm font-medium text-zinc-200">Recent Visitors</h3>
+        <VisitorTable
+          rows={data.visitors}
+          empty="Keine Browser-Hits im Fenster."
+        />
+      </section>
 
-        <section className="space-y-2">
-          <h3 className="text-sm font-medium text-zinc-200">Likely Bots</h3>
-          <VisitorTable rows={data.bots} empty="Keine Bot-Hits im Fenster." />
-        </section>
+      <section className="space-y-2">
+        <h3 className="text-sm font-medium text-zinc-200">Likely Bots</h3>
+        <VisitorTable rows={data.bots} empty="Keine Bot-Hits im Fenster." />
+      </section>
 
-        <section className="space-y-2">
-          <h3 className="text-sm font-medium text-zinc-200">Top Paths</h3>
-          {data.topPaths.length === 0 ? (
-            <p className="text-xs text-zinc-600">Keine Pfade.</p>
-          ) : (
-            <ul className="text-xs space-y-1">
-              {data.topPaths.map((p) => (
-                <li key={p.path} className="flex justify-between gap-4">
-                  <span className="font-mono text-zinc-300 truncate">
-                    {p.path}
-                  </span>
-                  <span className="text-zinc-500 tabular-nums shrink-0">
-                    {p.count}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      </CardContent>
-    </Card>
+      <section className="space-y-2">
+        <h3 className="text-sm font-medium text-zinc-200">Top Paths</h3>
+        {data.topPaths.length === 0 ? (
+          <p className="text-xs text-zinc-600">Keine Pfade.</p>
+        ) : (
+          <ul className="text-xs space-y-1">
+            {data.topPaths.map((p) => (
+              <li key={p.path} className="flex justify-between gap-4">
+                <span className="font-mono text-zinc-300 truncate">
+                  {p.path}
+                </span>
+                <span className="text-zinc-500 tabular-nums shrink-0">
+                  {p.count}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    </CollapsibleCard>
   );
 }

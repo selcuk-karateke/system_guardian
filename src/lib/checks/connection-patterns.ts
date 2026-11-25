@@ -96,8 +96,18 @@ export function parseSsTunapLine(line: string): ParsedConnection | null {
   };
 }
 
-function isTrustedOutboundProcess(process: string): boolean {
-  return getTrustedOutboundProcessPatterns().some((re) => re.test(process));
+/** Short process name from `users:(("name",pid=…))`, else raw string. */
+export function ssProcessComm(process: string): string {
+  const m = process.match(/users:\(\("([^"]+)"/);
+  return (m?.[1] ?? process).trim();
+}
+
+export function isTrustedOutboundProcess(process: string): boolean {
+  const patterns = getTrustedOutboundProcessPatterns();
+  if (patterns.some((re) => re.test(process))) return true;
+  const comm = ssProcessComm(process);
+  if (comm !== process && patterns.some((re) => re.test(comm))) return true;
+  return false;
 }
 
 export function isOutboundEstablished(conn: ParsedConnection): boolean {

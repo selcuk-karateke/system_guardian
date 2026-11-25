@@ -26,7 +26,7 @@ import {
 import { TriggerChecks } from "@/components/dashboard/trigger-checks";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CollapsibleCard } from "@/components/ui/collapsible-card";
 import { EmptyState } from "@/components/ui/empty-state";
 import type { GlobalStatus } from "@/lib/dashboard-data";
 import type { CrisisStage } from "@/lib/crisis/stages";
@@ -176,9 +176,10 @@ export function HomeDashboardBuilder({
       );
     }
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex flex-wrap items-baseline gap-2">
+      <CollapsibleCard
+        id="home-alerts"
+        title={
+          <span className="inline-flex flex-wrap items-baseline gap-2">
             Aktuelle Warnungen
             <span className="text-xs font-normal text-zinc-500">
               nur S1–S4 ·{" "}
@@ -186,12 +187,13 @@ export function HomeDashboardBuilder({
                 Matrix
               </Link>
             </span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <AlertList compact items={alerts} />
-        </CardContent>
-      </Card>
+          </span>
+        }
+        count={alerts.length}
+        summary={`${alerts.length} offen`}
+      >
+        <AlertList compact items={alerts} />
+      </CollapsibleCard>
     );
   }
 

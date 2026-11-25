@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CollapsibleCard } from "@/components/ui/collapsible-card";
 import { modulesForBatch } from "@/lib/docs/module-catalog";
 import { MODULE_LABELS } from "@/lib/module-labels";
 
@@ -64,66 +64,67 @@ export default function SysadminDocsPage() {
         </p>
       </div>
 
-      <Card className="border-sky-900/50 bg-sky-950/20">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">Aktuell halten / PRs</CardTitle>
-        </CardHeader>
-        <CardContent className="text-sm text-zinc-300 space-y-2">
-          <p>
-            <strong className="text-zinc-100">Maschine:</strong> neues
-            Check-Modul oder API-Route ohne Katalog/OpenAPI →{" "}
-            <code className="text-xs">docs:check</code> schlägt fehl (sichtbarer
-            Diff). Die Tabellen unten spiegeln den Katalog, der an die
-            registrierten Checks gebunden ist.
-          </p>
-          <p>
-            <strong className="text-zinc-100">Mensch:</strong> Prosa,
-            Troubleshooting, Env-Erklärungen in{" "}
-            <code className="text-xs">docs/SYSADMIN.md</code> / dieser Seite
-            pflegen — das erkennt kein Script automatisch.
-          </p>
-        </CardContent>
-      </Card>
+      <CollapsibleCard
+        id="docs-sysadmin-prs"
+        className="border-sky-900/50 bg-sky-950/20"
+        title="Aktuell halten / PRs"
+        titleClassName="text-base"
+        summary="docs:check · Prosa"
+        contentClassName="text-sm text-zinc-300 space-y-2"
+      >
+        <p>
+          <strong className="text-zinc-100">Maschine:</strong> neues
+          Check-Modul oder API-Route ohne Katalog/OpenAPI →{" "}
+          <code className="text-xs">docs:check</code> schlägt fehl (sichtbarer
+          Diff). Die Tabellen unten spiegeln den Katalog, der an die
+          registrierten Checks gebunden ist.
+        </p>
+        <p>
+          <strong className="text-zinc-100">Mensch:</strong> Prosa,
+          Troubleshooting, Env-Erklärungen in{" "}
+          <code className="text-xs">docs/SYSADMIN.md</code> / dieser Seite
+          pflegen — das erkennt kein Script automatisch.
+        </p>
+      </CollapsibleCard>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Was ist das?</CardTitle>
-        </CardHeader>
-        <CardContent className="text-sm text-zinc-300 space-y-2">
-          <p>
-            Monitoring + Security-light für einen Coolify-Host –{" "}
-            <strong className="text-zinc-100">ohne Agent</strong>, per SSH
-            (`ss`, `docker`, `journalctl`, …), Speicherung in PostgreSQL, Alerts
-            per Telegram/Discord/E-Mail.
-          </p>
-          <p className="text-zinc-500">
-            Vergleichbar mit Teilen von Zabbix/Netdata + Wazuh-light + Uptime –
-            in einer App.
-          </p>
-        </CardContent>
-      </Card>
+      <CollapsibleCard
+        id="docs-sysadmin-what"
+        title="Was ist das?"
+        summary="SSH-Monitoring ohne Agent"
+        contentClassName="text-sm text-zinc-300 space-y-2"
+      >
+        <p>
+          Monitoring + Security-light für einen Coolify-Host –{" "}
+          <strong className="text-zinc-100">ohne Agent</strong>, per SSH
+          (`ss`, `docker`, `journalctl`, …), Speicherung in PostgreSQL, Alerts
+          per Telegram/Discord/E-Mail.
+        </p>
+        <p className="text-zinc-500">
+          Vergleichbar mit Teilen von Zabbix/Netdata + Wazuh-light + Uptime –
+          in einer App.
+        </p>
+      </CollapsibleCard>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Wo ist was? (Code)</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <dl className="grid gap-2 text-sm">
-            {LAYERS.map((row) => (
-              <div
-                key={row.layer}
-                className="grid grid-cols-[7rem_1fr] gap-2 border-b border-zinc-800/80 pb-2 last:border-0"
-              >
-                <dt className="text-zinc-500">{row.layer}</dt>
-                <dd>
-                  <code className="text-sky-400/90 text-xs">{row.path}</code>
-                  <span className="text-zinc-400"> — {row.job}</span>
-                </dd>
-              </div>
-            ))}
-          </dl>
-        </CardContent>
-      </Card>
+      <CollapsibleCard
+        id="docs-sysadmin-layers"
+        title="Wo ist was? (Code)"
+        summary={`${LAYERS.length} Schichten`}
+      >
+        <dl className="grid gap-2 text-sm">
+          {LAYERS.map((row) => (
+            <div
+              key={row.layer}
+              className="grid grid-cols-[7rem_1fr] gap-2 border-b border-zinc-800/80 pb-2 last:border-0"
+            >
+              <dt className="text-zinc-500">{row.layer}</dt>
+              <dd>
+                <code className="text-sky-400/90 text-xs">{row.path}</code>
+                <span className="text-zinc-400"> — {row.job}</span>
+              </dd>
+            </div>
+          ))}
+        </dl>
+      </CollapsibleCard>
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">
@@ -145,41 +146,40 @@ export default function SysadminDocsPage() {
         <ModuleTable batch="security" />
       </section>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Typisch konfigurieren (ohne Code)</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <dl className="grid gap-2 text-sm">
-            {TUNE.map(([topic, vars]) => (
-              <div key={topic} className="grid grid-cols-[6.5rem_1fr] gap-2">
-                <dt className="text-zinc-500">{topic}</dt>
-                <dd className="font-mono text-xs text-zinc-300">{vars}</dd>
-              </div>
-            ))}
-          </dl>
-          <p className="mt-3 text-xs text-zinc-500">
-            False Positives zuerst über Trust/Allowlists entschärfen – siehe{" "}
-            <code>.env.example</code>.
-          </p>
-        </CardContent>
-      </Card>
+      <CollapsibleCard
+        id="docs-sysadmin-tune"
+        title="Typisch konfigurieren (ohne Code)"
+        summary={`${TUNE.length} Themen`}
+      >
+        <dl className="grid gap-2 text-sm">
+          {TUNE.map(([topic, vars]) => (
+            <div key={topic} className="grid grid-cols-[6.5rem_1fr] gap-2">
+              <dt className="text-zinc-500">{topic}</dt>
+              <dd className="font-mono text-xs text-zinc-300">{vars}</dd>
+            </div>
+          ))}
+        </dl>
+        <p className="mt-3 text-xs text-zinc-500">
+          False Positives zuerst über Trust/Allowlists entschärfen – siehe{" "}
+          <code>.env.example</code>.
+        </p>
+      </CollapsibleCard>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Zuarbeit</CardTitle>
-        </CardHeader>
-        <CardContent className="text-sm text-zinc-300 space-y-1">
-          <ol className="list-decimal pl-4 space-y-1">
-            <li>Allowlist / Trust-IP / Expected-Container</li>
-            <li>Thresholds in Env dokumentieren</li>
-            <li>
-              Neues Modul: Check → <code>index.ts</code> → Label → Katalog →{" "}
-              <code>npm run docs:check</code>
-            </li>
-          </ol>
-        </CardContent>
-      </Card>
+      <CollapsibleCard
+        id="docs-sysadmin-contrib"
+        title="Zuarbeit"
+        summary="3 Schritte"
+        contentClassName="text-sm text-zinc-300 space-y-1"
+      >
+        <ol className="list-decimal pl-4 space-y-1">
+          <li>Allowlist / Trust-IP / Expected-Container</li>
+          <li>Thresholds in Env dokumentieren</li>
+          <li>
+            Neues Modul: Check → <code>index.ts</code> → Label → Katalog →{" "}
+            <code>npm run docs:check</code>
+          </li>
+        </ol>
+      </CollapsibleCard>
 
       <p className="text-sm text-zinc-500">
         API-Endpunkte:{" "}

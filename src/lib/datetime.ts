@@ -9,6 +9,23 @@ export function formatAppDateTime(d: Date): string {
   });
 }
 
+/** UTC ISO for reports — avoids “lastSeen before created” confusion across TZ. */
+export function formatAppDateTimeWithUtc(d: Date): string {
+  return `${formatAppDateTime(d)} (${APP_TIMEZONE}) · ${d.toISOString()}`;
+}
+
+/**
+ * lastSeen can appear earlier than created when drivers round timestamps;
+ * clamp for display so reports stay causal.
+ */
+export function coalesceAlertSeenAt(
+  createdAt: Date,
+  lastSeenAt: Date | null | undefined,
+): Date {
+  if (!lastSeenAt) return createdAt;
+  return lastSeenAt.getTime() < createdAt.getTime() ? createdAt : lastSeenAt;
+}
+
 /** Zeitstempel aus `last` / wtmp (Server-lokal, keine TZ-Konvertierung). */
 export function parseLastLoginTimestamp(line: string): {
   at: string | null;

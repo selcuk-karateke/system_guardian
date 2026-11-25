@@ -1,5 +1,8 @@
 import { parseFailedUnitName } from "@/lib/checks/services";
-import { APP_TIMEZONE, formatAppDateTime } from "@/lib/datetime";
+import {
+  coalesceAlertSeenAt,
+  formatAppDateTimeWithUtc,
+} from "@/lib/datetime";
 import { getCheckMode } from "@/lib/config";
 import {
   CRISIS_STAGE_META,
@@ -34,7 +37,7 @@ export type AlertReportContext = {
   check?: AlertCheckContext | null;
 };
 
-const formatDeDate = formatAppDateTime;
+const formatDeDate = formatAppDateTimeWithUtc;
 
 function moduleLabel(module: string): string {
   return MODULE_LABELS[module] ?? module;
@@ -42,6 +45,19 @@ function moduleLabel(module: string): string {
 
 /** Kurze Einordnung für häufig missverständliche Meldungen. */
 function buildAlertExplanation(alert: AlertReportInput): string | null {
+  if (
+    /Host-Egress \(Agent\)|Möglicher Datenabfluss:.*\(Agent\)/i.test(
+      alert.message,
+    )
+  ) {
+    return [
+      "Agent-Egress: Interface-TX (Summe) + Top-Socket aus `ss`.",
+      "Prozess-I/O aus /proc/<pid>/io ist KEIN Beleg für Netzupload.",
+      "Vertrauenswürdige Outbound-Prozesse (z. B. hermes) erzeugen keinen Alert.",
+      "S1 „Datenabfluss“ kommt nicht aus dem Kurzfenster-Agenten — nur aus SSH-Langzeit-Checks mit klarer Formulierung.",
+    ].join("\n");
+  }
+
   if (
     alert.module === "services" &&
     /chkrootkit/i.test(alert.message)
@@ -463,17 +479,19 @@ export function buildAlertReport(
   const lines = [
     "SYSTEM GUARDIAN — VORFALLBERICHT",
     "================================",
-    `Bericht exportiert: ${formatDeDate(new Date())} (${APP_TIMEZONE})`,
+    `Bericht exportiert: ${formatDeDate(new Date())}`,
     `Alert-ID: ${alert.id}`,
     `Status: ${resolved ? "geschlossen" : "offen"}`,
-    `Alert erkannt: ${formatDeDate(alert.createdAt)} (${APP_TIMEZONE})`,
+    `Alert erkannt: ${formatDeDate(alert.createdAt)}`,
     ...(alert.lastSeenAt && !resolved
       ? [
-          `Zuletzt bestätigt: ${formatDeDate(alert.lastSeenAt)} (${APP_TIMEZONE})`,
+          `Zuletzt bestätigt: ${formatDeDate(
+            coalesceAlertSeenAt(alert.createdAt, alert.lastSeenAt),
+          )}`,
         ]
       : []),
     ...(resolved && alert.resolvedAt
-      ? [`Geschlossen am: ${formatDeDate(alert.resolvedAt)} (${APP_TIMEZONE})`]
+      ? [`Geschlossen am: ${formatDeDate(alert.resolvedAt)}`]
       : []),
     "",
     ...hostSection(ctx),

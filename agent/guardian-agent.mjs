@@ -9,7 +9,7 @@ import { hostname as osHostname, loadavg, freemem, totalmem, cpus } from "node:o
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
-const VERSION = "0.2.0";
+const VERSION = "0.2.2";
 const SKIP_IFACE = /^(lo|veth|br-|docker|virbr|fwbr|cali|flannel|cni|tun|tap)/i;
 const SKIP_FD_PATH =
   /^(socket:|pipe:|anon_inode:|\/dev\/|\/proc\/|\/sys\/|\/run\/systemd)/i;
@@ -308,10 +308,11 @@ async function sampleTalkers() {
     const key = `${pid ?? "?"}|${remoteIp}|${remotePort}`;
     connKeys.add(key);
 
-    let txBps = 0;
-    let rxBps = 0;
-    let txBytes = 0;
-    let rxBytes = 0;
+    // /proc/<pid>/io is process disk I/O — never treat as per-socket network TX/RX.
+    let procIoWriteBps = 0;
+    let procIoReadBps = 0;
+    let procIoWriteBytes = 0;
+    let procIoReadBytes = 0;
     if (pid != null) {
       const io = await readProcIo(pid);
       if (io) {
@@ -319,10 +320,10 @@ async function sampleTalkers() {
         nextIo.set(String(pid), { ...io, at: now });
         if (prev && prev.at < now) {
           const dt = Math.max(0.5, (now - prev.at) / 1000);
-          txBytes = Math.max(0, io.write - prev.write);
-          rxBytes = Math.max(0, io.read - prev.read);
-          txBps = txBytes / dt;
-          rxBps = rxBytes / dt;
+          procIoWriteBytes = Math.max(0, io.write - prev.write);
+          procIoReadBytes = Math.max(0, io.read - prev.read);
+          procIoWriteBps = procIoWriteBytes / dt;
+          procIoReadBps = procIoReadBytes / dt;
         }
       }
     }
@@ -330,17 +331,23 @@ async function sampleTalkers() {
     const port = Number.isFinite(remotePort) ? remotePort : null;
     const stillActive = prevConnKeys.has(key);
     const existing = byKey.get(key);
-    if (!existing || txBps > existing.txBps) {
+    // Rank by process I/O only as a hint for "busy" peers — not network volume.
+    const rank = procIoWriteBps;
+    if (!existing || rank > (existing.procIoWriteBps ?? 0)) {
       byKey.set(key, {
         pid,
         process: processName,
         remoteIp,
         remotePort: port,
         state: "established",
-        txBps,
-        rxBps,
-        txBytes,
-        rxBytes,
+        txBps: 0,
+        rxBps: 0,
+        txBytes: 0,
+        rxBytes: 0,
+        procIoWriteBps,
+        procIoReadBps,
+        procIoWriteBytes,
+        procIoReadBytes,
         stillActive,
         kind: classifyKind(processName, port),
       });
@@ -351,7 +358,11 @@ async function sampleTalkers() {
   prevConnKeys = connKeys;
 
   const ranked = [...byKey.values()]
-    .sort((a, b) => b.txBps - a.txBps)
+    .sort(
+      (a, b) =>
+        (b.procIoWriteBps ?? 0) - (a.procIoWriteBps ?? 0) ||
+        Number(b.stillActive) - Number(a.stillActive),
+    )
     .slice(0, 25);
 
   // Enrich only the hottest talkers (cmdline + open files)
@@ -416,12 +427,22 @@ async function push(payload) {
       Authorization: `Bearer ${TOKEN}`,
       "Content-Type": "application/json",
       Accept: "application/json",
+      // ngrok free interstitial otherwise returns HTML 200 and ingest never lands
+      "ngrok-skip-browser-warning": "1",
+      "User-Agent": `system-guardian-agent/${VERSION}`,
     },
     body: JSON.stringify(payload),
   });
   if (!res.ok) {
     const text = await res.text().catch(() => "");
     throw new Error(`ingest ${res.status}: ${text.slice(0, 200)}`);
+  }
+  const ctype = res.headers.get("content-type") || "";
+  if (!ctype.includes("application/json")) {
+    const text = await res.text().catch(() => "");
+    throw new Error(
+      `ingest unexpected content-type ${ctype || "?"}: ${text.slice(0, 120)}`,
+    );
   }
   return res.json();
 }

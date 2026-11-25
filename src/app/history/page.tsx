@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { Activity, Bell, GitCompare, History } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CollapsibleCard } from "@/components/ui/collapsible-card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FilterBarSkeleton } from "@/components/ui/skeleton";
 import { HistoryFilters } from "@/components/history/history-filters";
@@ -117,26 +117,75 @@ export default async function HistoryPage({
       </p>
 
       {range.tab === "point" && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Point-in-time (letzter Check pro Modul ≤ Bis)</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            {pointInTime.length === 0 ? (
+        <CollapsibleCard
+          id="history-point-in-time"
+          title="Point-in-time (letzter Check pro Modul ≤ Bis)"
+          summary={`${pointInTime.length} Module`}
+          count={pointInTime.length}
+          contentClassName="space-y-2 text-sm"
+        >
+          {pointInTime.length === 0 ? (
+            <EmptyState
+              compact
+              icon={History}
+              title="Keine Snapshot-Daten"
+              description="Vor diesem Zeitpunkt gibt es noch keine gespeicherten Checks."
+              action={{ href: "/", label: "Checks auf dem Dashboard starten" }}
+            />
+          ) : (
+            pointInTime.map((r) => (
+              <div
+                key={r.id}
+                className="flex justify-between border-b border-zinc-800 py-2"
+              >
+                <span className="font-mono text-zinc-300">{r.module}</span>
+                <span
+                  className={
+                    r.status === "critical"
+                      ? "text-red-400"
+                      : r.status === "warning"
+                        ? "text-amber-400"
+                        : "text-emerald-400"
+                  }
+                >
+                  {r.status}
+                </span>
+                <span className="text-zinc-500 text-xs">
+                  {r.createdAt.toISOString()}
+                </span>
+              </div>
+            ))
+          )}
+        </CollapsibleCard>
+      )}
+
+      {range.tab !== "point" && (
+        <>
+          <CollapsibleCard
+            id="history-check-runs"
+            title="Check-Läufe"
+            count={runs.length}
+            summary={`${runs.length} Läufe`}
+            contentClassName="max-h-96 overflow-auto text-sm space-y-2"
+          >
+            {runs.length === 0 ? (
               <EmptyState
                 compact
-                icon={History}
-                title="Keine Snapshot-Daten"
-                description="Vor diesem Zeitpunkt gibt es noch keine gespeicherten Checks."
-                action={{ href: "/", label: "Checks auf dem Dashboard starten" }}
+                icon={Activity}
+                title="Keine Checks in diesem Fenster"
+                description="Zeitraum erweitern oder einen Check-Lauf anstoßen."
+                action={{ href: "/", label: "Zum Dashboard" }}
               />
             ) : (
-              pointInTime.map((r) => (
+              runs.map((r) => (
                 <div
                   key={r.id}
-                  className="flex justify-between border-b border-zinc-800 py-2"
+                  className="border-b border-zinc-800 py-2 flex flex-wrap gap-3"
                 >
-                  <span className="font-mono text-zinc-300">{r.module}</span>
+                  <span className="text-zinc-500 text-xs shrink-0">
+                    {r.createdAt.toISOString()}
+                  </span>
+                  <span className="font-mono">{r.module}</span>
                   <span
                     className={
                       r.status === "critical"
@@ -148,120 +197,75 @@ export default async function HistoryPage({
                   >
                     {r.status}
                   </span>
+                </div>
+              ))
+            )}
+          </CollapsibleCard>
+
+          <CollapsibleCard
+            id="history-changes"
+            title="Änderungen"
+            count={changes.length}
+            summary={`${changes.length} Events`}
+            contentClassName="max-h-80 overflow-auto text-sm space-y-2"
+          >
+            {changes.length === 0 ? (
+              <EmptyState
+                compact
+                icon={GitCompare}
+                title="Keine Änderungen"
+                description="In diesem Fenster wurden keine Diff-Events gespeichert."
+              />
+            ) : (
+              changes.map((c) => (
+                <div key={c.id} className="border-b border-zinc-800 py-2">
                   <span className="text-zinc-500 text-xs">
-                    {r.createdAt.toISOString()}
+                    {c.createdAt.toISOString()}
+                  </span>{" "}
+                  <span className="text-amber-400">{c.changeType}</span>{" "}
+                  <span className="text-zinc-300">
+                    {c.category}/
+                    {enrichDockerChangeKey(c.category, c.entityKey, coolifyLookup)}
                   </span>
                 </div>
               ))
             )}
-          </CardContent>
-        </Card>
-      )}
-
-      {range.tab !== "point" && (
-        <>
-          <Card>
-            <CardHeader>
-              <CardTitle>Check-Läufe ({runs.length})</CardTitle>
-            </CardHeader>
-            <CardContent className="max-h-96 overflow-auto text-sm space-y-2">
-              {runs.length === 0 ? (
-                <EmptyState
-                  compact
-                  icon={Activity}
-                  title="Keine Checks in diesem Fenster"
-                  description="Zeitraum erweitern oder einen Check-Lauf anstoßen."
-                  action={{ href: "/", label: "Zum Dashboard" }}
-                />
-              ) : (
-                runs.map((r) => (
-                  <div
-                    key={r.id}
-                    className="border-b border-zinc-800 py-2 flex flex-wrap gap-3"
-                  >
-                    <span className="text-zinc-500 text-xs shrink-0">
-                      {r.createdAt.toISOString()}
-                    </span>
-                    <span className="font-mono">{r.module}</span>
-                    <span
-                      className={
-                        r.status === "critical"
-                          ? "text-red-400"
-                          : r.status === "warning"
-                            ? "text-amber-400"
-                            : "text-emerald-400"
-                      }
-                    >
-                      {r.status}
-                    </span>
-                  </div>
-                ))
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Änderungen ({changes.length})</CardTitle>
-            </CardHeader>
-            <CardContent className="max-h-80 overflow-auto text-sm space-y-2">
-              {changes.length === 0 ? (
-                <EmptyState
-                  compact
-                  icon={GitCompare}
-                  title="Keine Änderungen"
-                  description="In diesem Fenster wurden keine Diff-Events gespeichert."
-                />
-              ) : (
-                changes.map((c) => (
-                  <div key={c.id} className="border-b border-zinc-800 py-2">
-                    <span className="text-zinc-500 text-xs">
-                      {c.createdAt.toISOString()}
-                    </span>{" "}
-                    <span className="text-amber-400">{c.changeType}</span>{" "}
-                    <span className="text-zinc-300">
-                      {c.category}/
-                      {enrichDockerChangeKey(c.category, c.entityKey, coolifyLookup)}
-                    </span>
-                  </div>
-                ))
-              )}
-            </CardContent>
-          </Card>
+          </CollapsibleCard>
         </>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Alerts ({alertRows.length})</CardTitle>
-        </CardHeader>
-        <CardContent className="max-h-80 overflow-auto text-sm space-y-2">
-          {alertRows.length === 0 ? (
-            <EmptyState
-              compact
-              icon={Bell}
-              title="Keine Alerts im Fenster"
-              description="Gut — oder der Filter ist zu eng. Zeitraum / Modul prüfen."
-            />
-          ) : (
-            alertRows.map((a) => (
-              <div key={a.id} className="border-b border-zinc-800 py-2">
-                <span className="text-zinc-500 text-xs">
-                  {a.createdAt.toISOString()}
-                </span>{" "}
-                <span
-                  className={
-                    a.level === "critical" ? "text-red-400" : "text-amber-400"
-                  }
-                >
-                  [{a.level}]
-                </span>{" "}
-                <span className="text-zinc-300">{a.message}</span>
-              </div>
-            ))
-          )}
-        </CardContent>
-      </Card>
+      <CollapsibleCard
+        id="history-alerts"
+        title="Alerts"
+        count={alertRows.length}
+        summary={`${alertRows.length} Alerts`}
+        contentClassName="max-h-80 overflow-auto text-sm space-y-2"
+      >
+        {alertRows.length === 0 ? (
+          <EmptyState
+            compact
+            icon={Bell}
+            title="Keine Alerts im Fenster"
+            description="Gut — oder der Filter ist zu eng. Zeitraum / Modul prüfen."
+          />
+        ) : (
+          alertRows.map((a) => (
+            <div key={a.id} className="border-b border-zinc-800 py-2">
+              <span className="text-zinc-500 text-xs">
+                {a.createdAt.toISOString()}
+              </span>{" "}
+              <span
+                className={
+                  a.level === "critical" ? "text-red-400" : "text-amber-400"
+                }
+              >
+                [{a.level}]
+              </span>{" "}
+              <span className="text-zinc-300">{a.message}</span>
+            </div>
+          ))
+        )}
+      </CollapsibleCard>
     </div>
   );
 }

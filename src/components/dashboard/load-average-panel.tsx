@@ -1,4 +1,4 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CollapsibleCard } from "@/components/ui/collapsible-card";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -72,16 +72,18 @@ export function LoadAveragePanel({
   const cy = 100;
 
   return (
-    <Card id="load" className="overflow-hidden">
-      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
-        <CardTitle className="tracking-wide">Load</CardTitle>
-        {checkedAt && (
-          <span className="text-xs text-zinc-600 font-mono">
-            {checkedAt.toLocaleString("de-DE")}
-          </span>
-        )}
-      </CardHeader>
-      <CardContent>
+    <CollapsibleCard
+      id="load"
+      className="overflow-hidden"
+      title="Load"
+      titleClassName="tracking-wide"
+      summary={formatLoad(load1)}
+      description={
+        checkedAt ? (
+          <span className="font-mono">{checkedAt.toLocaleString("de-DE")}</span>
+        ) : undefined
+      }
+    >
         {load1 == null && load5 == null && load15 == null ? (
           <p className="text-sm text-zinc-500">
             Noch kein Load-Sample — erscheint nach dem nächsten Server-Health-Lauf.
@@ -197,7 +199,6 @@ export function LoadAveragePanel({
             </ul>
           </div>
         )}
-      </CardContent>
-    </Card>
+    </CollapsibleCard>
   );
 }

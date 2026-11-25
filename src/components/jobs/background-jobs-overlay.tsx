@@ -137,20 +137,23 @@ export function BackgroundJobsOverlay() {
           return now - j.finishedAt < DONE_HIDE_MS;
         });
 
-        // Keep optimistic local rows only until the server lists a matching live job.
+        // Optimistic locals bridge the gap until /api/jobs sees the real job.
+        // Drop them once any matching server job exists (live OR just finished) —
+        // otherwise a fast-finishing job leaves "Läuft · Gestartet…" stuck forever.
         setJobs((prev) => {
           const locals = prev.filter((j) => j.id.startsWith("local-"));
-          const stillWaiting = locals.filter(
-            (local) =>
-              !visible.some(
-                (j) =>
-                  (j.status === "queued" || j.status === "running") &&
-                  sameJobHint(j, {
-                    label: local.label,
-                    detail: local.detail,
-                  }),
-              ),
-          );
+          const stillWaiting = locals.filter((local) => {
+            const hint = { label: local.label, detail: local.detail };
+            const matched = data.jobs.some((j) => {
+              if (!sameJobHint(j, hint)) return false;
+              // Same wake window (±2s): covers queued→done before first poll.
+              return j.startedAt >= local.startedAt - 2_000;
+            });
+            if (matched) return false;
+            // Enqueue never landed / store miss — don't keep a ghost forever.
+            if (now - local.startedAt > 45_000) return false;
+            return true;
+          });
           const merged = [...stillWaiting, ...visible];
           const nextFp = jobsFingerprint(merged);
           if (nextFp === fingerprintRef.current) return prev;

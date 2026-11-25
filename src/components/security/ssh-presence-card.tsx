@@ -3,7 +3,7 @@ import {
   Fail2banSummary,
   type Fail2banData,
 } from "@/components/security/fail2ban-summary";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CollapsibleCard } from "@/components/ui/collapsible-card";
 import type { ActiveSession, FailedAuthSource } from "@/lib/checks/session-presence";
 
 export type LoginsPresenceData = {
@@ -74,20 +74,26 @@ export function SshPresenceCard({ data }: { data: LoginsPresenceData | undefined
   const bannedMasked = data?.fail2ban?.bannedIpsMasked ?? [];
   const recent = (data?.recentLogins ?? []).slice(0, 10);
 
+  const badges = (
+    <span className="inline-flex flex-wrap gap-2">
+      <Badge>{activeCount} online</Badge>
+      {data?.sshEstablishedCount != null && (
+        <Badge>{data.sshEstablishedCount} :22 ESTAB</Badge>
+      )}
+      <Badge>{data?.failedCount ?? failed.length} failed IPs</Badge>
+      <Badge>{data?.fail2ban?.currentlyBanned ?? 0} bans aktiv</Badge>
+    </span>
+  );
+
   return (
-    <Card>
-      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0">
-        <CardTitle className="text-base">SSH Who&apos;s Online</CardTitle>
-        <div className="flex flex-wrap gap-2">
-          <Badge>{activeCount} online</Badge>
-          {data?.sshEstablishedCount != null && (
-            <Badge>{data.sshEstablishedCount} :22 ESTAB</Badge>
-          )}
-          <Badge>{data?.failedCount ?? failed.length} failed IPs</Badge>
-          <Badge>{data?.fail2ban?.currentlyBanned ?? 0} bans aktiv</Badge>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-6">
+    <CollapsibleCard
+      id="ssh-presence"
+      title="SSH Who's Online"
+      titleClassName="text-base"
+      summary={`${activeCount} online`}
+      description={badges}
+      contentClassName="space-y-6"
+    >
         <section className="space-y-2">
           <h3 className="text-sm font-medium text-zinc-200">Aktive Sessions</h3>
           <MiniTable
@@ -172,7 +178,6 @@ export function SshPresenceCard({ data }: { data: LoginsPresenceData | undefined
             </p>
           )}
         </section>
-      </CardContent>
-    </Card>
+    </CollapsibleCard>
   );
 }

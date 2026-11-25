@@ -1,4 +1,5 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import { CollapsibleCard } from "@/components/ui/collapsible-card";
 import { AlertList } from "@/components/dashboard/alert-list";
 import { CopyReportButton } from "@/components/dashboard/copy-report-button";
 import { DismissAlertsButton } from "@/components/dashboard/dismiss-alerts";
@@ -102,14 +103,14 @@ export default async function NotificationsPage() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Offene Warnungen</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <AlertList items={items} />
-        </CardContent>
-      </Card>
+      <CollapsibleCard
+        id="notifications-open"
+        title="Offene Warnungen"
+        count={items.length}
+        summary={`${items.length} offen`}
+      >
+        <AlertList items={items} />
+      </CollapsibleCard>
     </div>
   );
 }

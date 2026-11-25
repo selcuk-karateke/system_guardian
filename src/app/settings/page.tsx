@@ -1,4 +1,4 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CollapsibleCard } from "@/components/ui/collapsible-card";
 import { NotificationSettingsPanel } from "@/components/settings/notification-settings-panel";
 import { ProtectPanel } from "@/components/settings/protect-panel";
 import { RuntimeConfigPanel } from "@/components/settings/runtime-config-panel";
@@ -86,34 +86,33 @@ export default async function SettingsPage() {
       )}
 
       {sessionUser && (
-        <Card id="security-2fa">
-          <CardHeader>
-            <CardTitle>Sicherheit · 2FA</CardTitle>
-          </CardHeader>
-          <CardContent>
+        <div id="security-2fa">
+          <CollapsibleCard
+            id="settings-2fa"
+            title="Sicherheit · 2FA"
+            summary={totpEnabled ? "aktiv" : "nicht eingerichtet"}
+          >
             <TotpSetupPanel username={sessionUser} totpEnabled={totpEnabled} />
-          </CardContent>
-        </Card>
+          </CollapsibleCard>
+        </div>
       )}
 
-      <Card id="users">
-        <CardHeader>
-          <CardTitle>Benutzer & Rollen</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <div id="users">
+        <CollapsibleCard
+          id="settings-users"
+          title="Benutzer & Rollen"
+          summary={`${users.length} Benutzer`}
+        >
           <UsersAdminPanel
             users={users}
             currentUser={sessionUser ?? ""}
             canManage={sessionUser ? roleCanManageUsers(role) : false}
           />
-        </CardContent>
-      </Card>
+        </CollapsibleCard>
+      </div>
 
-      <Card id="protect">
-        <CardHeader>
-          <CardTitle>Schutz</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <div id="protect">
+        <CollapsibleCard id="settings-protect" title="Schutz">
           <ProtectPanel
             autoBlockEnabled={protect.autoBlockEnabled}
             backupTriggerEnabled={protect.backupTriggerEnabled}
@@ -122,114 +121,114 @@ export default async function SettingsPage() {
             coolifyApiUrl={protect.coolifyApiUrl}
             checkMode={checkMode}
           />
-        </CardContent>
-      </Card>
+        </CollapsibleCard>
+      </div>
 
-      <Card id="servers">
-        <CardHeader>
-          <CardTitle>Server</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <div id="servers">
+        <CollapsibleCard
+          id="settings-servers"
+          title="Server"
+          summary={`${serverRows.length} Server`}
+        >
           <ServerAdminPanel
             servers={serverRows}
             sshHost={sshHost}
             checkMode={checkMode}
           />
-        </CardContent>
-      </Card>
+        </CollapsibleCard>
+      </div>
 
-      <Card id="runtime">
-        <CardHeader>
-          <CardTitle>Schwellen, Trusted IPs, Allowlists &amp; Ops</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <div id="runtime">
+        <CollapsibleCard
+          id="settings-runtime"
+          title="Schwellen, Trusted IPs, Allowlists & Ops"
+          summary="Schwellen · Trust · Ops"
+        >
           <RuntimeConfigPanel
             thresholds={runtime.thresholds ?? { ...DEFAULT_THRESHOLDS }}
             trusted={runtime.trusted}
             allowlists={getCachedAllowlists() ?? { ...DEFAULT_ALLOWLISTS }}
             ops={getCachedOps() ?? { ...DEFAULT_OPS }}
           />
-        </CardContent>
-      </Card>
+        </CollapsibleCard>
+      </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Überwachte Domains</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ul className="space-y-2 text-sm">
-            {domains.map((d) => (
-              <li key={d.id} className="flex gap-4">
-                <span className="font-medium">{d.domain}</span>
-                <span className="text-zinc-500">
-                  HTTP {d.checkHttp ? "✓" : "—"} / HTTPS {d.checkHttps ? "✓" : "—"}
-                </span>
-              </li>
-            ))}
-          </ul>
-          <p className="text-xs text-zinc-500 mt-4">
-            Domains werden per Seed und DB verwaltet. CRUD-API kann später ergänzt
-            werden.
-          </p>
-        </CardContent>
-      </Card>
+      <CollapsibleCard
+        id="settings-domains"
+        title="Überwachte Domains"
+        summary={`${domains.length} Domains`}
+      >
+        <ul className="space-y-2 text-sm">
+          {domains.map((d) => (
+            <li key={d.id} className="flex gap-4">
+              <span className="font-medium">{d.domain}</span>
+              <span className="text-zinc-500">
+                HTTP {d.checkHttp ? "✓" : "—"} / HTTPS {d.checkHttps ? "✓" : "—"}
+              </span>
+            </li>
+          ))}
+        </ul>
+        <p className="text-xs text-zinc-500 mt-4">
+          Domains werden per Seed und DB verwaltet. CRUD-API kann später ergänzt
+          werden.
+        </p>
+      </CollapsibleCard>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Benachrichtigungen</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <NotificationSettingsPanel status={notificationStatus} />
-        </CardContent>
-      </Card>
+      <CollapsibleCard
+        id="settings-notifications"
+        title="Benachrichtigungen"
+        summary="Telegram · Discord · E-Mail"
+      >
+        <NotificationSettingsPanel status={notificationStatus} />
+      </CollapsibleCard>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Beobachtung & Historie</CardTitle>
-        </CardHeader>
-        <CardContent className="text-sm text-zinc-400 space-y-2">
-          <p>
-            <strong className="text-zinc-200">Rollierendes Fenster:</strong>{" "}
-            unter{" "}
-            <a href="#runtime" className="text-sky-400 underline">
-              Ops
-            </a>{" "}
-            (Beobachtungsfenster / Incident) — Standard 24h für IOC-Log-Grep.
-          </p>
-          <p>
-            <strong className="text-zinc-200">Historie:</strong>{" "}
-            <a href="/history" className="text-sky-400 underline">
-              /history
-            </a>{" "}
-            — Checks, Änderungen und Alerts nach Zeitraum filtern; Point-in-time
-            zeigt letzten Stand pro Modul.
-          </p>
-          <p>
-            API: <code className="text-zinc-300">GET /api/history?from=&to=&module=</code>
-          </p>
-          <p className="text-xs pt-2 border-t border-zinc-800">
-            Nur noch Deploy-Runtime in ENV:{" "}
-            <code className="text-zinc-300">DATABASE_URL</code>,{" "}
-            <code className="text-zinc-300">CRON_SECRET</code>,{" "}
-            <code className="text-zinc-300">CHECK_MODE</code>,{" "}
-            <code className="text-zinc-300">AUTH_*</code>,{" "}
-            <code className="text-zinc-300">API_SECRET</code>,{" "}
-            <code className="text-zinc-300">APP_URL</code>. Ops/Schwellen/Allowlists
-            in der DB.
-          </p>
-        </CardContent>
-      </Card>
+      <CollapsibleCard
+        id="settings-observation"
+        title="Beobachtung & Historie"
+        summary="Fenster · Historie · ENV"
+        contentClassName="text-sm text-zinc-400 space-y-2"
+      >
+        <p>
+          <strong className="text-zinc-200">Rollierendes Fenster:</strong>{" "}
+          unter{" "}
+          <a href="#runtime" className="text-sky-400 underline">
+            Ops
+          </a>{" "}
+          (Beobachtungsfenster / Incident) — Standard 24h für IOC-Log-Grep.
+        </p>
+        <p>
+          <strong className="text-zinc-200">Historie:</strong>{" "}
+          <a href="/history" className="text-sky-400 underline">
+            /history
+          </a>{" "}
+          — Checks, Änderungen und Alerts nach Zeitraum filtern; Point-in-time
+          zeigt letzten Stand pro Modul.
+        </p>
+        <p>
+          API: <code className="text-zinc-300">GET /api/history?from=&to=&module=</code>
+        </p>
+        <p className="text-xs pt-2 border-t border-zinc-800">
+          Nur noch Deploy-Runtime in ENV:{" "}
+          <code className="text-zinc-300">DATABASE_URL</code>,{" "}
+          <code className="text-zinc-300">CRON_SECRET</code>,{" "}
+          <code className="text-zinc-300">CHECK_MODE</code>,{" "}
+          <code className="text-zinc-300">AUTH_*</code>,{" "}
+          <code className="text-zinc-300">API_SECRET</code>,{" "}
+          <code className="text-zinc-300">APP_URL</code>. Ops/Schwellen/Allowlists
+          in der DB.
+        </p>
+      </CollapsibleCard>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Intervalle (Coolify Scheduled Tasks)</CardTitle>
-        </CardHeader>
-        <CardContent className="text-sm font-mono text-zinc-400 space-y-1">
-          <p>15 min → GET /api/cron/server</p>
-          <p>60 min → GET /api/cron/security</p>
-          <p>09:00 → GET /api/cron/daily-report</p>
-        </CardContent>
-      </Card>
+      <CollapsibleCard
+        id="settings-intervals"
+        title="Intervalle (Coolify Scheduled Tasks)"
+        summary="15m · 60m · täglich"
+        contentClassName="text-sm font-mono text-zinc-400 space-y-1"
+      >
+        <p>15 min → GET /api/cron/server</p>
+        <p>60 min → GET /api/cron/security</p>
+        <p>09:00 → GET /api/cron/daily-report</p>
+      </CollapsibleCard>
     </div>
   );
 }

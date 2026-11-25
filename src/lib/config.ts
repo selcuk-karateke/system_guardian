@@ -286,6 +286,7 @@ export function getTrustedOutboundProcessPatterns(): RegExp[] {
     /apt-get/i,
     /unattended-upgrade/i,
     /hermes/i,
+    /guardian-agent/i,
   ];
   const extra = getCachedAllowlists().trustedOutboundProcessesExtra;
   if (extra.length === 0) return defaults;

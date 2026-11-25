@@ -72,11 +72,12 @@ export function resolveCrisisStage(alert: CrisisAlertLike): CrisisStage {
   ) {
     return 1;
   }
-  // Volume exfil (egress spike) — same urgency as keyword S1
+  // Volume exfil — only explicit Datenabfluss/exfil wording (SSH long-window).
+  // Bare "Egress" / Agent host-TX spikes must not auto-page as S1.
   if (
     level === "critical" &&
     (module === "network" || module === "server_health") &&
-    /egress|datenabfluss|exfil/i.test(message)
+    /datenabfluss|exfiltrat|data\s*exfil/i.test(message)
   ) {
     return 1;
   }

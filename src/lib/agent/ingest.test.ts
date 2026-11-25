@@ -130,12 +130,13 @@ describe("alertsFromAgentLive", () => {
     serverId: "00000000-0000-0000-0000-000000000001",
   };
 
-  it("uses a stable message without live Mbit/s", () => {
+  it("uses a stable Host-Egress message without Datenabfluss / live Mbit/s", () => {
     const alerts = alertsFromAgentLive(base);
     assert.equal(alerts.length, 1);
     assert.equal(alerts[0]!.level, "critical");
     assert.doesNotMatch(alerts[0]!.message, /\d+\.\d+ Mbit/);
-    assert.match(alerts[0]!.message, /\(Agent\)/);
+    assert.doesNotMatch(alerts[0]!.message, /Datenabfluss/i);
+    assert.match(alerts[0]!.message, /Host-Egress \(Agent\)/);
     assert.match(alerts[0]!.recommendation ?? "", /400\.0 Mbit/);
     assert.ok(alerts[0]!.dedupeKey);
   });
@@ -160,6 +161,38 @@ describe("alertsFromAgentLive", () => {
     assert.equal(alerts.length, 0);
   });
 
+  it("skips trusted outbound top talkers (e.g. hermes)", () => {
+    const alerts = alertsFromAgentLive({
+      ...base,
+      talkers: [
+        {
+          pid: 950,
+          process: "hermes",
+          remoteIp: "2001:67c:4e8:f004::9",
+          remotePort: 443,
+          state: "established",
+          txBps: 0,
+          rxBps: 0,
+          stillActive: true,
+          kind: "https",
+          procIoWriteBps: 7_000,
+          procIoWriteBytes: 33_000,
+        },
+      ],
+    });
+    assert.equal(alerts.length, 0);
+  });
+
+  it("ignores implausible iface spikes", () => {
+    assert.equal(
+      alertsFromAgentLive({
+        ...base,
+        egress: { txMbps: 12_000, rxMbps: 1, iface: "enp35s0", windowSec: 5 },
+      }).length,
+      0,
+    );
+  });
+
   it("detects legacy and new agent egress messages", () => {
     assert.equal(
       isAgentEgressAlertMessage(
@@ -169,7 +202,7 @@ describe("alertsFromAgentLive", () => {
     );
     assert.equal(
       isAgentEgressAlertMessage(
-        "Möglicher Datenabfluss: Egress (Agent) · enp35s0 · curl → 1.2.3.4:443",
+        "Sehr hoher Host-Egress (Agent) · enp35s0 · curl → 1.2.3.4:443",
       ),
       true,
     );
@@ -222,5 +255,44 @@ describe("formatTopTalkerLine", () => {
     ]);
     assert.match(detail ?? "", /pg_dump/);
     assert.match(detail ?? "", /cmd: pg_dump/);
+  });
+
+  it("labels process I/O as non-network", () => {
+    const line = formatTopTalkerLine([
+      {
+        pid: 950,
+        process: "hermes",
+        remoteIp: "2001:67c:4e8:f004::9",
+        remotePort: 443,
+        state: "established",
+        txBps: 0,
+        rxBps: 0,
+        stillActive: true,
+        kind: "https",
+        procIoWriteBps: 7_000,
+        procIoWriteBytes: 33_000,
+      },
+    ]);
+    assert.match(line ?? "", /I\/O/);
+    assert.match(line ?? "", /kein Netz/);
+    assert.doesNotMatch(line ?? "", /↑ 7/);
+
+    const detail = formatTopTalkerDetail([
+      {
+        pid: 950,
+        process: "hermes",
+        remoteIp: "2001:67c:4e8:f004::9",
+        remotePort: 443,
+        state: "established",
+        txBps: 0,
+        rxBps: 0,
+        stillActive: true,
+        kind: "https",
+        procIoWriteBps: 7_000,
+        procIoWriteBytes: 33_000,
+      },
+    ]);
+    assert.match(detail ?? "", /Prozess-I\/O/);
+    assert.match(detail ?? "", /kein Netzwerkbeleg/);
   });
 });

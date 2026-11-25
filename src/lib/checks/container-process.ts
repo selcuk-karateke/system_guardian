@@ -122,3 +122,38 @@ export async function resolveContainersByPids(
   const { stdout } = await ssh.exec(script);
   return parsePidContainerLookupOutput(stdout);
 }
+
+/** Batch-read /proc/<pid>/cmdline for outbound allowlisting. */
+export async function resolveCmdlinesByPids(
+  ssh: SshClient,
+  pids: number[],
+): Promise<Map<number, string>> {
+  const unique = [...new Set(pids.filter((p) => p > 0))].slice(0, 40);
+  const map = new Map<number, string>();
+  if (unique.length === 0) return map;
+  const list = unique.join(" ");
+  const script = [
+    `for pid in ${list}; do`,
+    `  cmd=$(tr '\\0' ' ' < /proc/$pid/cmdline 2>/dev/null | head -c 240)`,
+    `  printf '%s\\t%s\\n' "$pid" "$cmd"`,
+    `done`,
+  ].join("\n");
+  const { stdout } = await ssh.exec(script);
+  for (const line of stdout.split("\n")) {
+    const tab = line.indexOf("\t");
+    if (tab < 0) continue;
+    const pid = Number(line.slice(0, tab));
+    if (!Number.isFinite(pid) || pid <= 0) continue;
+    const cmd = line.slice(tab + 1).trim();
+    if (cmd) map.set(pid, cmd);
+  }
+  return map;
+}
+
+export function isGuardianAgentCmdline(cmdline: string | null | undefined): boolean {
+  if (!cmdline) return false;
+  return (
+    /guardian-agent\.mjs\b/.test(cmdline) ||
+    /\/opt\/guardian-agent\//.test(cmdline)
+  );
+}

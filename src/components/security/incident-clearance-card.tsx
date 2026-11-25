@@ -1,4 +1,4 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CollapsibleCard } from "@/components/ui/collapsible-card";
 import type { ClearanceItem } from "@/lib/checks/incident-clearance";
 
 function ClearanceList({
@@ -63,40 +63,47 @@ export function IncidentClearanceCard({
 
   if (!ioc.length && !scope.length && !ssh.length) return null;
 
+  const badge = (
+    <span
+      className={
+        data?.allPass
+          ? "text-xs px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-800"
+          : status === "critical"
+            ? "text-xs px-2 py-0.5 rounded-full bg-red-950 text-red-400 border border-red-800"
+            : "text-xs px-2 py-0.5 rounded-full bg-amber-950 text-amber-400 border border-amber-800"
+      }
+    >
+      {data?.allPass ? "IOC ok" : status ?? "—"}
+    </span>
+  );
+
   return (
-    <Card className="border-zinc-700">
-      <CardHeader>
-        <CardTitle className="text-lg flex items-center gap-2">
+    <CollapsibleCard
+      id="incident-clearance"
+      className="border-zinc-700"
+      title={
+        <span className="inline-flex flex-wrap items-center gap-2">
           Sicherheitslage (IOC + Prüfumfang)
-          <span
-            className={
-              data?.allPass
-                ? "text-xs px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-800"
-                : status === "critical"
-                  ? "text-xs px-2 py-0.5 rounded-full bg-red-950 text-red-400 border border-red-800"
-                  : "text-xs px-2 py-0.5 rounded-full bg-amber-950 text-amber-400 border border-amber-800"
-            }
-          >
-            {data?.allPass ? "IOC ok" : status ?? "—"}
-          </span>
-        </CardTitle>
-        {data?.window && (
-          <p className="text-xs text-zinc-500 mt-1">
-            IOC-Fenster: {data.window.logSince} → {data.window.logUntil} (UTC)
-          </p>
-        )}
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {data?.summaryLine && (
-          <p className="text-sm text-zinc-300">{data.summaryLine}</p>
-        )}
-        <ClearanceList title="IOC — keine Treffer erwartet" items={ioc} />
-        <ClearanceList
-          title="Prüfumfang (Warnung = durchgeführt, nicht automatisch sauber)"
-          items={scope}
-        />
-        <ClearanceList title="SSH-Härtung" items={ssh} />
-      </CardContent>
-    </Card>
+          {badge}
+        </span>
+      }
+      summary={!data?.allPass ? String(status ?? "offen") : "IOC ok"}
+      description={
+        data?.window
+          ? `IOC-Fenster: ${data.window.logSince} → ${data.window.logUntil} (UTC)`
+          : undefined
+      }
+      contentClassName="space-y-6"
+    >
+      {data?.summaryLine && (
+        <p className="text-sm text-zinc-300">{data.summaryLine}</p>
+      )}
+      <ClearanceList title="IOC — keine Treffer erwartet" items={ioc} />
+      <ClearanceList
+        title="Prüfumfang (Warnung = durchgeführt, nicht automatisch sauber)"
+        items={scope}
+      />
+      <ClearanceList title="SSH-Härtung" items={ssh} />
+    </CollapsibleCard>
   );
 }

@@ -20,7 +20,9 @@ import {
 } from "./connection-patterns";
 import {
   enrichReasonWithContainer,
+  isGuardianAgentCmdline,
   parsePidFromSsProcess,
+  resolveCmdlinesByPids,
   resolveContainersByPids,
 } from "./container-process";
 import { sampleHostEgress } from "./egress-traffic";
@@ -75,18 +77,23 @@ export async function runNetworkCheck(serverId: string): Promise<CheckResult> {
     if (hitRows.length >= 10) break;
   }
 
-  const containerByPid = await resolveContainersByPids(
-    ssh,
-    hitRows
-      .map((r) => parsePidFromSsProcess(r.conn.process))
-      .filter((p): p is number => p != null),
-  );
+  const hitPids = hitRows
+    .map((r) => parsePidFromSsProcess(r.conn.process))
+    .filter((p): p is number => p != null);
+  const [containerByPid, cmdlineByPid] = await Promise.all([
+    resolveContainersByPids(ssh, hitPids),
+    resolveCmdlinesByPids(ssh, hitPids),
+  ]);
 
   const blockedSet = getBlockedRemoteIps();
   const blockedSeen: string[] = [];
 
   for (const { line, conn, hit } of hitRows) {
     const pid = parsePidFromSsProcess(conn.process);
+    // Our metrics agent is plain `node` in ss — don't flag Guardian→APP_URL HTTPS.
+    if (pid != null && isGuardianAgentCmdline(cmdlineByPid.get(pid))) {
+      continue;
+    }
     const container = pid != null ? containerByPid.get(pid) : undefined;
     const reason = enrichReasonWithContainer(hit.reason, container);
     suspiciousConns.push(`${reason} · ${line.slice(0, 160)}`);

@@ -73,12 +73,17 @@ function formatBytes(n: number): string {
   return `${Math.round(n)} B`;
 }
 
+function talkerRank(t: AgentTalker): number {
+  // Prefer real network rates; fall back to process I/O only for ordering.
+  return Math.max(t.txBps, t.procIoWriteBps ?? 0);
+}
+
 function pickTop(talkers: AgentTalker[]): AgentTalker | null {
   const established = talkers
     .filter((t) => t.state === "established")
-    .sort((a, b) => b.txBps - a.txBps);
+    .sort((a, b) => talkerRank(b) - talkerRank(a));
   if (established[0]) return established[0];
-  return [...talkers].sort((a, b) => b.txBps - a.txBps)[0] ?? null;
+  return [...talkers].sort((a, b) => talkerRank(b) - talkerRank(a))[0] ?? null;
 }
 
 /** Stable peer for alert dedupe: `process → ip:port` (no rates). */
@@ -109,11 +114,16 @@ export function formatTopTalkerLine(talkers: AgentTalker[]): string | null {
   if (top.state !== "established") {
     return `${head} · weg`;
   }
-  const parts = [head, `↑ ${formatBps(top.txBps)}`];
-  if (top.stillActive) parts.push("aktiv");
-  if (top.txBytes != null && top.txBytes > 0) {
-    parts.push(formatBytes(top.txBytes));
+  const parts = [head];
+  if (top.txBps > 0) {
+    parts.push(`↑ ${formatBps(top.txBps)}`);
+    if (top.txBytes != null && top.txBytes > 0) {
+      parts.push(formatBytes(top.txBytes));
+    }
+  } else if ((top.procIoWriteBps ?? 0) > 0) {
+    parts.push(`I/O ${formatBps(top.procIoWriteBps!)} (kein Netz)`);
   }
+  if (top.stillActive) parts.push("aktiv");
   return parts.join(" · ");
 }
 
@@ -127,11 +137,20 @@ export function formatTopTalkerDetail(talkers: AgentTalker[]): string | null {
   }`;
   const bits = [
     `${top.process} (${kind}) → ${peer}`,
-    `↑ ${formatBps(top.txBps)}`,
     top.stillActive ? "noch aktiv" : "gerade gesehen",
   ];
-  if (top.txBytes != null && top.txBytes > 0) {
-    bits.push(`${formatBytes(top.txBytes)} im Sample`);
+  if (top.txBps > 0) {
+    bits.push(`Netz ↑ ${formatBps(top.txBps)}`);
+    if (top.txBytes != null && top.txBytes > 0) {
+      bits.push(`${formatBytes(top.txBytes)} Netz-Sample`);
+    }
+  } else if ((top.procIoWriteBps ?? 0) > 0) {
+    bits.push(
+      `Prozess-I/O ↑ ${formatBps(top.procIoWriteBps!)} (kein Netzwerkbeleg)`,
+    );
+    if ((top.procIoWriteBytes ?? 0) > 0) {
+      bits.push(`${formatBytes(top.procIoWriteBytes!)} I/O-Sample`);
+    }
   }
   if (top.cmdline) bits.push(`cmd: ${top.cmdline}`);
   if (top.openFiles?.length) {

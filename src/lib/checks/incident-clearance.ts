@@ -23,7 +23,9 @@ import {
   parseSsTunapLine,
 } from "./connection-patterns";
 import {
+  isGuardianAgentCmdline,
   parsePidFromSsProcess,
+  resolveCmdlinesByPids,
   resolveContainersByPids,
 } from "./container-process";
 import { getFileChangeHint } from "./file-change-hint";
@@ -248,15 +250,25 @@ export async function runSecurityPostureCheck(
   const ssPids = ssHits
     .map((h) => parsePidFromSsProcess(h.conn.process))
     .filter((p): p is number => p != null);
-  const containerByPid = await resolveContainersByPids(ssh, ssPids);
-  const ssConnectionEvents: SecurityEvent[] = ssHits.map(({ line, conn, hit }) => {
-    const pid = parsePidFromSsProcess(conn.process);
-    return suspiciousSsHitToSecurityEvent(conn, hit, {
-      serverId,
-      rawLine: line,
-      container: pid != null ? containerByPid.get(pid) ?? null : null,
+  const [containerByPid, cmdlineByPid] = await Promise.all([
+    resolveContainersByPids(ssh, ssPids),
+    resolveCmdlinesByPids(ssh, ssPids),
+  ]);
+  const ssConnectionEvents: SecurityEvent[] = ssHits
+    .filter(({ conn }) => {
+      const pid = parsePidFromSsProcess(conn.process);
+      return !(
+        pid != null && isGuardianAgentCmdline(cmdlineByPid.get(pid))
+      );
+    })
+    .map(({ line, conn, hit }) => {
+      const pid = parsePidFromSsProcess(conn.process);
+      return suspiciousSsHitToSecurityEvent(conn, hit, {
+        serverId,
+        rawLine: line,
+        container: pid != null ? containerByPid.get(pid) ?? null : null,
+      });
     });
-  });
   const ssClearance = clearanceFieldsFromSsSecurityEvents(ssConnectionEvents);
   if (ssClearance) {
     items.push({

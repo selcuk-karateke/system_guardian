@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CollapsibleCard } from "@/components/ui/collapsible-card";
 
 const LINKS = [
   {
@@ -78,44 +78,50 @@ export default function DocsHubPage() {
         </p>
       </div>
 
-      <Card className="border-sky-900/50 bg-sky-950/20">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">Wer hält das aktuell?</CardTitle>
-        </CardHeader>
-        <CardContent className="text-sm text-zinc-400 space-y-2">
-          <p>
-            Modul-Listen und API-Pfade werden gegen den Code geprüft:{" "}
-            <code className="text-zinc-300">npm run docs:check</code>. Fehlt
-            nach einem PR ein Katalog-Eintrag oder OpenAPI-Pfad, schlägt der
-            Check fehl — das System erkennt Drift, schreibt aber nichts von
-            selbst um.
-          </p>
-          <p>
-            Erklärungen/Prosa bleiben manuell (
-            <code className="text-zinc-300">docs/SYSADMIN.md</code>, Security).
-            Summaries der Module:{" "}
-            <code className="text-zinc-300">src/lib/docs/module-catalog.ts</code>
-            .
-          </p>
-        </CardContent>
-      </Card>
+      <CollapsibleCard
+        id="docs-ownership"
+        className="border-sky-900/50 bg-sky-950/20"
+        title="Wer hält das aktuell?"
+        titleClassName="text-base"
+        summary="docs:check · Katalog"
+        contentClassName="text-sm text-zinc-400 space-y-2"
+      >
+        <p>
+          Modul-Listen und API-Pfade werden gegen den Code geprüft:{" "}
+          <code className="text-zinc-300">npm run docs:check</code>. Fehlt
+          nach einem PR ein Katalog-Eintrag oder OpenAPI-Pfad, schlägt der
+          Check fehl — das System erkennt Drift, schreibt aber nichts von
+          selbst um.
+        </p>
+        <p>
+          Erklärungen/Prosa bleiben manuell (
+          <code className="text-zinc-300">docs/SYSADMIN.md</code>, Security).
+          Summaries der Module:{" "}
+          <code className="text-zinc-300">src/lib/docs/module-catalog.ts</code>
+          .
+        </p>
+      </CollapsibleCard>
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold text-zinc-200">In der App</h2>
         <div className="sg-stagger grid gap-3">
           {LINKS.map((item) => (
-            <Link key={item.href} href={item.href} className="block group">
-              <Card className="group-hover:border-sky-700/60">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base text-sky-400 group-hover:underline">
-                    {item.title}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="text-sm text-zinc-400">
-                  {item.body}
-                </CardContent>
-              </Card>
-            </Link>
+            <CollapsibleCard
+              key={item.href}
+              id={`docs-app-${item.href.replace(/\//g, "-")}`}
+              title={item.title}
+              titleClassName="text-base text-sky-400"
+              summary="App-Seite"
+              contentClassName="text-sm text-zinc-400 space-y-2"
+            >
+              <p>{item.body}</p>
+              <Link
+                href={item.href}
+                className="inline-block text-sky-400 hover:underline"
+              >
+                Öffnen →
+              </Link>
+            </CollapsibleCard>
           ))}
         </div>
       </section>
@@ -129,15 +135,19 @@ export default function DocsHubPage() {
         </p>
         <div className="sg-stagger grid gap-3">
           {REPO_DOCS.map((item) => (
-            <Card key={item.file}>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">{item.title}</CardTitle>
+            <CollapsibleCard
+              key={item.file}
+              id={`docs-repo-${item.file.replace(/[/.]/g, "-")}`}
+              title={item.title}
+              titleClassName="text-base"
+              description={
                 <code className="text-xs text-sky-500/90">{item.file}</code>
-              </CardHeader>
-              <CardContent className="text-sm text-zinc-400">
-                {item.body}
-              </CardContent>
-            </Card>
+              }
+              summary={item.file}
+              contentClassName="text-sm text-zinc-400"
+            >
+              {item.body}
+            </CollapsibleCard>
           ))}
         </div>
       </section>

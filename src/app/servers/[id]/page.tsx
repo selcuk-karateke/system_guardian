@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import { CollapsibleCard } from "@/components/ui/collapsible-card";
 import { AlertList } from "@/components/dashboard/alert-list";
 import { CrisisStageBadge } from "@/components/dashboard/crisis-stage-badge";
 import { TriggerChecks } from "@/components/dashboard/trigger-checks";
@@ -108,139 +109,138 @@ export default async function ServerDetailPage({
         uptimeSeconds={overview?.metrics?.uptimeSeconds}
       />
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Status</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <dl className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-            <div>
-              <dt className="text-zinc-500">Host</dt>
-              <dd className="font-medium">{server.host}</dd>
-            </div>
-            <div>
-              <dt className="text-zinc-500">Profil</dt>
-              <dd className="font-medium">
-                {profileLabel(parseMonitorProfile(server.monitorProfile))}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-zinc-500">IP</dt>
-              <dd>{server.ipv4 ?? "—"}</dd>
-            </div>
-            <div>
-              <dt className="text-zinc-500">IPv6</dt>
-              <dd>{server.ipv6 ?? "—"}</dd>
-            </div>
-            <div>
-              <dt className="text-zinc-500">Uptime</dt>
-              <dd>
-                {overview?.metrics?.uptimeSeconds
-                  ? formatUptime(overview.metrics.uptimeSeconds)
-                  : "—"}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-zinc-500">CPU</dt>
-              <dd>{overview?.metrics?.cpuPercent ?? "—"}%</dd>
-            </div>
-            <div>
-              <dt className="text-zinc-500">RAM</dt>
-              <dd>{overview?.metrics?.ramPercent ?? "—"}%</dd>
-            </div>
-            <div>
-              <dt className="text-zinc-500">Storage</dt>
-              <dd>{overview?.metrics?.diskPercent ?? "—"}%</dd>
-            </div>
-            <div>
-              <dt className="text-zinc-500">Docker</dt>
-              <dd>{overview?.docker ?? "—"}</dd>
-            </div>
-            <div>
-              <dt className="text-zinc-500">Coolify</dt>
-              <dd>{overview?.coolify ?? "—"}</dd>
-            </div>
-            <div>
-              <dt className="text-zinc-500">Backups</dt>
-              <dd>{overview?.backups ?? "—"}</dd>
-            </div>
-            <div>
-              <dt className="text-zinc-500">SSL</dt>
-              <dd>{overview?.ssl ?? "—"}</dd>
-            </div>
-          </dl>
-        </CardContent>
-      </Card>
+      <CollapsibleCard
+        id={`server-${id}-status`}
+        title="Status"
+        summary={`${overview?.metrics?.cpuPercent ?? "—"}% CPU · ${overview?.metrics?.ramPercent ?? "—"}% RAM`}
+      >
+        <dl className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+          <div>
+            <dt className="text-zinc-500">Host</dt>
+            <dd className="font-medium">{server.host}</dd>
+          </div>
+          <div>
+            <dt className="text-zinc-500">Profil</dt>
+            <dd className="font-medium">
+              {profileLabel(parseMonitorProfile(server.monitorProfile))}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-zinc-500">IP</dt>
+            <dd>{server.ipv4 ?? "—"}</dd>
+          </div>
+          <div>
+            <dt className="text-zinc-500">IPv6</dt>
+            <dd>{server.ipv6 ?? "—"}</dd>
+          </div>
+          <div>
+            <dt className="text-zinc-500">Uptime</dt>
+            <dd>
+              {overview?.metrics?.uptimeSeconds
+                ? formatUptime(overview.metrics.uptimeSeconds)
+                : "—"}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-zinc-500">CPU</dt>
+            <dd>{overview?.metrics?.cpuPercent ?? "—"}%</dd>
+          </div>
+          <div>
+            <dt className="text-zinc-500">RAM</dt>
+            <dd>{overview?.metrics?.ramPercent ?? "—"}%</dd>
+          </div>
+          <div>
+            <dt className="text-zinc-500">Storage</dt>
+            <dd>{overview?.metrics?.diskPercent ?? "—"}%</dd>
+          </div>
+          <div>
+            <dt className="text-zinc-500">Docker</dt>
+            <dd>{overview?.docker ?? "—"}</dd>
+          </div>
+          <div>
+            <dt className="text-zinc-500">Coolify</dt>
+            <dd>{overview?.coolify ?? "—"}</dd>
+          </div>
+          <div>
+            <dt className="text-zinc-500">Backups</dt>
+            <dd>{overview?.backups ?? "—"}</dd>
+          </div>
+          <div>
+            <dt className="text-zinc-500">SSL</dt>
+            <dd>{overview?.ssl ?? "—"}</dd>
+          </div>
+        </dl>
+      </CollapsibleCard>
 
       <div className="grid md:grid-cols-2 gap-4">
-        <Card>
-          <CardHeader>
-            <CardTitle>Logs</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            <p>
-              Status:{" "}
-              <span
-                className={
-                  logsCheck?.status === "critical"
-                    ? "text-red-400"
-                    : logsCheck?.status === "warning"
-                      ? "text-amber-400"
-                      : "text-emerald-400"
-                }
-              >
-                {logsCheck?.status ?? "—"}
-              </span>
-            </p>
-            {!logsCheck && (
-              <p className="text-zinc-500">Noch kein Log-Check ausgeführt.</p>
-            )}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Backups</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            <p>
-              Status:{" "}
-              <span
-                className={
-                  backupsCheck?.status === "critical"
-                    ? "text-red-400"
-                    : backupsCheck?.status === "warning"
-                      ? "text-amber-400"
-                      : "text-emerald-400"
-                }
-              >
-                {backupsCheck?.status ?? "—"}
-              </span>
-            </p>
-            {!backupsCheck && (
-              <p className="text-zinc-500">Noch kein Backup-Check ausgeführt.</p>
-            )}
-          </CardContent>
-        </Card>
+        <CollapsibleCard
+          id={`server-${id}-logs`}
+          title="Logs"
+          summary={logsCheck?.status ?? "kein Check"}
+          contentClassName="space-y-3 text-sm"
+        >
+          <p>
+            Status:{" "}
+            <span
+              className={
+                logsCheck?.status === "critical"
+                  ? "text-red-400"
+                  : logsCheck?.status === "warning"
+                    ? "text-amber-400"
+                    : "text-emerald-400"
+              }
+            >
+              {logsCheck?.status ?? "—"}
+            </span>
+          </p>
+          {!logsCheck && (
+            <p className="text-zinc-500">Noch kein Log-Check ausgeführt.</p>
+          )}
+        </CollapsibleCard>
+        <CollapsibleCard
+          id={`server-${id}-backups`}
+          title="Backups"
+          summary={backupsCheck?.status ?? "kein Check"}
+          contentClassName="space-y-3 text-sm"
+        >
+          <p>
+            Status:{" "}
+            <span
+              className={
+                backupsCheck?.status === "critical"
+                  ? "text-red-400"
+                  : backupsCheck?.status === "warning"
+                    ? "text-amber-400"
+                    : "text-emerald-400"
+              }
+            >
+              {backupsCheck?.status ?? "—"}
+            </span>
+          </p>
+          {!backupsCheck && (
+            <p className="text-zinc-500">Noch kein Backup-Check ausgeführt.</p>
+          )}
+        </CollapsibleCard>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Ereignisse (dieser Server)</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <AlertList
-            compact
-            items={recentAlerts.map((a) => ({
-              id: a.id,
-              level: a.level,
-              module: a.module,
-              message: a.message,
-              recommendation: a.recommendation,
-              createdAt: a.createdAt.toISOString(),
-            }))}
-          />
-        </CardContent>
-      </Card>
+      <CollapsibleCard
+        id={`server-${id}-events`}
+        title="Ereignisse (dieser Server)"
+        count={recentAlerts.length}
+        summary={`${recentAlerts.length} Events`}
+      >
+        <AlertList
+          compact
+          items={recentAlerts.map((a) => ({
+            id: a.id,
+            level: a.level,
+            module: a.module,
+            message: a.message,
+            recommendation: a.recommendation,
+            createdAt: a.createdAt.toISOString(),
+          }))}
+        />
+      </CollapsibleCard>
 
       <p className="text-xs text-zinc-600">
         Live-Details weiter unter{" "}

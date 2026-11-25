@@ -22,12 +22,20 @@ export type AgentTalker = {
   remoteIp: string;
   remotePort: number | null;
   state: AgentTalkerState;
-  /** Bytes/sec TX estimate since last sample (0 if unknown). */
+  /**
+   * Network TX/RX bytes/sec for this socket — only when truly measured.
+   * Must NOT be filled from /proc/<pid>/io (that is process disk I/O).
+   */
   txBps: number;
   rxBps: number;
-  /** Bytes written (process /proc/io) in this sample window. */
+  /** Network bytes in sample window (same caveat as txBps). */
   txBytes?: number | null;
   rxBytes?: number | null;
+  /** Process /proc/io write rate — NOT network upload. */
+  procIoWriteBps?: number | null;
+  procIoReadBps?: number | null;
+  procIoWriteBytes?: number | null;
+  procIoReadBytes?: number | null;
   /** Still present across consecutive samples. */
   stillActive: boolean;
   /** Port/process classification — answers “what kind of data path?” */

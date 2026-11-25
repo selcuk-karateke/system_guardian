@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SgScrollRail } from "@/components/ui/sg-scroll-rail";
+import { CollapsibleCard } from "@/components/ui/collapsible-card";
 import { ServerSelect } from "@/components/dashboard/server-select";
 import { SshTargetNote } from "@/components/dashboard/ssh-target-note";
 import {
@@ -13,9 +13,12 @@ import {
   Fail2banSummary,
   type Fail2banData,
 } from "@/components/security/fail2ban-summary";
+import { AdvisoriesPanel } from "@/components/security/advisories-panel";
 import { IncidentClearanceCard } from "@/components/security/incident-clearance-card";
 import { SshPresenceCard } from "@/components/security/ssh-presence-card";
 import { WebPresenceCard } from "@/components/security/web-presence-card";
+import { getAdvisories } from "@/lib/advisories/fetch-advisories";
+import type { AdvisoriesResult } from "@/lib/advisories/types";
 import { SECURITY_CONCEPTS } from "@/lib/security/concepts";
 import { getOpenControlIssues } from "@/lib/control-summary";
 import type { CoolifyMeta } from "@/lib/checks/coolify-meta";
@@ -52,6 +55,13 @@ export default async function SecurityPage({
   let changes: Awaited<ReturnType<typeof getChangeEvents>> = [];
   let openIssues: Awaited<ReturnType<typeof getOpenControlIssues>> = [];
   let coolifyLookup = new Map<string, CoolifyMeta | undefined>();
+  let advisories: AdvisoriesResult = {
+    fetchedAt: new Date().toISOString(),
+    items: [],
+    stackItems: [],
+    errors: [],
+    sources: [],
+  };
 
   try {
     if (selectedServerId) {
@@ -68,6 +78,17 @@ export default async function SecurityPage({
     );
   } catch {
     /* empty */
+  }
+
+  try {
+    advisories = await getAdvisories();
+  } catch (e) {
+    advisories = {
+      ...advisories,
+      errors: [
+        e instanceof Error ? e.message : "Advisories konnten nicht geladen werden",
+      ],
+    };
   }
 
   return (
@@ -104,37 +125,39 @@ export default async function SecurityPage({
       )}
 
       {openIssues.length > 0 && (
-        <Card className="border-amber-900/50">
-          <CardHeader>
-            <CardTitle>Offene Punkte (Früherkennung)</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <SgScrollRail className="max-h-64 px-6 py-4">
-              <div className="sg-stagger space-y-2 text-sm">
-                {openIssues.map((issue, i) => (
-                  <p
-                    key={`${issue.source}-${i}`}
-                    className={
-                      issue.severity === "critical"
-                        ? "text-red-300"
-                        : issue.severity === "warning"
-                          ? "text-amber-300"
-                          : "text-zinc-400"
-                    }
-                  >
-                    [{issue.source}] {issue.message}
-                  </p>
-                ))}
-                <Link
-                  href="/history"
-                  className="mt-2 block text-xs text-sky-400 underline"
+        <CollapsibleCard
+          id="open-issues"
+          className="border-amber-900/50"
+          title="Offene Punkte (Früherkennung)"
+          count={openIssues.length}
+          summary={`${openIssues.length} offen`}
+          contentClassName="p-0"
+        >
+          <SgScrollRail className="max-h-64">
+            <div className="sg-stagger space-y-2 text-sm">
+              {openIssues.map((issue, i) => (
+                <p
+                  key={`${issue.source}-${i}`}
+                  className={
+                    issue.severity === "critical"
+                      ? "text-red-300"
+                      : issue.severity === "warning"
+                        ? "text-amber-300"
+                        : "text-zinc-400"
+                  }
                 >
-                  Historie filtern →
-                </Link>
-              </div>
-            </SgScrollRail>
-          </CardContent>
-        </Card>
+                  [{issue.source}] {issue.message}
+                </p>
+              ))}
+              <Link
+                href="/history"
+                className="mt-2 block text-xs text-sky-400 underline"
+              >
+                Historie filtern →
+              </Link>
+            </div>
+          </SgScrollRail>
+        </CollapsibleCard>
       )}
 
       <IncidentClearanceCard
@@ -151,6 +174,8 @@ export default async function SecurityPage({
         }
       />
 
+      <AdvisoriesPanel data={advisories} />
+
       <div className="sg-stagger grid lg:grid-cols-2 gap-4">
         <SshPresenceCard
           data={
@@ -164,52 +189,54 @@ export default async function SecurityPage({
         />
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Was ist was – und warum so?</CardTitle>
-        </CardHeader>
-        <CardContent className="sg-stagger space-y-6">
-          {SECURITY_CONCEPTS.map((c) => (
-            <div
-              key={c.id}
-              className="border-b border-zinc-800 pb-5 last:border-0 last:pb-0"
-            >
-              <div className="flex flex-wrap items-center gap-2 mb-2">
-                <h3 className="font-semibold text-zinc-100">{c.title}</h3>
-                <span
-                  className={
-                    c.status === "active"
-                      ? "text-xs px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-800"
-                      : "text-xs px-2 py-0.5 rounded-full bg-zinc-900 text-zinc-400 border border-zinc-700"
-                  }
-                >
-                  {c.status === "active" ? "Aktiv" : "Geplant"}
-                </span>
-                {c.cron !== "—" && (
-                  <span className="text-xs text-zinc-500">Cron: {c.cron}</span>
-                )}
-              </div>
-              <p className="text-sm text-zinc-500">
-                <span className="text-zinc-400">Klassisch (SIEM):</span> {c.siem}
-              </p>
-              <p className="text-sm text-zinc-300 mt-1">
-                <span className="text-zinc-400">Bei uns:</span> {c.guardian}
-              </p>
-              <p className="text-sm text-sky-400/90 mt-2 italic">{c.why}</p>
+      <CollapsibleCard
+        id="concepts"
+        title="Was ist was – und warum so?"
+        summary={`${SECURITY_CONCEPTS.length} Themen`}
+        contentClassName="sg-stagger space-y-6"
+      >
+        {SECURITY_CONCEPTS.map((c) => (
+          <div
+            key={c.id}
+            className="border-b border-zinc-800 pb-5 last:border-0 last:pb-0"
+          >
+            <div className="flex flex-wrap items-center gap-2 mb-2">
+              <h3 className="font-semibold text-zinc-100">{c.title}</h3>
+              <span
+                className={
+                  c.status === "active"
+                    ? "text-xs px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-800"
+                    : "text-xs px-2 py-0.5 rounded-full bg-zinc-900 text-zinc-400 border border-zinc-700"
+                }
+              >
+                {c.status === "active" ? "Aktiv" : "Geplant"}
+              </span>
+              {c.cron !== "—" && (
+                <span className="text-xs text-zinc-500">Cron: {c.cron}</span>
+              )}
             </div>
-          ))}
-        </CardContent>
-      </Card>
+            <p className="text-sm text-zinc-500">
+              <span className="text-zinc-400">Klassisch (SIEM):</span> {c.siem}
+            </p>
+            <p className="text-sm text-zinc-300 mt-1">
+              <span className="text-zinc-400">Bei uns:</span> {c.guardian}
+            </p>
+            <p className="text-sm text-sky-400/90 mt-2 italic">{c.why}</p>
+          </div>
+        ))}
+      </CollapsibleCard>
 
       <div className="sg-stagger grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {MODULES.map((mod) => (
-          <Card key={mod}>
-            <CardHeader>
-              <CardTitle className="capitalize text-base">
-                {mod.replace("_", " ")}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
+        {MODULES.map((mod) => {
+          const st = checks[mod]?.status ?? "—";
+          return (
+            <CollapsibleCard
+              key={mod}
+              id={`module-${mod}`}
+              title={mod.replace("_", " ")}
+              titleClassName="capitalize text-base"
+              summary={String(st)}
+            >
               <p className="text-sm">
                 Status:{" "}
                 <span
@@ -221,7 +248,7 @@ export default async function SecurityPage({
                         : "text-emerald-400"
                   }
                 >
-                  {checks[mod]?.status ?? "—"}
+                  {st}
                 </span>
               </p>
               {(checks[mod]?.data as { isBaseline?: boolean })?.isBaseline && (
@@ -288,30 +315,30 @@ export default async function SecurityPage({
                   }
                 />
               )}
-            </CardContent>
-          </Card>
-        ))}
+            </CollapsibleCard>
+          );
+        })}
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Änderungshistorie</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ul className="sg-stagger text-sm space-y-2">
-            {changes.map((c) => (
-              <li key={c.id} className="text-zinc-400">
-                <span className="text-zinc-200">{c.category}</span> –{" "}
-                {c.changeType}:{" "}
-                {enrichDockerChangeKey(c.category, c.entityKey, coolifyLookup)}
-              </li>
-            ))}
-            {changes.length === 0 && (
-              <li className="text-zinc-500">Keine Änderungen erfasst.</li>
-            )}
-          </ul>
-        </CardContent>
-      </Card>
+      <CollapsibleCard
+        id="change-history"
+        title="Änderungshistorie"
+        count={changes.length}
+        summary={`${changes.length} Einträge`}
+      >
+        <ul className="sg-stagger text-sm space-y-2">
+          {changes.map((c) => (
+            <li key={c.id} className="text-zinc-400">
+              <span className="text-zinc-200">{c.category}</span> –{" "}
+              {c.changeType}:{" "}
+              {enrichDockerChangeKey(c.category, c.entityKey, coolifyLookup)}
+            </li>
+          ))}
+          {changes.length === 0 && (
+            <li className="text-zinc-500">Keine Änderungen erfasst.</li>
+          )}
+        </ul>
+      </CollapsibleCard>
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   enrichReasonWithContainer,
   formatContainerContextSuffix,
+  isGuardianAgentCmdline,
   parseContainerIdFromCgroup,
   parsePidContainerLookupOutput,
   parsePidFromSsProcess,
@@ -19,6 +20,18 @@ describe("parsePidFromSsProcess", () => {
 
   it("returns null when missing", () => {
     assert.equal(parsePidFromSsProcess('users:(("nginx",fd=3))'), null);
+  });
+});
+
+describe("isGuardianAgentCmdline", () => {
+  it("matches agent install path", () => {
+    assert.equal(
+      isGuardianAgentCmdline(
+        "/usr/local/bin/node /opt/guardian-agent/guardian-agent.mjs",
+      ),
+      true,
+    );
+    assert.equal(isGuardianAgentCmdline("node server.js"), false);
   });
 });
 
