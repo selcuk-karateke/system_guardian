@@ -223,25 +223,6 @@ export default async function DockerPage({
         </CollapsibleSection>
       )}
 
-      <p className="text-[11px] text-zinc-600">
-        <a
-          className="underline hover:text-zinc-400"
-          href="https://www.bsi.bund.de/DE/Themen/Unternehmen-und-Organisationen/Cyber-Sicherheitslage/Reaktion/CERT-Bund-Abteilung/cert-bund_node.html"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          CERT-Bund
-        </a>
-        {" · "}
-        <a
-          className="underline hover:text-zinc-400"
-          href="https://status.hetzner.com/"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Hetzner Status
-        </a>
-      </p>
     </div>
   );
 }

@@ -5,14 +5,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Bell,
-  BookOpen,
   Boxes,
   Database,
-  Globe2,
   HardDrive,
   History,
   LayoutDashboard,
-  Monitor,
   PanelLeftClose,
   PanelLeftOpen,
   Settings,
@@ -41,18 +38,6 @@ const NAV_GROUPS: NavGroup[] = [
     label: "Überblick",
     items: [
       { href: "/", label: "Dashboard", short: "Dash", icon: LayoutDashboard },
-      {
-        href: "/monitor",
-        label: "Screensaver",
-        short: "TV",
-        icon: Monitor,
-      },
-      {
-        href: "/monitor/globe",
-        label: "Globus",
-        short: "Geo",
-        icon: Globe2,
-      },
     ],
   },
   {
@@ -87,7 +72,6 @@ const NAV_GROUPS: NavGroup[] = [
     id: "system",
     label: "System",
     items: [
-      { href: "/docs", label: "Dokumentation", short: "Docs", icon: BookOpen },
       { href: "/settings", label: "Einstellungen", short: "Set", icon: Settings },
     ],
   },
@@ -95,17 +79,8 @@ const NAV_GROUPS: NavGroup[] = [
 
 function isActive(pathname: string, href: string) {
   if (href === "/") return pathname === "/";
-  if (href === "/monitor") {
-    return pathname === "/monitor" || pathname === "/monitor/";
-  }
-  if (href === "/monitor/globe") {
-    return pathname.startsWith("/monitor/globe");
-  }
   if (href === "/notifications") {
     return pathname === "/notifications" || pathname.startsWith("/alerts/");
-  }
-  if (href === "/docs") {
-    return pathname === "/docs" || pathname.startsWith("/docs/");
   }
   return pathname === href || pathname.startsWith(`${href}/`);
 }

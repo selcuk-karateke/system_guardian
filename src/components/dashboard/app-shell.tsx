@@ -6,6 +6,7 @@ import { Menu, PanelLeftOpen, X } from "lucide-react";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { PageEnter } from "@/components/motion/page-enter";
 import { cn } from "@/lib/utils";
+import { AppFooter } from "./app-footer";
 import { SidebarNav } from "./sidebar-nav";
 
 const STORAGE_KEY = "sg-sidebar-collapsed";
@@ -169,9 +170,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       )}
 
-      <main className="sg-main min-h-0 min-w-0 flex-1 overflow-auto p-6 pt-16 md:p-8 md:pt-8">
-        <PageEnter>{children}</PageEnter>
-      </main>
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <main className="sg-main min-h-0 flex-1 overflow-auto p-6 pt-16 md:p-8 md:pt-8">
+          <PageEnter>{children}</PageEnter>
+        </main>
+        <AppFooter />
+      </div>
     </div>
   );
 }
